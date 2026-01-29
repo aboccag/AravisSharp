@@ -2,7 +2,20 @@
 using AravisSharp.Native;
 using AravisSharp.Utilities;
 
-Console.WriteLine("=== Aravis Camera Demo ===\n");
+// Run binding tests first
+Console.WriteLine("=== Aravis Binding Verification ===\n");
+try
+{
+    BindingTests.RunTests();
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"\n✗ Binding test failed: {ex.Message}");
+    Console.WriteLine("Stopping before camera demo.\n");
+    return;
+}
+
+Console.WriteLine("\n=== Aravis Camera Demo ===\n");
 
 try
 {

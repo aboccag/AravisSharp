@@ -5,7 +5,7 @@ namespace AravisSharp.Native;
 /// <summary>
 /// P/Invoke declarations for the Aravis library (libaravis-0.8.so)
 /// </summary>
-internal static class AravisNative
+public static class AravisNative
 {
     private const string LibraryName = "aravis-0.8.so.0";
 
