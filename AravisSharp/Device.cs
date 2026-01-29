@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using AravisSharp.Native;
+using AravisSharp.GenICam;
 
 namespace AravisSharp;
 
@@ -9,10 +10,26 @@ namespace AravisSharp;
 public class Device
 {
     private readonly IntPtr _handle;
+    private NodeMap? _nodeMap;
 
     internal Device(IntPtr handle)
     {
         _handle = handle;
+    }
+
+    /// <summary>
+    /// Gets the GenICam node map for exploring camera features
+    /// </summary>
+    public NodeMap NodeMap
+    {
+        get
+        {
+            if (_nodeMap == null)
+            {
+                _nodeMap = new NodeMap(_handle);
+            }
+            return _nodeMap;
+        }
     }
 
     /// <summary>

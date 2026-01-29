@@ -1,21 +1,55 @@
 ﻿using AravisSharp;
 using AravisSharp.Native;
 using AravisSharp.Utilities;
+using AravisSharp.Examples;
 
-// Run binding tests first
-Console.WriteLine("=== Aravis Binding Verification ===\n");
-try
+Console.WriteLine("=== AravisSharp Demo Menu ===\n");
+Console.WriteLine("1. Run binding verification tests");
+Console.WriteLine("2. Run camera capture demo");
+Console.WriteLine("3. GenICam node map demo (simple)");
+Console.WriteLine("4. GenICam explorer (interactive)");
+Console.WriteLine("0. Exit");
+Console.Write("\nChoice: ");
+
+var choice = Console.ReadLine();
+
+switch (choice)
 {
-    BindingTests.RunTests();
-}
-catch (Exception ex)
-{
-    Console.WriteLine($"\n✗ Binding test failed: {ex.Message}");
-    Console.WriteLine("Stopping before camera demo.\n");
-    return;
+    case "1":
+        RunBindingTests();
+        break;
+    case "2":
+        RunCameraDemo();
+        break;
+    case "3":
+        SimpleNodeMapDemo.Run();
+        break;
+    case "4":
+        GenICamExplorerExample.Run();
+        break;
+    case "0":
+        return;
+    default:
+        Console.WriteLine("Invalid choice!");
+        return;
 }
 
-Console.WriteLine("\n=== Aravis Camera Demo ===\n");
+static void RunBindingTests()
+{
+    Console.WriteLine("\n=== Aravis Binding Verification ===\n");
+    try
+    {
+        BindingTests.RunTests();
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"\n✗ Binding test failed: {ex.Message}");
+    }
+}
+
+static void RunCameraDemo()
+{
+    Console.WriteLine("\n=== Aravis Camera Demo ===\n");
 
 try
 {
@@ -56,7 +90,7 @@ try
         // Device ID not supported on all cameras
     }
     Console.WriteLine();
-
+    
     // Get camera capabilities
     var (minWidth, maxWidth) = camera.GetWidthBounds();
     var (minHeight, maxHeight) = camera.GetHeightBounds();
@@ -208,4 +242,5 @@ catch (Exception ex)
 {
     Console.WriteLine($"\nUnexpected Error: {ex.Message}");
     Console.WriteLine(ex.StackTrace);
+}
 }
