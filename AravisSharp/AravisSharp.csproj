@@ -6,11 +6,31 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-        <RuntimeIdentifier>linux-x64</RuntimeIdentifier>
+        
+        <!-- Cross-platform support: Remove RuntimeIdentifier to enable multi-platform builds -->
+        <!-- Uncomment for platform-specific builds: -->
+        <!-- <RuntimeIdentifier>linux-x64</RuntimeIdentifier> -->
+        <!-- <RuntimeIdentifier>linux-arm64</RuntimeIdentifier> -->
+        <!-- <RuntimeIdentifier>win-x64</RuntimeIdentifier> -->
+        <!-- <RuntimeIdentifier>osx-x64</RuntimeIdentifier> -->
+        
+        <!-- Enable runtime-specific builds for NuGet package -->
+        <RuntimeIdentifiers>linux-x64;linux-arm64;win-x64;osx-x64</RuntimeIdentifiers>
     </PropertyGroup>
 
     <ItemGroup>
       <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
     </ItemGroup>
+    
+    <!-- Future: Include native Aravis libraries in runtimes/ folder for NuGet package -->
+    <!-- This would eliminate the need for separate Aravis installation -->
+    <!--
+    <ItemGroup>
+      <Content Include="runtimes/win-x64/native/aravis-0.8-0.dll" PackagePath="runtimes/win-x64/native" Pack="true" />
+      <Content Include="runtimes/linux-x64/native/libaravis-0.8.so.0" PackagePath="runtimes/linux-x64/native" Pack="true" />
+      <Content Include="runtimes/linux-arm64/native/libaravis-0.8.so.0" PackagePath="runtimes/linux-arm64/native" Pack="true" />
+      <Content Include="runtimes/osx-x64/native/libaravis-0.8.0.dylib" PackagePath="runtimes/osx-x64/native" Pack="true" />
+    </ItemGroup>
+    -->
 
 </Project>

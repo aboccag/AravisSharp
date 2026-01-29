@@ -3,6 +3,24 @@ using AravisSharp.Native;
 using AravisSharp.Utilities;
 using AravisSharp.Examples;
 
+// Display platform information
+Console.WriteLine("=== AravisSharp Platform Information ===");
+Console.WriteLine(AravisLibrary.GetPlatformInfo());
+Console.WriteLine($"\nAravis Library: {AravisLibrary.GetLibraryName()}");
+Console.Write("Aravis Status: ");
+
+if (AravisLibrary.IsAravisAvailable())
+{
+    Console.WriteLine("✓ Available\n");
+}
+else
+{
+    Console.WriteLine("✗ Not Found\n");
+    Console.WriteLine(AravisLibrary.GetInstallationInstructions());
+    Console.WriteLine("\nPlease install Aravis and restart the application.");
+    return;
+}
+
 Console.WriteLine("=== AravisSharp Demo Menu ===\n");
 Console.WriteLine("1. Run binding verification tests");
 Console.WriteLine("2. Run camera capture demo");

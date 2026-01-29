@@ -3,11 +3,20 @@ using System.Runtime.InteropServices;
 namespace AravisSharp.Native;
 
 /// <summary>
-/// P/Invoke declarations for the Aravis library (libaravis-0.8.so)
+/// P/Invoke declarations for the Aravis library
+/// Cross-platform: Windows (aravis-0.8-0.dll), Linux (libaravis-0.8.so.0), macOS (libaravis-0.8.dylib)
 /// </summary>
 public static class AravisNative
 {
-    private const string LibraryName = "aravis-0.8.so.0";
+    // Platform-specific library names
+    // .NET doesn't automatically add lib prefix or .so suffix on Linux, so we need the full name
+#if WINDOWS
+    private const string LibraryName = "aravis-0.8-0"; // Will find aravis-0.8-0.dll
+#elif OSX
+    private const string LibraryName = "aravis-0.8"; // Will find libaravis-0.8.dylib
+#else
+    private const string LibraryName = "libaravis-0.8.so.0"; // Linux: full name required
+#endif
 
     // Camera discovery and enumeration
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
