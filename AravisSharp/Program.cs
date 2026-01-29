@@ -8,6 +8,10 @@ Console.WriteLine("1. Run binding verification tests");
 Console.WriteLine("2. Run camera capture demo");
 Console.WriteLine("3. GenICam node map demo (simple)");
 Console.WriteLine("4. GenICam explorer (interactive)");
+Console.WriteLine("5. Feature browser (comprehensive)");
+Console.WriteLine("6. Simple feature lister (debug)");
+Console.WriteLine("7. Feature overview (detailed)");
+Console.WriteLine("8. Quick feature demo (recommended)");
 Console.WriteLine("0. Exit");
 Console.Write("\nChoice: ");
 
@@ -26,6 +30,18 @@ switch (choice)
         break;
     case "4":
         GenICamExplorerExample.Run();
+        break;
+    case "5":
+        FeatureBrowserExample.Run();
+        break;
+    case "6":
+        SimpleFeatureListerExample.Run();
+        break;
+    case "7":
+        FeatureOverviewExample.Run();
+        break;
+    case "8":
+        QuickFeatureDemoExample.Run();
         break;
     case "0":
         return;

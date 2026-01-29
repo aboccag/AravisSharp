@@ -13,14 +13,142 @@ public class NodeMap : IDisposable
 {
     private IntPtr _deviceHandle;
     private bool _disposed;
+    private IntPtr _genicam;
 
     internal NodeMap(IntPtr deviceHandle)
     {
         _deviceHandle = deviceHandle;
+        _genicam = AravisNative.arv_device_get_genicam(deviceHandle);
     }
 
     /// <summary>
-    /// Gets a feature node by name (simplified - returns feature info)
+    /// Gets detailed information about a feature
+    /// </summary>
+    public FeatureDetails? GetFeatureDetails(string featureName)
+    {
+        try
+        {
+            return FeatureDetails.FromNode(_deviceHandle, featureName);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Gets all features organized by category
+    /// </summary>
+    public Dictionary<string, List<FeatureDetails>> GetFeaturesByCategory()
+    {
+        var categories = new Dictionary<string, List<FeatureDetails>>();
+        
+        // Standard GenICam categories
+        var categoryNames = new[]
+        {
+            "Root",
+            "DeviceControl",
+            "ImageFormatControl",
+            "AcquisitionControl",
+            "AnalogControl",
+            "TransportLayerControl",
+            "DigitalIOControl",
+            "CounterAndTimerControl",
+            "LUTControl",
+            "AutoFunctionControl",
+            "UserSetControl",
+            "EventControl",
+            "FileAccessControl"
+        };
+
+        foreach (var categoryName in categoryNames)
+        {
+            var features = GetFeaturesInCategory(categoryName);
+            if (features.Count > 0)
+            {
+                categories[categoryName] = features;
+            }
+        }
+
+        return categories;
+    }
+
+    /// <summary>
+    /// Gets all features in a specific category
+    /// </summary>
+    public List<FeatureDetails> GetFeaturesInCategory(string categoryName)
+    {
+        var features = new List<FeatureDetails>();
+        
+        try
+        {
+            if (_genicam == IntPtr.Zero) return features;
+            
+            var categoryPtr = AravisNative.arv_gc_get_node(_genicam, Marshal.StringToHGlobalAnsi(categoryName));
+            if (categoryPtr == IntPtr.Zero) return features;
+            
+            var featuresPtr = AravisNative.arv_gc_category_get_features(categoryPtr);
+            if (featuresPtr == IntPtr.Zero) return features;
+            
+            // GSList iteration
+            var current = featuresPtr;
+            while (current != IntPtr.Zero)
+            {
+                var nodePtr = Marshal.ReadIntPtr(current, 0); // data field
+                if (nodePtr != IntPtr.Zero)
+                {
+                    var namePtr = AravisNative.arv_gc_feature_node_get_name(nodePtr);
+                    if (namePtr != IntPtr.Zero)
+                    {
+                        var name = Marshal.PtrToStringAnsi(namePtr);
+                        if (name != null)
+                        {
+                            var details = GetFeatureDetails(name);
+                            if (details != null && details.IsImplemented)
+                            {
+                                features.Add(details);
+                            }
+                        }
+                    }
+                }
+                
+                // Move to next in list
+                current = Marshal.ReadIntPtr(current, IntPtr.Size); // next field
+            }
+        }
+        catch
+        {
+            // Ignore errors
+        }
+        
+        return features;
+    }
+
+    /// <summary>
+    /// Gets all available features (comprehensive search)
+    /// </summary>
+    public List<FeatureDetails> GetAllFeatures()
+    {
+        var allFeatures = new List<FeatureDetails>();
+        var seenNames = new HashSet<string>();
+        
+        // Get features from all categories
+        foreach (var (category, features) in GetFeaturesByCategory())
+        {
+            foreach (var feature in features)
+            {
+                if (seenNames.Add(feature.Name))
+                {
+                    allFeatures.Add(feature);
+                }
+            }
+        }
+        
+        return allFeatures;
+    }
+
+    /// <summary>
+    /// Gets a feature node by name (legacy compatibility)
     /// </summary>
     public FeatureInfo? GetNode(string nodeName)
     {
@@ -39,33 +167,6 @@ public class NodeMap : IDisposable
         {
             return null;
         }
-    }
-
-    /// <summary>
-    /// Gets all available features (simplified list)
-    /// </summary>
-    public List<FeatureInfo> GetAllFeatures()
-    {
-        var features = new List<FeatureInfo>();
-        
-        // Common GenICam features
-        var commonFeatures = new[]
-        {
-            "DeviceVendorName", "DeviceModelName", "DeviceFirmwareVersion",
-            "DeviceSerialNumber", "Width", "Height", "PixelFormat",
-            "AcquisitionMode", "ExposureTime", "Gain", "TriggerMode"
-        };
-
-        foreach (var featureName in commonFeatures)
-        {
-            var node = GetNode(featureName);
-            if (node != null)
-            {
-                features.Add(node);
-            }
-        }
-
-        return features;
     }
 
     /// <summary>

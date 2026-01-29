@@ -225,6 +225,65 @@ public static class AravisNative
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void arv_device_execute_command(IntPtr device, IntPtr feature, out IntPtr error);
 
+    // GenICam feature introspection
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr arv_device_get_genicam(IntPtr device);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void arv_device_get_integer_feature_bounds(IntPtr device, IntPtr feature, out long min, out long max, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern long arv_device_get_integer_feature_increment(IntPtr device, IntPtr feature, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void arv_device_get_float_feature_bounds(IntPtr device, IntPtr feature, out double min, out double max, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern double arv_device_get_float_feature_increment(IntPtr device, IntPtr feature, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr arv_device_dup_available_enumeration_feature_values_as_strings(IntPtr device, IntPtr feature, out uint n_values, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr arv_device_dup_available_enumeration_feature_values_as_display_names(IntPtr device, IntPtr feature, out uint n_values, out IntPtr error);
+
+    // GenICam node map functions
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr arv_gc_get_node(IntPtr genicam, IntPtr name);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr arv_gc_category_get_features(IntPtr category);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr arv_gc_feature_node_get_name(IntPtr node);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr arv_gc_feature_node_get_display_name(IntPtr node);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr arv_gc_feature_node_get_description(IntPtr node);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr arv_gc_feature_node_get_tooltip(IntPtr node);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr arv_gc_feature_node_get_value_as_string(IntPtr node, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr arv_gc_feature_node_get_actual_access_mode(IntPtr node);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr arv_gc_feature_node_get_visibility(IntPtr node);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern bool arv_gc_feature_node_is_available(IntPtr node, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern bool arv_gc_feature_node_is_implemented(IntPtr node, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern bool arv_gc_feature_node_is_locked(IntPtr node, out IntPtr error);
+
     // GObject reference counting
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr g_object_ref(IntPtr obj);
