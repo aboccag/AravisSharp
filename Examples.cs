@@ -1,0 +1,256 @@
+using AravisSharp;
+using AravisSharp.Utilities;
+using AravisSharp.Native;
+
+namespace Examples;
+
+/// <summary>
+/// Example demonstrating continuous high-performance image acquisition
+/// </summary>
+public static class ContinuousAcquisitionExample
+{
+    public static void Run()
+    {
+        Console.WriteLine("=== Continuous Acquisition Example ===\n");
+
+        using var camera = new Camera();
+        Console.WriteLine($"Connected to: {camera.GetModelName()}\n");
+
+        // Configure camera
+        camera.SetExposureTime(5000); // 5ms
+        camera.SetFrameRate(100); // 100 fps
+        
+        var (x, y, width, height) = camera.GetRegion();
+        var pixelFormat = camera.GetPixelFormat();
+        
+        Console.WriteLine($"Image: {width}x{height}, Format: {pixelFormat}");
+
+        // Create stream
+        using var stream = camera.CreateStream();
+
+        // Allocate buffers
+        var buffers = new List<AravisSharp.Buffer>();
+        var bufferSize = ImageHelper.CalculateBufferSize(width, height, 
+            ArvPixelFormat.ARV_PIXEL_FORMAT_MONO_8);
+
+        for (int i = 0; i < 20; i++) // More buffers for high-speed capture
+        {
+            var buffer = new AravisSharp.Buffer(new IntPtr(bufferSize));
+            buffers.Add(buffer);
+            stream.PushBuffer(buffer);
+        }
+
+        // Setup statistics
+        var stats = new AcquisitionStats();
+        
+        // Start acquisition
+        camera.StartAcquisition();
+        stats.Start();
+
+        Console.WriteLine("\nAcquiring images... Press Ctrl+C to stop\n");
+
+        var cts = new CancellationTokenSource();
+        Console.CancelKeyPress += (s, e) =>
+        {
+            e.Cancel = true;
+            cts.Cancel();
+        };
+
+        int savedCount = 0;
+        const int maxSaved = 5;
+
+        while (!cts.Token.IsCancellationRequested)
+        {
+            var buffer = stream.PopBuffer(1000); // 1 second timeout
+
+            if (buffer != null)
+            {
+                if (buffer.Status == ArvBufferStatus.Success)
+                {
+                    stats.RecordSuccess(buffer.GetData().Size);
+
+                    // Save first few frames
+                    if (savedCount < maxSaved)
+                    {
+                        var filename = $"frame_{buffer.FrameId:D6}.raw";
+                        ImageHelper.SaveToRawFile(buffer, filename);
+                        savedCount++;
+                        Console.WriteLine($"Saved {filename}");
+                    }
+                    
+                    // Print status every 100 frames
+                    if (stats.SuccessCount % 100 == 0)
+                    {
+                        stats.PrintStatus();
+                    }
+                }
+                else
+                {
+                    stats.RecordFailure();
+                }
+
+                stream.PushBuffer(buffer);
+            }
+            else
+            {
+                stats.RecordTimeout();
+            }
+        }
+
+        // Stop acquisition
+        stats.Stop();
+        camera.StopAcquisition();
+
+        // Print final statistics
+        Console.WriteLine("\n\n" + stats.ToString());
+        
+        var (completed, failures, underruns) = stream.GetStatistics();
+        Console.WriteLine($"\nStream Statistics:");
+        Console.WriteLine($"  Completed: {completed}");
+        Console.WriteLine($"  Failures: {failures}");
+        Console.WriteLine($"  Underruns: {underruns}");
+
+        // Cleanup
+        foreach (var buf in buffers)
+            buf.Dispose();
+    }
+}
+
+/// <summary>
+/// Example demonstrating triggered acquisition
+/// </summary>
+public static class TriggeredAcquisitionExample
+{
+    public static void Run()
+    {
+        Console.WriteLine("=== Triggered Acquisition Example ===\n");
+
+        using var camera = new Camera();
+        var device = camera.GetDevice();
+        
+        Console.WriteLine($"Connected to: {camera.GetModelName()}\n");
+
+        // Configure for software trigger
+        device.SetStringFeature("TriggerMode", "On");
+        device.SetStringFeature("TriggerSource", "Software");
+        device.SetStringFeature("TriggerSelector", "FrameStart");
+        
+        Console.WriteLine("Trigger mode: Software\n");
+
+        // Create stream and buffers
+        using var stream = camera.CreateStream();
+        var (_, _, width, height) = camera.GetRegion();
+        
+        var buffers = new List<AravisSharp.Buffer>();
+        for (int i = 0; i < 3; i++)
+        {
+            var buffer = new AravisSharp.Buffer(new IntPtr(width * height * 2));
+            buffers.Add(buffer);
+            stream.PushBuffer(buffer);
+        }
+
+        // Start acquisition
+        camera.StartAcquisition();
+
+        // Acquire 10 triggered frames
+        for (int i = 0; i < 10; i++)
+        {
+            Console.WriteLine($"Triggering frame {i + 1}...");
+            
+            // Send software trigger
+            camera.SoftwareTrigger();
+            
+            // Wait for frame
+            var buffer = stream.PopBuffer(5000);
+            
+            if (buffer != null && buffer.Status == ArvBufferStatus.Success)
+            {
+                Console.WriteLine($"  Received frame {buffer.FrameId}, " +
+                                $"size: {buffer.Width}x{buffer.Height}");
+                stream.PushBuffer(buffer);
+            }
+            else
+            {
+                Console.WriteLine("  Failed to receive frame!");
+            }
+
+            Thread.Sleep(100); // Wait between triggers
+        }
+
+        camera.StopAcquisition();
+
+        // Cleanup
+        foreach (var buf in buffers)
+            buf.Dispose();
+            
+        Console.WriteLine("\nTriggered acquisition completed!");
+    }
+}
+
+/// <summary>
+/// Example demonstrating GenICam feature access
+/// </summary>
+public static class FeatureAccessExample
+{
+    public static void Run()
+    {
+        Console.WriteLine("=== GenICam Feature Access Example ===\n");
+
+        using var camera = new Camera();
+        var device = camera.GetDevice();
+        
+        Console.WriteLine($"Camera: {camera.GetModelName()}\n");
+
+        // Read various features
+        Console.WriteLine("Camera Features:");
+        
+        try
+        {
+            var deviceVersion = device.GetStringFeature("DeviceVersion");
+            Console.WriteLine($"  Device Version: {deviceVersion}");
+        }
+        catch { Console.WriteLine("  Device Version: N/A"); }
+
+        try
+        {
+            var sensorWidth = device.GetIntegerFeature("SensorWidth");
+            var sensorHeight = device.GetIntegerFeature("SensorHeight");
+            Console.WriteLine($"  Sensor: {sensorWidth} x {sensorHeight}");
+        }
+        catch { Console.WriteLine("  Sensor size: N/A"); }
+
+        try
+        {
+            var temperature = device.GetFloatFeature("DeviceTemperature");
+            Console.WriteLine($"  Temperature: {temperature:F1}°C");
+        }
+        catch { Console.WriteLine("  Temperature: N/A"); }
+
+        // Set features
+        Console.WriteLine("\nSetting features:");
+        
+        try
+        {
+            device.SetFloatFeature("AcquisitionFrameRate", 50.0);
+            var actualRate = device.GetFloatFeature("AcquisitionFrameRate");
+            Console.WriteLine($"  Frame rate set to: {actualRate} fps");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"  Could not set frame rate: {ex.Message}");
+        }
+
+        try
+        {
+            // Enable auto exposure if available
+            device.SetStringFeature("ExposureAuto", "Continuous");
+            Console.WriteLine("  Auto exposure: Enabled");
+        }
+        catch
+        {
+            Console.WriteLine("  Auto exposure: Not available");
+        }
+
+        Console.WriteLine("\nFeature access completed!");
+    }
+}
