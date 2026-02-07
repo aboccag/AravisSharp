@@ -84,7 +84,16 @@ public class NodeMap : IDisposable
         {
             if (_genicam == IntPtr.Zero) return features;
             
-            var categoryPtr = AravisNative.arv_gc_get_node(_genicam, Marshal.StringToHGlobalAnsi(categoryName));
+            var categoryNamePtr = Marshal.StringToHGlobalAnsi(categoryName);
+            IntPtr categoryPtr;
+            try
+            {
+                categoryPtr = AravisNative.arv_gc_get_node(_genicam, categoryNamePtr);
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(categoryNamePtr);
+            }
             if (categoryPtr == IntPtr.Zero) return features;
             
             var featuresPtr = AravisNative.arv_gc_category_get_features(categoryPtr);
@@ -175,20 +184,19 @@ public class NodeMap : IDisposable
     public string? GetStringFeature(string featureName)
     {
         IntPtr namePtr = Marshal.StringToHGlobalAnsi(featureName);
+        IntPtr error = IntPtr.Zero;
         try
         {
-            IntPtr error = IntPtr.Zero;
             IntPtr valuePtr = AravisNative.arv_device_get_string_feature_value(_deviceHandle, namePtr, out error);
             
             if (error != IntPtr.Zero)
-            {
                 return null;
-            }
 
             return Marshal.PtrToStringAnsi(valuePtr);
         }
         finally
         {
+            GLibNative.ClearError(ref error);
             Marshal.FreeHGlobal(namePtr);
         }
     }
@@ -200,18 +208,17 @@ public class NodeMap : IDisposable
     {
         IntPtr namePtr = Marshal.StringToHGlobalAnsi(featureName);
         IntPtr valuePtr = Marshal.StringToHGlobalAnsi(value);
+        IntPtr error = IntPtr.Zero;
         try
         {
-            IntPtr error = IntPtr.Zero;
             AravisNative.arv_device_set_string_feature_value(_deviceHandle, namePtr, valuePtr, out error);
             
             if (error != IntPtr.Zero)
-            {
                 throw new InvalidOperationException($"Failed to set feature {featureName}");
-            }
         }
         finally
         {
+            GLibNative.ClearError(ref error);
             Marshal.FreeHGlobal(namePtr);
             Marshal.FreeHGlobal(valuePtr);
         }
@@ -223,20 +230,19 @@ public class NodeMap : IDisposable
     public long GetIntegerFeature(string featureName)
     {
         IntPtr namePtr = Marshal.StringToHGlobalAnsi(featureName);
+        IntPtr error = IntPtr.Zero;
         try
         {
-            IntPtr error = IntPtr.Zero;
             long value = AravisNative.arv_device_get_integer_feature_value(_deviceHandle, namePtr, out error);
             
             if (error != IntPtr.Zero)
-            {
                 throw new InvalidOperationException($"Failed to get feature {featureName}");
-            }
 
             return value;
         }
         finally
         {
+            GLibNative.ClearError(ref error);
             Marshal.FreeHGlobal(namePtr);
         }
     }
@@ -247,18 +253,17 @@ public class NodeMap : IDisposable
     public void SetIntegerFeature(string featureName, long value)
     {
         IntPtr namePtr = Marshal.StringToHGlobalAnsi(featureName);
+        IntPtr error = IntPtr.Zero;
         try
         {
-            IntPtr error = IntPtr.Zero;
             AravisNative.arv_device_set_integer_feature_value(_deviceHandle, namePtr, value, out error);
             
             if (error != IntPtr.Zero)
-            {
                 throw new InvalidOperationException($"Failed to set feature {featureName}");
-            }
         }
         finally
         {
+            GLibNative.ClearError(ref error);
             Marshal.FreeHGlobal(namePtr);
         }
     }
@@ -269,20 +274,19 @@ public class NodeMap : IDisposable
     public double GetFloatFeature(string featureName)
     {
         IntPtr namePtr = Marshal.StringToHGlobalAnsi(featureName);
+        IntPtr error = IntPtr.Zero;
         try
         {
-            IntPtr error = IntPtr.Zero;
             double value = AravisNative.arv_device_get_float_feature_value(_deviceHandle, namePtr, out error);
             
             if (error != IntPtr.Zero)
-            {
                 throw new InvalidOperationException($"Failed to get feature {featureName}");
-            }
 
             return value;
         }
         finally
         {
+            GLibNative.ClearError(ref error);
             Marshal.FreeHGlobal(namePtr);
         }
     }
@@ -293,18 +297,17 @@ public class NodeMap : IDisposable
     public void SetFloatFeature(string featureName, double value)
     {
         IntPtr namePtr = Marshal.StringToHGlobalAnsi(featureName);
+        IntPtr error = IntPtr.Zero;
         try
         {
-            IntPtr error = IntPtr.Zero;
             AravisNative.arv_device_set_float_feature_value(_deviceHandle, namePtr, value, out error);
             
             if (error != IntPtr.Zero)
-            {
                 throw new InvalidOperationException($"Failed to set feature {featureName}");
-            }
         }
         finally
         {
+            GLibNative.ClearError(ref error);
             Marshal.FreeHGlobal(namePtr);
         }
     }
@@ -315,20 +318,19 @@ public class NodeMap : IDisposable
     public bool GetBooleanFeature(string featureName)
     {
         IntPtr namePtr = Marshal.StringToHGlobalAnsi(featureName);
+        IntPtr error = IntPtr.Zero;
         try
         {
-            IntPtr error = IntPtr.Zero;
             bool value = AravisNative.arv_device_get_boolean_feature_value(_deviceHandle, namePtr, out error);
             
             if (error != IntPtr.Zero)
-            {
                 throw new InvalidOperationException($"Failed to get feature {featureName}");
-            }
 
             return value;
         }
         finally
         {
+            GLibNative.ClearError(ref error);
             Marshal.FreeHGlobal(namePtr);
         }
     }
@@ -339,18 +341,17 @@ public class NodeMap : IDisposable
     public void SetBooleanFeature(string featureName, bool value)
     {
         IntPtr namePtr = Marshal.StringToHGlobalAnsi(featureName);
+        IntPtr error = IntPtr.Zero;
         try
         {
-            IntPtr error = IntPtr.Zero;
             AravisNative.arv_device_set_boolean_feature_value(_deviceHandle, namePtr, value, out error);
             
             if (error != IntPtr.Zero)
-            {
                 throw new InvalidOperationException($"Failed to set feature {featureName}");
-            }
         }
         finally
         {
+            GLibNative.ClearError(ref error);
             Marshal.FreeHGlobal(namePtr);
         }
     }
@@ -361,18 +362,17 @@ public class NodeMap : IDisposable
     public void ExecuteCommand(string commandName)
     {
         IntPtr namePtr = Marshal.StringToHGlobalAnsi(commandName);
+        IntPtr error = IntPtr.Zero;
         try
         {
-            IntPtr error = IntPtr.Zero;
             AravisNative.arv_device_execute_command(_deviceHandle, namePtr, out error);
             
             if (error != IntPtr.Zero)
-            {
                 throw new InvalidOperationException($"Failed to execute command {commandName}");
-            }
         }
         finally
         {
+            GLibNative.ClearError(ref error);
             Marshal.FreeHGlobal(namePtr);
         }
     }
