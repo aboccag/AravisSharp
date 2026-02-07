@@ -8,15 +8,10 @@ namespace AravisSharp.Native;
 /// </summary>
 public static class AravisNative
 {
-    // Platform-specific library names
-    // .NET doesn't automatically add lib prefix or .so suffix on Linux, so we need the full name
-#if WINDOWS
-    private const string LibraryName = "aravis-0.8-0"; // Will find aravis-0.8-0.dll
-#elif OSX
-    private const string LibraryName = "aravis-0.8"; // Will find libaravis-0.8.dylib
-#else
-    private const string LibraryName = "libaravis-0.8.so.0"; // Linux: full name required
-#endif
+    // Logical library name used by all DllImport attributes.
+    // The actual platform-specific resolution is handled by
+    // AravisLibrary.RegisterResolver() via NativeLibrary.SetDllImportResolver.
+    internal const string LibraryName = "aravis-0.8";
 
     // Camera discovery and enumeration
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
@@ -152,6 +147,10 @@ public static class AravisNative
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void arv_camera_software_trigger(IntPtr camera, out IntPtr error);
 
+    // Payload size (needed for buffer allocation)
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern uint arv_camera_get_payload(IntPtr camera, out IntPtr error);
+
     // Stream creation
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr arv_camera_create_stream(IntPtr camera, IntPtr callback, IntPtr userData, out IntPtr error);
@@ -279,10 +278,10 @@ public static class AravisNative
     public static extern IntPtr arv_gc_feature_node_get_value_as_string(IntPtr node, out IntPtr error);
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr arv_gc_feature_node_get_actual_access_mode(IntPtr node);
+    public static extern int arv_gc_feature_node_get_actual_access_mode(IntPtr node);
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr arv_gc_feature_node_get_visibility(IntPtr node);
+    public static extern int arv_gc_feature_node_get_visibility(IntPtr node);
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     public static extern bool arv_gc_feature_node_is_available(IntPtr node, out IntPtr error);
@@ -293,19 +292,6 @@ public static class AravisNative
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     public static extern bool arv_gc_feature_node_is_locked(IntPtr node, out IntPtr error);
 
-    // GObject reference counting
-    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr g_object_ref(IntPtr obj);
-
-    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void g_object_unref(IntPtr obj);
-
-    // GError handling
-    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void g_error_free(IntPtr error);
-
-    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void g_clear_error(ref IntPtr error);
 }
 
 /// <summary>

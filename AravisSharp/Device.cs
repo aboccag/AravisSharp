@@ -52,7 +52,7 @@ public class Device
             if (featurePtr != IntPtr.Zero)
                 Marshal.FreeCoTaskMem(featurePtr);
             if (error != IntPtr.Zero)
-                AravisNative.g_error_free(error);
+                GLibNative.g_error_free(error);
         }
     }
 
@@ -79,7 +79,7 @@ public class Device
             if (valuePtr != IntPtr.Zero)
                 Marshal.FreeCoTaskMem(valuePtr);
             if (error != IntPtr.Zero)
-                AravisNative.g_error_free(error);
+                GLibNative.g_error_free(error);
         }
     }
 
@@ -103,7 +103,7 @@ public class Device
             if (featurePtr != IntPtr.Zero)
                 Marshal.FreeCoTaskMem(featurePtr);
             if (error != IntPtr.Zero)
-                AravisNative.g_error_free(error);
+                GLibNative.g_error_free(error);
         }
     }
 
@@ -126,7 +126,7 @@ public class Device
             if (featurePtr != IntPtr.Zero)
                 Marshal.FreeCoTaskMem(featurePtr);
             if (error != IntPtr.Zero)
-                AravisNative.g_error_free(error);
+                GLibNative.g_error_free(error);
         }
     }
 
@@ -150,7 +150,7 @@ public class Device
             if (featurePtr != IntPtr.Zero)
                 Marshal.FreeCoTaskMem(featurePtr);
             if (error != IntPtr.Zero)
-                AravisNative.g_error_free(error);
+                GLibNative.g_error_free(error);
         }
     }
 
@@ -173,7 +173,7 @@ public class Device
             if (featurePtr != IntPtr.Zero)
                 Marshal.FreeCoTaskMem(featurePtr);
             if (error != IntPtr.Zero)
-                AravisNative.g_error_free(error);
+                GLibNative.g_error_free(error);
         }
     }
 
@@ -197,7 +197,7 @@ public class Device
             if (featurePtr != IntPtr.Zero)
                 Marshal.FreeCoTaskMem(featurePtr);
             if (error != IntPtr.Zero)
-                AravisNative.g_error_free(error);
+                GLibNative.g_error_free(error);
         }
     }
 
@@ -220,7 +220,7 @@ public class Device
             if (featurePtr != IntPtr.Zero)
                 Marshal.FreeCoTaskMem(featurePtr);
             if (error != IntPtr.Zero)
-                AravisNative.g_error_free(error);
+                GLibNative.g_error_free(error);
         }
     }
 
@@ -243,7 +243,7 @@ public class Device
             if (featurePtr != IntPtr.Zero)
                 Marshal.FreeCoTaskMem(featurePtr);
             if (error != IntPtr.Zero)
-                AravisNative.g_error_free(error);
+                GLibNative.g_error_free(error);
         }
     }
 

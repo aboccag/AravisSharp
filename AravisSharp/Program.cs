@@ -3,6 +3,9 @@ using AravisSharp.Native;
 using AravisSharp.Utilities;
 using AravisSharp.Examples;
 
+// Register the native library resolver before any P/Invoke call
+AravisLibrary.RegisterResolver();
+
 // Display platform information
 Console.WriteLine("=== AravisSharp Platform Information ===");
 Console.WriteLine(AravisLibrary.GetPlatformInfo());
@@ -20,6 +23,28 @@ else
     Console.WriteLine("\nPlease install Aravis and restart the application.");
     return;
 }
+
+// Diagnostic: show which Aravis interfaces are active
+Console.WriteLine("=== Aravis Interfaces ===");
+try
+{
+    var nInterfaces = AravisSharp.Generated.AravisGenerated.arv_get_n_interfaces();
+    Console.WriteLine($"Number of interfaces: {nInterfaces}");
+    for (uint i = 0; i < nInterfaces; i++)
+    {
+        var idPtr = AravisSharp.Generated.AravisGenerated.arv_get_interface_id(i);
+        var id = idPtr != IntPtr.Zero ? System.Runtime.InteropServices.Marshal.PtrToStringAnsi(idPtr) : "(null)";
+        Console.WriteLine($"  [{i}] {id}");
+    }
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"  Error querying interfaces: {ex.Message}");
+}
+
+CameraDiscovery.UpdateDeviceList();
+var deviceCount = CameraDiscovery.GetDeviceCount();
+Console.WriteLine($"\nDevices found: {deviceCount}\n");
 
 Console.WriteLine("=== AravisSharp Demo Menu ===\n");
 Console.WriteLine("1. Run binding verification tests");

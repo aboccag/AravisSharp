@@ -87,7 +87,7 @@ public class Stream : IDisposable
         {
             if (_handle != IntPtr.Zero)
             {
-                AravisNative.g_object_unref(_handle);
+                GLibNative.g_object_unref(_handle);
                 _handle = IntPtr.Zero;
             }
             _disposed = true;

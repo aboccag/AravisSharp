@@ -201,7 +201,7 @@ public class Buffer : IDisposable
             {
                 try
                 {
-                    AravisNative.g_object_unref(_handle);
+                    GLibNative.g_object_unref(_handle);
                 }
                 catch
                 {

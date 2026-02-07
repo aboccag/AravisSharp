@@ -2,12 +2,38 @@
 
 ## Installation
 
+### Linux (Ubuntu/Debian)
+
 ```bash
 # Install Aravis library
 sudo apt-get install libaravis-0.8-0 libaravis-0.8-dev aravis-tools-0.8
 
 # Check installation
 ./check-setup.sh
+
+# Build and run
+cd AravisSharp
+dotnet run
+```
+
+### Windows
+
+```powershell
+# Install via NuGet (recommended)
+dotnet add package AravisSharp.runtime.win-x64
+
+# Or download Aravis from GitHub
+# https://github.com/AravisProject/aravis/releases
+
+# For USB3Vision cameras - Install WinUSB driver:
+# 1. Download Zadig from https://zadig.akeo.ie/
+# 2. Run as Administrator
+# 3. Options -> List All Devices
+# 4. Select your camera (e.g., "Basler ace USB3 Vision Camera")
+# 5. Select "WinUSB" driver
+# 6. Click "Replace Driver"
+
+# GigE cameras work without driver changes
 
 # Build and run
 cd AravisSharp

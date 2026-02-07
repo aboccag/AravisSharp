@@ -8,11 +8,11 @@
 |----------|-------------|--------|--------------|
 | **Linux** | x64 | ✅ Tested | `libaravis-0.8.so.0` |
 | **Linux** | ARM/ARM64 | ✅ Compatible | `libaravis-0.8.so.0` |
-| **Windows** | x64 | ✅ Compatible* | `aravis-0.8-0.dll` |
+| **Windows** | x64 | ✅ Tested* | `libaravis-0.8-0.dll` |
 | **Windows** | ARM64 | ⚠️ Untested | `aravis-0.8-0.dll` |
 | **macOS** | x64/ARM64 | ⚠️ Untested | `libaravis-0.8.dylib` |
 
-*Requires Aravis Windows build (see installation instructions below)
+*Tested with Basler acA720-520um camera. USB3Vision cameras require WinUSB driver.
 
 ### Platform-Specific Notes
 
@@ -29,11 +29,12 @@
 - **Use Cases**: Embedded vision, robotics, industrial IoT
 
 #### Windows x64
-- **Compatibility**: Aravis has official Windows builds
-- **Installation**: MSI installer or manual DLL placement
-- **USB3Vision**: Requires WinUSB driver (use Zadig)
-- **GigE Vision**: Works with standard network stack
-- **Note**: Some cameras may require vendor-specific filters
+- **Status**: ✅ Fully tested with USB3Vision cameras
+- **Installation**: NuGet package (recommended) or MSI installer
+- **USB3Vision**: **Requires WinUSB driver** - use Zadig to replace camera driver
+- **GigE Vision**: Works with standard network stack (no driver changes needed)
+- **Tested Cameras**: Basler acA720-520um (USB3Vision)
+- **Important**: USB cameras using vendor drivers (e.g., Basler Pylon driver) are not accessible to Aravis until you switch to WinUSB
 
 #### macOS
 - **Compatibility**: Aravis can be built on macOS
@@ -121,18 +122,35 @@ pacman -S mingw-w64-x86_64-aravis
 vcpkg install aravis:x64-windows
 ```
 
-#### USB Camera Setup (Windows)
+#### USB3Vision Camera Setup (Windows) - REQUIRED
 
-For USB3Vision cameras, install WinUSB driver using Zadig:
+**Why is this needed?** Aravis uses libusb to access USB cameras. On Windows, libusb can only access devices using the WinUSB generic driver. Most industrial cameras ship with vendor-specific drivers (e.g., Basler uses "PylonUSB") which are not compatible with Aravis.
 
-```
-1. Download Zadig from https://zadig.akeo.ie/
-2. Connect your camera
-3. Run Zadig as Administrator
-4. Options -> List All Devices
-5. Select your camera
-6. Select "WinUSB" driver
-7. Click "Replace Driver"
+**Steps to enable USB3Vision cameras:**
+
+1. **Download Zadig** from https://zadig.akeo.ie/ (free, portable)
+2. **Connect your USB camera** and verify it appears in Windows Device Manager
+3. **Run Zadig as Administrator**
+4. **Enable "List All Devices"** under Options menu
+5. **Select your camera** from the dropdown (e.g., "Basler ace USB3 Vision Camera")
+6. **Select "WinUSB"** as the target driver (should be pre-selected)
+7. **Click "Replace Driver"** and wait for installation to complete
+8. **Verify**: Run your AravisSharp application - the camera should now be detected
+
+**Important Notes:**
+- ⚠️ **This replaces your camera's existing driver** - vendor software (e.g., Basler Pylon) will no longer see the camera
+- ✅ **You can revert** by using Zadig to select the original driver or reinstalling vendor software
+- ✅ **GigE cameras do NOT need this** - they work over the network without driver changes
+- ✅ **Only affects the specific camera** - other USB devices are unaffected
+
+**Checking current driver:**
+```powershell
+# In PowerShell, run:
+Get-PnpDevice | Where-Object { $_.FriendlyName -match 'camera|vision|basler' } | Format-Table Status, Class, FriendlyName
+
+# Look for your camera and check the "Class" column:
+# - "PylonUSB" or vendor name = needs WinUSB driver installation
+# - "USBDevice" = WinUSB driver installed, ready for Aravis
 ```
 
 ### macOS
@@ -500,16 +518,118 @@ services:
     privileged: true                # Required for USB access
 ```
 
+## Windows Troubleshooting
+
+### USB3Vision Camera Not Detected
+
+**Symptom**: `Devices found: 0` even though camera is connected
+
+**Solution**: Install WinUSB driver using Zadig (see USB3Vision Camera Setup above)
+
+**Verification**:
+```powershell
+# Check current driver
+Get-PnpDevice | Where-Object { $_.FriendlyName -match 'camera|basler|vision' } | Format-Table Status, Class, FriendlyName
+
+# Expected output with WinUSB installed:
+# Status  Class      FriendlyName
+# OK      USBDevice  Basler ace USB3 Vision Camera
+```
+
+### DLL Not Found Error
+
+**Symptom**: `System.DllNotFoundException: Unable to load DLL 'aravis-0.8'`
+
+**Solution**: Install the `AravisSharp.runtime.win-x64` NuGet package or ensure Aravis DLLs are in your application directory
+
+**Verification**:
+```powershell
+# Check if DLLs are present
+ls bin\Debug\net10.0\runtimes\win-x64\native\
+
+# Should see:
+# libaravis-0.8-0.dll
+# libgobject-2.0-0.dll
+# libglib-2.0-0.dll
+# libxml2-16.dll
+# ... and other dependencies
+```
+
+### GLib Function Not Found Error
+
+**Symptom**: `System.EntryPointNotFoundException: Unable to find entry point 'g_object_unref' in DLL 'aravis-0.8'`
+
+**Solution**: This was a bug in versions prior to 0.8.33-5. Update to the latest version which correctly separates GLib functions into separate DLLs.
+
+### Interface Detection but No Devices
+
+**Symptom**: Shows "USB3Vision" interface but finds 0 devices
+
+```
+=== Aravis Interfaces ===
+Number of interfaces: 3
+  [0] Fake
+  [1] USB3Vision
+  [2] GigEVision
+
+Devices found: 0
+```
+
+**Cause**: Camera is using vendor driver (e.g., PylonUSB) instead of WinUSB
+
+**Solution**: Use Zadig to replace vendor driver with WinUSB (detailed steps in USB3Vision Camera Setup section above)
+
+### Switching Back to Vendor Driver
+
+If you need to use Basler Pylon or other vendor software:
+
+1. Open Zadig as Administrator
+2. Options → List All Devices
+3. Select your camera
+4. Choose the original vendor driver (e.g., "PylonUSB")
+5. Click "Replace Driver"
+
+Alternatively, reinstall vendor software to restore original driver.
+
+### GigE Camera Issues
+
+GigE cameras don't need driver changes, but may have network configuration issues:
+
+```powershell
+# Check network adapter settings
+ipconfig /all
+
+# Verify camera is on same subnet
+# Example: PC=192.168.1.100, Camera=192.168.1.10
+# Both should have subnet mask 255.255.255.0
+
+# Disable Windows Firewall temporarily to test
+netsh advfirewall set allprofiles state off
+# Re-enable after testing:
+netsh advfirewall set allprofiles state on
+```
+
 ## Summary
 
 ### Cross-Platform Compatibility
 
 | Question | Answer |
 |----------|--------|
-| **Will it work on Windows?** | ✅ Yes, with Aravis Windows build |
+| **Will it work on Windows?** | ✅ Yes, tested with USB3Vision and GigE cameras |
 | **Will it work on Linux ARM?** | ✅ Yes, same library as x64 |
 | **Should we make installer like Pylon?** | ⚠️ Not necessary - NuGet is better for .NET |
-| **Can we make NuGet package?** | ✅ Yes, recommended for Windows distribution |
+| **Can we make NuGet package?** | ✅ Yes, `AravisSharp.runtime.win-x64` available |
+| **Do USB cameras need special drivers on Windows?** | ✅ Yes, WinUSB via Zadig (one-time setup) |
+| **Do GigE cameras need drivers on Windows?** | ⛔ No, works with standard network stack |
+
+### Platform Testing Status
+
+| Platform | Status | Camera Tested | Notes |
+|----------|--------|---------------|-------|
+| Linux x64 | ✅ Tested | Basler acA720-520um | Full support, USB permissions required |
+| Windows x64 | ✅ Tested | Basler acA720-520um | WinUSB driver required for USB3Vision |
+| Linux ARM/ARM64 | ✅ Compatible | - | Same library as x64 |
+| macOS | ⚠️ Untested | - | Should work via Homebrew |
 
 ### Recommendations
 
@@ -518,10 +638,10 @@ services:
    - Standard Linux practice
    - Works perfectly
 
-2. **Future (Windows Distribution)**: Create NuGet package
-   - Embed Windows DLLs in `runtimes/win-x64/native/`
+2. **✅ Windows Distribution**: Use NuGet package `AravisSharp.runtime.win-x64`
+   - Embeds all DLLs in `runtimes/win-x64/native/`
    - Automatic xcopy deployment
-   - Better than custom installer
+   - No installer needed
 
 3. **Future (Linux Distribution)**: Debian/RPM packages
    - List Aravis as dependency
@@ -535,9 +655,10 @@ services:
 
 ### Next Steps
 
-1. ✅ Code is already cross-platform compatible
-2. ⏭️ Test on Windows (optional)
-3. ⏭️ Create NuGet package structure (when ready to distribute)
-4. ⏭️ Document platform-specific setup in README
+1. ✅ Code is cross-platform compatible
+2. ✅ Tested on Windows and Linux
+3. ✅ NuGet package created for Windows
+4. ⏭️ Create comprehensive distribution packages (when ready)
+5. ⏭️ Test on macOS (optional)
 
-The current code will work on Windows and ARM without changes - just need Aravis installed on the target platform!
+**The current code works on Windows, Linux x64, and Linux ARM without code changes - just install Aravis (or use the NuGet package on Windows)!**

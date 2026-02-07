@@ -196,7 +196,7 @@ public class AravisNativeTests
         {
             if (camera != IntPtr.Zero)
             {
-                AravisNative.g_object_unref(camera);
+                GLibNative.g_object_unref(camera);
             }
         }
     }
@@ -219,7 +219,7 @@ public class AravisNativeTests
         {
             if (buffer != IntPtr.Zero)
             {
-                AravisNative.g_object_unref(buffer);
+                GLibNative.g_object_unref(buffer);
             }
         }
     }

@@ -64,13 +64,13 @@ public class FeatureDetails
             if (tooltipPtr != IntPtr.Zero)
                 details.Tooltip = Marshal.PtrToStringAnsi(tooltipPtr) ?? string.Empty;
             
-            // Get access mode
-            var accessModePtr = AravisNative.arv_gc_feature_node_get_actual_access_mode(nodePtr);
-            details.AccessMode = ParseAccessMode(accessModePtr);
+            // Get access mode (returns ArvGcAccessMode enum: RO=0, WO=1, RW=2, UNDEFINED=-1)
+            var accessModeValue = AravisNative.arv_gc_feature_node_get_actual_access_mode(nodePtr);
+            details.AccessMode = ParseAccessMode(accessModeValue);
             
-            // Get visibility
-            var visibilityPtr = AravisNative.arv_gc_feature_node_get_visibility(nodePtr);
-            details.Visibility = ParseVisibility(visibilityPtr);
+            // Get visibility (returns ArvGcVisibility enum: INVISIBLE=0, GURU=1, EXPERT=2, BEGINNER=3, UNDEFINED=-1)
+            var visibilityValue = AravisNative.arv_gc_feature_node_get_visibility(nodePtr);
+            details.Visibility = ParseVisibility(visibilityValue);
             
             // Get availability
             IntPtr error = IntPtr.Zero;
@@ -208,33 +208,27 @@ public class FeatureDetails
         }
     }
     
-    private static FeatureAccessMode ParseAccessMode(IntPtr ptr)
+    private static FeatureAccessMode ParseAccessMode(int arvAccessMode)
     {
-        if (ptr == IntPtr.Zero) return FeatureAccessMode.Undefined;
-        
-        var mode = Marshal.PtrToStringAnsi(ptr);
-        return mode switch
+        // ArvGcAccessMode: UNDEFINED=-1, RO=0, WO=1, RW=2
+        return arvAccessMode switch
         {
-            "RW" => FeatureAccessMode.ReadWrite,
-            "RO" => FeatureAccessMode.ReadOnly,
-            "WO" => FeatureAccessMode.WriteOnly,
-            "NA" => FeatureAccessMode.NotAvailable,
-            "NI" => FeatureAccessMode.NotImplemented,
+            0 => FeatureAccessMode.ReadOnly,
+            1 => FeatureAccessMode.WriteOnly,
+            2 => FeatureAccessMode.ReadWrite,
             _ => FeatureAccessMode.Undefined
         };
     }
     
-    private static FeatureVisibility ParseVisibility(IntPtr ptr)
+    private static FeatureVisibility ParseVisibility(int arvVisibility)
     {
-        if (ptr == IntPtr.Zero) return FeatureVisibility.Undefined;
-        
-        var visibility = Marshal.PtrToStringAnsi(ptr);
-        return visibility switch
+        // ArvGcVisibility: UNDEFINED=-1, INVISIBLE=0, GURU=1, EXPERT=2, BEGINNER=3
+        return arvVisibility switch
         {
-            "Beginner" => FeatureVisibility.Beginner,
-            "Expert" => FeatureVisibility.Expert,
-            "Guru" => FeatureVisibility.Guru,
-            "Invisible" => FeatureVisibility.Invisible,
+            0 => FeatureVisibility.Invisible,
+            1 => FeatureVisibility.Guru,
+            2 => FeatureVisibility.Expert,
+            3 => FeatureVisibility.Beginner,
             _ => FeatureVisibility.Undefined
         };
     }

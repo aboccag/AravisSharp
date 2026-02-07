@@ -13,6 +13,20 @@ from pathlib import Path
 NS = {'gir': 'http://www.gtk.org/introspection/core/1.0',
       'c': 'http://www.gtk.org/introspection/c/1.0'}
 
+# GLib/GObject functions that should NOT be in the aravis bindings
+# (they live in separate libraries: libgobject-2.0, libglib-2.0)
+GLIB_PREFIXES = ('g_object_', 'g_error_', 'g_clear_', 'g_free', 'g_signal_',
+                 'g_type_', 'g_value_', 'g_param_', 'g_list_', 'g_slist_',
+                 'g_main_', 'g_source_', 'g_idle_', 'g_timeout_', 'g_malloc',
+                 'g_strdup', 'g_string_', 'g_quark_', 'g_log', 'g_print',
+                 'g_variant_', 'g_bytes_')
+
+def is_glib_function(func_name):
+    """Check if a function belongs to GLib/GObject and should be excluded"""
+    if not func_name:
+        return False
+    return any(func_name.startswith(prefix) for prefix in GLIB_PREFIXES)
+
 def parse_gir(gir_file):
     """Parse the GIR XML file"""
     tree = ET.parse(gir_file)
@@ -123,13 +137,18 @@ def generate_bindings(gir_file, output_file):
         return
     
     functions = []
+    skipped_glib = []
     seen_names = set()  # Track function names to avoid duplicates
     
     # Find all functions
     for func in namespace_elem.findall('.//gir:function', NS):
         func_name = func.get('{http://www.gtk.org/introspection/c/1.0}identifier')
         if func_name and func_name not in seen_names:
-            code = generate_function(func, "aravis-0.8.so.0")
+            if is_glib_function(func_name):
+                skipped_glib.append(func_name)
+                seen_names.add(func_name)
+                continue
+            code = generate_function(func, None)
             if code:
                 functions.append(code)
                 seen_names.add(func_name)
@@ -139,14 +158,22 @@ def generate_bindings(gir_file, output_file):
         for method in klass.findall('.//gir:method', NS):
             func_name = method.get('{http://www.gtk.org/introspection/c/1.0}identifier')
             if func_name and func_name not in seen_names:
-                code = generate_function(method, "aravis-0.8.so.0")
+                if is_glib_function(func_name):
+                    skipped_glib.append(func_name)
+                    seen_names.add(func_name)
+                    continue
+                code = generate_function(method, None)
                 if code:
                     functions.append(code)
                     seen_names.add(func_name)
     
-    print(f"Found {len(functions)} unique functions/methods")
+    if skipped_glib:
+        print(f"Skipped {len(skipped_glib)} GLib/GObject functions (they belong in GLibNative.cs)")
+    
+    print(f"Found {len(functions)} unique Aravis functions/methods")
     
     # Generate the C# file
+    # Use AravisNative.LibraryName so all resolution goes through the same resolver
     output = f"""using System;
 using System.Runtime.InteropServices;
 
@@ -159,7 +186,8 @@ namespace AravisSharp.Generated;
 /// </summary>
 public static class AravisGenerated
 {{
-    private const string LibraryName = "aravis-0.8.so.0";
+    // Use the same logical name resolved by AravisLibrary.RegisterResolver()
+    private const string LibraryName = AravisSharp.Native.AravisNative.LibraryName;
 
 {chr(10).join(functions)}
 }}
@@ -174,21 +202,33 @@ public static class AravisGenerated
     print(f"  {len(functions)} functions exported")
 
 def main():
-    gir_file = "/usr/local/share/gir-1.0/Aravis-0.10.gir"
-    output_file = "../AravisSharp/Generated/AravisGenerated.cs"
+    gir_file = None
+    output_file = "AravisSharp/Generated/AravisGenerated.cs"
     
-    if not os.path.exists(gir_file):
-        print(f"ERROR: GIR file not found: {gir_file}")
-        print("Looking for alternative locations...")
-        for path in ["/usr/share/gir-1.0/Aravis-0.8.gir",
-                     "/usr/local/share/gir-1.0/Aravis-0.8.gir"]:
-            if os.path.exists(path):
-                gir_file = path
-                print(f"Found: {gir_file}")
-                break
-        else:
-            print("No Aravis GIR file found!")
-            return 1
+    # Search for GIR file in multiple locations
+    search_paths = [
+        # Linux system locations
+        "/usr/local/share/gir-1.0/Aravis-0.10.gir",
+        "/usr/share/gir-1.0/Aravis-0.8.gir",
+        "/usr/local/share/gir-1.0/Aravis-0.8.gir",
+        # MSYS2 Windows locations
+        "C:/msys64/mingw64/share/gir-1.0/Aravis-0.8.gir",
+        "C:/msys64/ucrt64/share/gir-1.0/Aravis-0.8.gir",
+        "C:/msys64/clang64/share/gir-1.0/Aravis-0.8.gir",
+    ]
+    
+    for path in search_paths:
+        if os.path.exists(path):
+            gir_file = path
+            print(f"Found GIR file: {gir_file}")
+            break
+    
+    if gir_file is None:
+        print("ERROR: No Aravis GIR file found!")
+        print("Searched in:")
+        for p in search_paths:
+            print(f"  {p}")
+        return 1
     
     generate_bindings(gir_file, output_file)
     return 0

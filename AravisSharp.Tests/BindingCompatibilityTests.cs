@@ -15,11 +15,11 @@ public class BindingCompatibilityTests
     [Fact]
     public void DeviceEnumeration_BothBindings_ShouldReturnSameCount()
     {
-        // Arrange & Act
+        // Arrange - update once (the device list is global state shared by both bindings)
         AravisNative.arv_update_device_list();
-        uint nativeCount = AravisNative.arv_get_n_devices();
 
-        AravisGenerated.arv_update_device_list();
+        // Act
+        uint nativeCount = AravisNative.arv_get_n_devices();
         uint generatedCount = AravisGenerated.arv_get_n_devices();
 
         // Assert

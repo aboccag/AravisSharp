@@ -49,7 +49,7 @@ public class Camera : IDisposable
             }
             if (error != IntPtr.Zero)
             {
-                AravisNative.g_error_free(error);
+                GLibNative.g_error_free(error);
             }
         }
     }
@@ -70,7 +70,7 @@ public class Camera : IDisposable
         finally
         {
             if (error != IntPtr.Zero)
-                AravisNative.g_error_free(error);
+                GLibNative.g_error_free(error);
         }
     }
 
@@ -90,7 +90,7 @@ public class Camera : IDisposable
         finally
         {
             if (error != IntPtr.Zero)
-                AravisNative.g_error_free(error);
+                GLibNative.g_error_free(error);
         }
     }
 
@@ -110,7 +110,7 @@ public class Camera : IDisposable
         finally
         {
             if (error != IntPtr.Zero)
-                AravisNative.g_error_free(error);
+                GLibNative.g_error_free(error);
         }
     }
 
@@ -130,7 +130,7 @@ public class Camera : IDisposable
         finally
         {
             if (error != IntPtr.Zero)
-                AravisNative.g_error_free(error);
+                GLibNative.g_error_free(error);
         }
     }
 
@@ -150,7 +150,7 @@ public class Camera : IDisposable
         finally
         {
             if (error != IntPtr.Zero)
-                AravisNative.g_error_free(error);
+                GLibNative.g_error_free(error);
         }
     }
 
@@ -169,7 +169,7 @@ public class Camera : IDisposable
         finally
         {
             if (error != IntPtr.Zero)
-                AravisNative.g_error_free(error);
+                GLibNative.g_error_free(error);
         }
     }
 
@@ -189,7 +189,7 @@ public class Camera : IDisposable
         finally
         {
             if (error != IntPtr.Zero)
-                AravisNative.g_error_free(error);
+                GLibNative.g_error_free(error);
         }
     }
 
@@ -209,7 +209,7 @@ public class Camera : IDisposable
         finally
         {
             if (error != IntPtr.Zero)
-                AravisNative.g_error_free(error);
+                GLibNative.g_error_free(error);
         }
     }
 
@@ -229,7 +229,7 @@ public class Camera : IDisposable
         finally
         {
             if (error != IntPtr.Zero)
-                AravisNative.g_error_free(error);
+                GLibNative.g_error_free(error);
         }
     }
 
@@ -248,7 +248,7 @@ public class Camera : IDisposable
         finally
         {
             if (error != IntPtr.Zero)
-                AravisNative.g_error_free(error);
+                GLibNative.g_error_free(error);
         }
     }
 
@@ -268,7 +268,7 @@ public class Camera : IDisposable
         finally
         {
             if (error != IntPtr.Zero)
-                AravisNative.g_error_free(error);
+                GLibNative.g_error_free(error);
         }
     }
 
@@ -288,7 +288,7 @@ public class Camera : IDisposable
         finally
         {
             if (error != IntPtr.Zero)
-                AravisNative.g_error_free(error);
+                GLibNative.g_error_free(error);
         }
     }
 
@@ -307,7 +307,7 @@ public class Camera : IDisposable
         finally
         {
             if (error != IntPtr.Zero)
-                AravisNative.g_error_free(error);
+                GLibNative.g_error_free(error);
         }
     }
 
@@ -327,7 +327,7 @@ public class Camera : IDisposable
         finally
         {
             if (error != IntPtr.Zero)
-                AravisNative.g_error_free(error);
+                GLibNative.g_error_free(error);
         }
     }
 
@@ -347,7 +347,7 @@ public class Camera : IDisposable
         finally
         {
             if (error != IntPtr.Zero)
-                AravisNative.g_error_free(error);
+                GLibNative.g_error_free(error);
         }
     }
 
@@ -366,7 +366,7 @@ public class Camera : IDisposable
         finally
         {
             if (error != IntPtr.Zero)
-                AravisNative.g_error_free(error);
+                GLibNative.g_error_free(error);
         }
     }
 
@@ -386,7 +386,7 @@ public class Camera : IDisposable
         finally
         {
             if (error != IntPtr.Zero)
-                AravisNative.g_error_free(error);
+                GLibNative.g_error_free(error);
         }
     }
 
@@ -409,7 +409,7 @@ public class Camera : IDisposable
             if (formatPtr != IntPtr.Zero)
                 Marshal.FreeCoTaskMem(formatPtr);
             if (error != IntPtr.Zero)
-                AravisNative.g_error_free(error);
+                GLibNative.g_error_free(error);
         }
     }
 
@@ -428,7 +428,7 @@ public class Camera : IDisposable
         finally
         {
             if (error != IntPtr.Zero)
-                AravisNative.g_error_free(error);
+                GLibNative.g_error_free(error);
         }
     }
 
@@ -447,7 +447,7 @@ public class Camera : IDisposable
         finally
         {
             if (error != IntPtr.Zero)
-                AravisNative.g_error_free(error);
+                GLibNative.g_error_free(error);
         }
     }
 
@@ -466,7 +466,7 @@ public class Camera : IDisposable
         finally
         {
             if (error != IntPtr.Zero)
-                AravisNative.g_error_free(error);
+                GLibNative.g_error_free(error);
         }
     }
 
@@ -485,7 +485,7 @@ public class Camera : IDisposable
         finally
         {
             if (error != IntPtr.Zero)
-                AravisNative.g_error_free(error);
+                GLibNative.g_error_free(error);
         }
     }
 
@@ -511,7 +511,7 @@ public class Camera : IDisposable
         finally
         {
             if (error != IntPtr.Zero)
-                AravisNative.g_error_free(error);
+                GLibNative.g_error_free(error);
         }
     }
 
@@ -568,7 +568,7 @@ public class Camera : IDisposable
         {
             if (_handle != IntPtr.Zero)
             {
-                AravisNative.g_object_unref(_handle);
+                GLibNative.g_object_unref(_handle);
                 _handle = IntPtr.Zero;
             }
             _disposed = true;

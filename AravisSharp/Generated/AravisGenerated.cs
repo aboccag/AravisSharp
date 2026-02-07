@@ -10,7 +10,8 @@ namespace AravisSharp.Generated;
 /// </summary>
 public static class AravisGenerated
 {
-    private const string LibraryName = "aravis-0.8.so.0";
+    // Use the same logical name resolved by AravisLibrary.RegisterResolver()
+    private const string LibraryName = AravisSharp.Native.AravisNative.LibraryName;
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr arv_acquisition_mode_from_string(IntPtr @string);
