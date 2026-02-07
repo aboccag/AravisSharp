@@ -3,6 +3,9 @@ using AravisSharp.Native;
 using AravisSharp.Utilities;
 using AravisSharp.Examples;
 
+// Suppress GLib warnings about interrupted poll calls during device scanning
+Environment.SetEnvironmentVariable("G_MESSAGES_DEBUG", "");
+
 // Register the native library resolver before any P/Invoke call
 AravisLibrary.RegisterResolver();
 
@@ -49,12 +52,15 @@ Console.WriteLine($"\nDevices found: {deviceCount}\n");
 Console.WriteLine("=== AravisSharp Demo Menu ===\n");
 Console.WriteLine("1. Run binding verification tests");
 Console.WriteLine("2. Run camera capture demo");
-Console.WriteLine("3. GenICam node map demo (simple)");
-Console.WriteLine("4. GenICam explorer (interactive)");
-Console.WriteLine("5. Feature browser (comprehensive)");
-Console.WriteLine("6. Simple feature lister (debug)");
-Console.WriteLine("7. Feature overview (detailed)");
-Console.WriteLine("8. Quick feature demo (recommended)");
+Console.WriteLine("3. Continuous acquisition example");
+Console.WriteLine("4. Triggered acquisition example");
+Console.WriteLine("5. Feature access example");
+Console.WriteLine("6. GenICam node map demo (simple)");
+Console.WriteLine("7. GenICam explorer (interactive)");
+Console.WriteLine("8. Feature browser (comprehensive)");
+Console.WriteLine("9. Simple feature lister (debug)");
+Console.WriteLine("10. Feature overview (detailed)");
+Console.WriteLine("11. Quick feature demo (recommended)");
 Console.WriteLine("0. Exit");
 Console.Write("\nChoice: ");
 
@@ -63,27 +69,36 @@ var choice = Console.ReadLine();
 switch (choice)
 {
     case "1":
-        RunBindingTests();
+        BindingTests.Run();
         break;
     case "2":
         RunCameraDemo();
         break;
     case "3":
-        SimpleNodeMapDemo.Run();
+        ContinuousAcquisitionExample.Run();
         break;
     case "4":
-        GenICamExplorerExample.Run();
+        TriggeredAcquisitionExample.Run();
         break;
     case "5":
-        FeatureBrowserExample.Run();
+        FeatureAccessExample.Run();
         break;
     case "6":
-        SimpleFeatureListerExample.Run();
+        SimpleNodeMapDemo.Run();
         break;
     case "7":
-        FeatureOverviewExample.Run();
+        GenICamExplorerExample.Run();
         break;
     case "8":
+        FeatureBrowserExample.Run();
+        break;
+    case "9":
+        SimpleFeatureListerExample.Run();
+        break;
+    case "10":
+        FeatureOverviewExample.Run();
+        break;
+    case "11":
         QuickFeatureDemoExample.Run();
         break;
     case "0":
@@ -91,19 +106,6 @@ switch (choice)
     default:
         Console.WriteLine("Invalid choice!");
         return;
-}
-
-static void RunBindingTests()
-{
-    Console.WriteLine("\n=== Aravis Binding Verification ===\n");
-    try
-    {
-        BindingTests.RunTests();
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"\n✗ Binding test failed: {ex.Message}");
-    }
 }
 
 static void RunCameraDemo()
@@ -274,6 +276,10 @@ try
     // Stop acquisition
     Console.WriteLine("\nStopping acquisition...");
     camera.StopAcquisition();
+    
+    // Dispose buffers (Stream.Dispose() will drain them automatically)
+    foreach (var buf in buffers)
+        buf.Dispose();
     
     // Get statistics
     var (completed, failures, underruns) = stream.GetStatistics();

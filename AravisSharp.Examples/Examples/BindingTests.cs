@@ -1,16 +1,15 @@
-using System;
 using System.Runtime.InteropServices;
 using AravisSharp.Native;
 using AravisSharp.Generated;
 
-namespace AravisSharp;
+namespace AravisSharp.Examples;
 
 /// <summary>
 /// Tests to verify that auto-generated bindings work identically to manual bindings
 /// </summary>
 public static class BindingTests
 {
-    public static void RunTests()
+    public static void Run()
     {
         Console.WriteLine("=== Testing Auto-Generated Bindings ===\n");
 

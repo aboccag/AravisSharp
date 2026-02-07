@@ -145,7 +145,152 @@ public static class AravisNative
     public static extern IntPtr arv_camera_get_trigger_source(IntPtr camera, out IntPtr error);
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void arv_camera_clear_triggers(IntPtr camera, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern bool arv_camera_is_software_trigger_supported(IntPtr camera, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void arv_camera_software_trigger(IntPtr camera, out IntPtr error);
+
+    // Payload
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern uint arv_camera_get_payload(IntPtr camera, out IntPtr error);
+
+    // Sensor size
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void arv_camera_get_sensor_size(IntPtr camera, out int width, out int height, out IntPtr error);
+
+    // Execute command
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void arv_camera_execute_command(IntPtr camera, IntPtr feature, out IntPtr error);
+
+    // Acquisition mode
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int arv_camera_get_acquisition_mode(IntPtr camera, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void arv_camera_set_acquisition_mode(IntPtr camera, int mode, out IntPtr error);
+
+    // Frame count  
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern long arv_camera_get_frame_count(IntPtr camera, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void arv_camera_set_frame_count(IntPtr camera, long frameCount, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void arv_camera_get_frame_count_bounds(IntPtr camera, out long min, out long max, out IntPtr error);
+
+    // Exposure time auto
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int arv_camera_get_exposure_time_auto(IntPtr camera, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void arv_camera_set_exposure_time_auto(IntPtr camera, int autoMode, out IntPtr error);
+
+    // Gain auto
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int arv_camera_get_gain_auto(IntPtr camera, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void arv_camera_set_gain_auto(IntPtr camera, int autoMode, out IntPtr error);
+
+    // Generic feature access (for advanced use)
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr arv_camera_get_string(IntPtr camera, IntPtr feature, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void arv_camera_set_string(IntPtr camera, IntPtr feature, IntPtr value, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern long arv_camera_get_integer(IntPtr camera, IntPtr feature, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void arv_camera_set_integer(IntPtr camera, IntPtr feature, long value, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern double arv_camera_get_float(IntPtr camera, IntPtr feature, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void arv_camera_set_float(IntPtr camera, IntPtr feature, double value, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern bool arv_camera_get_boolean(IntPtr camera, IntPtr feature, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void arv_camera_set_boolean(IntPtr camera, IntPtr feature, bool value, out IntPtr error);
+
+    // Feature bounds
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void arv_camera_get_integer_bounds(IntPtr camera, IntPtr feature, out long min, out long max, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void arv_camera_get_float_bounds(IntPtr camera, IntPtr feature, out double min, out double max, out IntPtr error);
+
+    // Feature increment  
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern long arv_camera_get_integer_increment(IntPtr camera, IntPtr feature, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern double arv_camera_get_float_increment(IntPtr camera, IntPtr feature, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int arv_camera_get_width_increment(IntPtr camera, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int arv_camera_get_height_increment(IntPtr camera, out IntPtr error);
+
+    // Feature availability checks
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern bool arv_camera_is_feature_available(IntPtr camera, IntPtr feature, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern bool arv_camera_is_binning_available(IntPtr camera, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern bool arv_camera_is_exposure_time_available(IntPtr camera, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern bool arv_camera_is_exposure_auto_available(IntPtr camera, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern bool arv_camera_is_gain_available(IntPtr camera, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern bool arv_camera_is_gain_auto_available(IntPtr camera, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern bool arv_camera_is_frame_rate_available(IntPtr camera, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern bool arv_camera_is_gv_device(IntPtr camera);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern bool arv_camera_is_uv_device(IntPtr camera);
+
+    // GigE Vision specifics
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void arv_camera_gv_auto_packet_size(IntPtr camera, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int arv_camera_gv_get_packet_size(IntPtr camera, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void arv_camera_gv_set_packet_size(IntPtr camera, int size, out IntPtr error);
+
+    // USB Vision specifics
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int arv_camera_uv_get_bandwidth(IntPtr camera, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void arv_camera_uv_set_bandwidth(IntPtr camera, int bandwidth, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void arv_camera_uv_get_bandwidth_bounds(IntPtr camera, out int min, out int max, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern bool arv_camera_uv_is_bandwidth_control_available(IntPtr camera, out IntPtr error);
 
     // Stream creation
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]

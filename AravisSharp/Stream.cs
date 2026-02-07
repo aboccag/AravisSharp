@@ -87,6 +87,18 @@ public class Stream : IDisposable
         {
             if (_handle != IntPtr.Zero)
             {
+                // Drain remaining buffers with timeout to avoid hanging
+                // Give up after reasonable attempts (max 1 second total)
+                const int maxAttempts = 10;
+                const ulong timeoutMs = 100; // 100ms per attempt
+                
+                for (int i = 0; i < maxAttempts; i++)
+                {
+                    var bufferHandle = AravisNative.arv_stream_timeout_pop_buffer(_handle, timeoutMs * 1000);
+                    if (bufferHandle == IntPtr.Zero)
+                        break; // No more buffers
+                }
+                
                 GLibNative.g_object_unref(_handle);
                 _handle = IntPtr.Zero;
             }

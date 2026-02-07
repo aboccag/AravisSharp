@@ -110,7 +110,8 @@ public static class ContinuousAcquisitionExample
         Console.WriteLine($"  Failures: {failures}");
         Console.WriteLine($"  Underruns: {underruns}");
 
-        // Cleanup
+        // Cleanup: Stream.Dispose() will drain remaining buffers automatically
+        // Now safe to dispose buffers
         foreach (var buf in buffers)
             buf.Dispose();
     }
@@ -179,7 +180,7 @@ public static class TriggeredAcquisitionExample
 
         camera.StopAcquisition();
 
-        // Cleanup
+        // Cleanup: Stream.Dispose() will drain remaining buffers automatically
         foreach (var buf in buffers)
             buf.Dispose();
             
