@@ -66,11 +66,11 @@ public class FeatureDetails
             
             // Get access mode (returns ArvGcAccessMode enum: RO=0, WO=1, RW=2, UNDEFINED=-1)
             var accessModeValue = AravisNative.arv_gc_feature_node_get_actual_access_mode(nodePtr);
-            details.AccessMode = ParseAccessMode(accessModeValue);
+            details.AccessMode = ParseAccessMode((int)accessModeValue);
             
             // Get visibility (returns ArvGcVisibility enum: INVISIBLE=0, GURU=1, EXPERT=2, BEGINNER=3, UNDEFINED=-1)
             var visibilityValue = AravisNative.arv_gc_feature_node_get_visibility(nodePtr);
-            details.Visibility = ParseVisibility(visibilityValue);
+            details.Visibility = ParseVisibility((int)visibilityValue);
             
             // Get availability
             IntPtr error = IntPtr.Zero;

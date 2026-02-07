@@ -5,7 +5,7 @@ namespace AravisSharp.Generated;
 
 /// <summary>
 /// Auto-generated Aravis bindings from GObject Introspection data
-/// Generated from: Aravis-0.10.gir
+/// Generated from: Aravis-0.8
 /// Total functions: 475
 /// </summary>
 public static class AravisGenerated
