@@ -9,8 +9,10 @@ Industrial camera library for .NET supporting USB3Vision and GigE Vision cameras
 | **Linux x64** | ✅ Full Support | ✅ Yes |
 | **Linux ARM64** | ✅ Full Support | ⏳ Compatible |
 | **Linux ARMv7** | ✅ Full Support | ⏳ Compatible |
-| **Windows x64** | ✅ Compatible | ⏳ Not tested |
+| **Windows x64** | ✅ Full Support | ✅ Yes* |
 | **macOS x64/ARM64** | ⚠️ Untested | ⏳ Should work |
+
+*USB3Vision cameras require WinUSB driver (see Windows installation instructions)
 
 ## Quick Start
 
@@ -23,7 +25,9 @@ sudo apt-get install libaravis-0.8-0
 ```
 
 **Windows:**
-Download Aravis from [GitHub Releases](https://github.com/AravisProject/aravis/releases) and install the MSI package.
+Install via NuGet package `AravisSharp.runtime.win-x64` (includes all required DLLs) or install Aravis from [GitHub Releases](https://github.com/AravisProject/aravis/releases).
+
+**Important**: USB3Vision cameras require WinUSB driver. Use [Zadig](https://zadig.akeo.ie/) to replace your camera's driver with WinUSB. GigE cameras work without driver changes.
 
 **macOS:**
 ```bash
@@ -73,8 +77,10 @@ See [CROSS_PLATFORM_GUIDE.md](CROSS_PLATFORM_GUIDE.md) for complete details on:
 
 ## Documentation
 
+- **[WINDOWS_SETUP.md](WINDOWS_SETUP.md)** - Complete Windows setup guide including USB driver installation
 - **[FEATURE_BROWSER_GUIDE.md](FEATURE_BROWSER_GUIDE.md)** - Complete GenICam feature browser documentation
 - **[CROSS_PLATFORM_GUIDE.md](CROSS_PLATFORM_GUIDE.md)** - Platform support and distribution strategies
+- **[QUICKSTART.md](QUICKSTART.md)** - Quick reference for common tasks
 
 ## Example Code
 
