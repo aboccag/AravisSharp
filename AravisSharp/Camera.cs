@@ -713,7 +713,7 @@ public class Camera : IDisposable
     /// <summary>
     /// Executes a GenICam command
     /// </summary>
-    /// <param name=\"feature\">Command feature name</param>
+    /// <param name="feature">Command feature name</param>
     public void ExecuteCommand(string feature)
     {
         CheckDisposed();
