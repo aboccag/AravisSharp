@@ -13,7 +13,7 @@
         <!-- <RuntimeIdentifier>osx-x64</RuntimeIdentifier> -->
         
         <!-- Enable runtime-specific builds for NuGet package -->
-        <RuntimeIdentifiers>linux-x64;linux-arm64;win-x64;osx-x64</RuntimeIdentifiers>
+        <RuntimeIdentifiers>linux-x64;linux-arm64;win-x64;osx-x64;osx-arm64</RuntimeIdentifiers>
         <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
         
         <!-- Library package metadata -->
@@ -26,18 +26,19 @@
     </PropertyGroup>
 
     <ItemGroup>
-<PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
+      <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
     </ItemGroup>
-    
-    <!-- Future: Include native Aravis libraries in runtimes/ folder for NuGet package -->
-    <!-- This would eliminate the need for separate Aravis installation -->
+
     <!--
-    <ItemGroup>
-      <Content Include="runtimes/win-x64/native/aravis-0.8-0.dll" PackagePath="runtimes/win-x64/native" Pack="true" />
-      <Content Include="runtimes/linux-x64/native/libaravis-0.8.so.0" PackagePath="runtimes/linux-x64/native" Pack="true" />
-      <Content Include="runtimes/linux-arm64/native/libaravis-0.8.so.0" PackagePath="runtimes/linux-arm64/native" Pack="true" />
-      <Content Include="runtimes/osx-x64/native/libaravis-0.8.0.dylib" PackagePath="runtimes/osx-x64/native" Pack="true" />
-    </ItemGroup>
+      Native runtime libraries are placed here by the CI pipeline (not checked in).
+      'dotnet pack' picks them up automatically; local builds work without them.
     -->
+    <ItemGroup Condition="Exists('$(MSBuildThisFileDirectory)runtimes')">
+      <Content Include="runtimes/**">
+        <Pack>true</Pack>
+        <PackagePath>runtimes/%(RecursiveDir)%(Filename)%(Extension)</PackagePath>
+        <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+      </Content>
+    </ItemGroup>
 
 </Project>
