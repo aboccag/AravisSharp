@@ -63,6 +63,7 @@ Console.WriteLine("10. Feature overview (detailed)");
 Console.WriteLine("11. Quick feature demo (recommended)");
 Console.WriteLine("12. Multi-camera software-trigger acquisition check");
 Console.WriteLine("13. GigE Vision diagnostic tool");
+Console.WriteLine("14. GigE camera network configurator (subnet / IP setup)");
 Console.WriteLine("0. Exit");
 Console.Write("\nChoice: ");
 
@@ -108,6 +109,9 @@ switch (choice)
         break;
     case "13":
         GigEDiagnosticExample.Run();
+        break;
+    case "14":
+        CameraNetworkConfiguratorExample.Run();
         break;
     case "0":
         return;

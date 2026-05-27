@@ -27,6 +27,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+      <PackageReference Include="AravisSharp.runtime.win-x64" Version="0.8.33" />
       <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
     </ItemGroup>
     

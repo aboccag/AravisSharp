@@ -47,6 +47,8 @@ public static class AravisLibrary
             candidates = GetPlatformGObjectNames();
         else if (libraryName == GLibNative.GLibLibraryName)
             candidates = GetPlatformGLibNames();
+        else if (libraryName == GLibNative.GioLibraryName)
+            candidates = GetPlatformGioNames();
 
         if (candidates is null)
             return IntPtr.Zero;
@@ -131,6 +133,18 @@ public static class AravisLibrary
         if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             return new[] { "libglib-2.0.0.dylib", "libglib-2.0.dylib" };
         return new[] { "libglib-2.0.so.0", "libglib-2.0.so" };
+    }
+
+    /// <summary>
+    /// Returns the set of GIO library file names to try on the current platform.
+    /// </summary>
+    private static string[] GetPlatformGioNames()
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            return new[] { "libgio-2.0-0.dll", "gio-2.0-0.dll" };
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            return new[] { "libgio-2.0.0.dylib", "libgio-2.0.dylib" };
+        return new[] { "libgio-2.0.so.0", "libgio-2.0.so" };
     }
 
     /// <summary>

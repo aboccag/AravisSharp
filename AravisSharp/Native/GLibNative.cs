@@ -11,6 +11,7 @@ public static class GLibNative
     // Logical library names — resolved at runtime by AravisLibrary.RegisterResolver()
     internal const string GObjectLibraryName = "gobject-2.0";
     internal const string GLibLibraryName = "glib-2.0";
+    internal const string GioLibraryName = "gio-2.0";
 
     // --- GObject (libgobject-2.0) ---
 
@@ -61,6 +62,30 @@ public static class GLibNative
             error = IntPtr.Zero;
         }
     }
+
+    // --- GIO (libgio-2.0) — GInetAddress / GInetAddressMask helpers ---
+
+    /// <summary>
+    /// Converts a GInetAddress to a dotted-decimal (IPv4) or colon-separated (IPv6) string.
+    /// The returned string must be freed with <see cref="g_free"/>.
+    /// </summary>
+    [DllImport(GioLibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr g_inet_address_to_string(IntPtr address);
+
+    /// <summary>
+    /// Returns the prefix length (e.g. 24 for /24) of a GInetAddressMask.
+    /// Note: Aravis always creates masks with prefix=32 — use <see cref="g_inet_address_mask_get_address"/> instead.
+    /// </summary>
+    [DllImport(GioLibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern uint g_inet_address_mask_get_length(IntPtr mask);
+
+    /// <summary>
+    /// Returns the GInetAddress* embedded in a GInetAddressMask.
+    /// For Aravis-created masks this holds the actual subnet mask bytes.
+    /// The returned object is owned by the mask — do NOT unref it.
+    /// </summary>
+    [DllImport(GioLibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr g_inet_address_mask_get_address(IntPtr mask);
 
     // --- GObject property access (libgobject-2.0) ---
     // g_object_set / g_object_get are variadic C functions.

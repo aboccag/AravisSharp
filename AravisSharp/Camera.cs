@@ -1560,6 +1560,144 @@ public class Camera : IDisposable
         }
     }
 
+    // === GigE Vision IP Configuration ===
+
+    /// <summary>
+    /// Gets the current IP configuration mode of a GigE Vision camera
+    /// </summary>
+    public ArvGvIpConfigurationMode GvGetIpConfigurationMode()
+    {
+        CheckDisposed();
+        IntPtr error = IntPtr.Zero;
+        try
+        {
+            var mode = AravisNative.arv_camera_gv_get_ip_configuration_mode(_handle, out error);
+            CheckError(error);
+            return (ArvGvIpConfigurationMode)mode;
+        }
+        finally
+        {
+            if (error != IntPtr.Zero) GLibNative.g_error_free(error);
+        }
+    }
+
+    /// <summary>
+    /// Sets the IP configuration mode of a GigE Vision camera.
+    /// The change takes effect after a camera reboot.
+    /// </summary>
+    /// <param name="mode">Desired configuration mode (PersistentIp, Dhcp, Lla)</param>
+    public void GvSetIpConfigurationMode(ArvGvIpConfigurationMode mode)
+    {
+        CheckDisposed();
+        IntPtr error = IntPtr.Zero;
+        try
+        {
+            AravisNative.arv_camera_gv_set_ip_configuration_mode(_handle, (int)mode, out error);
+            CheckError(error);
+        }
+        finally
+        {
+            if (error != IntPtr.Zero) GLibNative.g_error_free(error);
+        }
+    }
+
+    /// <summary>
+    /// Gets the persistent (static) IP configuration stored in the camera.
+    /// Returns dotted-decimal strings. Only meaningful when the camera is in PersistentIp mode.
+    /// </summary>
+    public (string Ip, string Mask, string Gateway) GvGetPersistentIp()
+    {
+        CheckDisposed();
+        IntPtr error = IntPtr.Zero;
+        IntPtr ipObj = IntPtr.Zero, maskObj = IntPtr.Zero, gwObj = IntPtr.Zero;
+        try
+        {
+            AravisNative.arv_camera_gv_get_persistent_ip(_handle, out ipObj, out maskObj, out gwObj, out error);
+            CheckError(error);
+
+            string ip = GInetAddressToString(ipObj);
+            string mask = GInetAddressMaskToDotted(maskObj);
+            string gw = GInetAddressToString(gwObj);
+            return (ip, mask, gw);
+        }
+        finally
+        {
+            if (error != IntPtr.Zero) GLibNative.g_error_free(error);
+            if (ipObj != IntPtr.Zero) GLibNative.g_object_unref(ipObj);
+            if (maskObj != IntPtr.Zero) GLibNative.g_object_unref(maskObj);
+            if (gwObj != IntPtr.Zero) GLibNative.g_object_unref(gwObj);
+        }
+    }
+
+    /// <summary>
+    /// Sets the persistent (static) IP configuration on the camera.
+    /// Call <see cref="GvSetIpConfigurationMode"/> with <see cref="ArvGvIpConfigurationMode.PersistentIp"/>
+    /// beforehand, and reboot the camera for the change to take effect.
+    /// </summary>
+    /// <param name="ip">IP address string, e.g. "192.168.1.100"</param>
+    /// <param name="mask">Subnet mask string, e.g. "255.255.255.0"</param>
+    /// <param name="gateway">Default gateway string, e.g. "192.168.1.1" (null/empty for none)</param>
+    public void GvSetPersistentIp(string ip, string mask, string? gateway)
+    {
+        CheckDisposed();
+        IntPtr error = IntPtr.Zero;
+        IntPtr ipPtr = IntPtr.Zero, maskPtr = IntPtr.Zero, gwPtr = IntPtr.Zero;
+        try
+        {
+            ipPtr = Marshal.StringToCoTaskMemUTF8(ip);
+            maskPtr = Marshal.StringToCoTaskMemUTF8(mask);
+            // Aravis rejects empty string as gateway — pass NULL to skip gateway configuration
+            if (!string.IsNullOrEmpty(gateway))
+                gwPtr = Marshal.StringToCoTaskMemUTF8(gateway);
+
+            AravisNative.arv_camera_gv_set_persistent_ip_from_string(_handle, ipPtr, maskPtr, gwPtr, out error);
+            CheckError(error);
+        }
+        finally
+        {
+            if (error != IntPtr.Zero) GLibNative.g_error_free(error);
+            if (ipPtr != IntPtr.Zero) Marshal.FreeCoTaskMem(ipPtr);
+            if (maskPtr != IntPtr.Zero) Marshal.FreeCoTaskMem(maskPtr);
+            if (gwPtr != IntPtr.Zero) Marshal.FreeCoTaskMem(gwPtr);
+        }
+    }
+
+    // Converts a GInetAddress* to dotted-decimal string, returns "" if null
+    private static string GInetAddressToString(IntPtr addrObj)
+    {
+        if (addrObj == IntPtr.Zero) return "";
+        var strPtr = GLibNative.g_inet_address_to_string(addrObj);
+        if (strPtr == IntPtr.Zero) return "";
+        try
+        {
+            return Marshal.PtrToStringUTF8(strPtr) ?? "";
+        }
+        finally
+        {
+            GLibNative.g_free(strPtr);
+        }
+    }
+
+    // Converts a GInetAddressMask* to a dotted-decimal subnet mask string (e.g. "255.255.255.0").
+    // Aravis always creates GInetAddressMask with prefix=32 and stores the actual mask bytes
+    // inside the embedded GInetAddress — so we extract that address directly.
+    private static string GInetAddressMaskToDotted(IntPtr maskObj)
+    {
+        if (maskObj == IntPtr.Zero) return "";
+        // g_inet_address_mask_get_address returns a borrowed ref — do NOT unref
+        var addrObj = GLibNative.g_inet_address_mask_get_address(maskObj);
+        return GInetAddressToString(addrObj);
+    }
+
+    /// <summary>
+    /// Gets the number of network interfaces available on a GigE Vision camera
+    /// </summary>
+    public int GvGetNetworkInterfaceCount()
+    {
+        CheckDisposed();
+        return AravisNative.arv_camera_gv_get_n_network_interfaces(_handle);
+    }
+
     // === Stream Creation ===
 
     /// <summary>

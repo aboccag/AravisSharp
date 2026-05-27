@@ -279,6 +279,25 @@ public static class AravisNative
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void arv_camera_gv_set_packet_size(IntPtr camera, int size, out IntPtr error);
 
+    // GigE Vision IP configuration
+    // ip/mask/gateway out-params are GInetAddress* / GInetAddressMask* — use GLibNative helpers to convert
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int arv_camera_gv_get_ip_configuration_mode(IntPtr camera, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void arv_camera_gv_set_ip_configuration_mode(IntPtr camera, int mode, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void arv_camera_gv_get_persistent_ip(IntPtr camera,
+        out IntPtr ipObj, out IntPtr maskObj, out IntPtr gatewayObj, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void arv_camera_gv_set_persistent_ip_from_string(IntPtr camera,
+        IntPtr ip, IntPtr mask, IntPtr gateway, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int arv_camera_gv_get_n_network_interfaces(IntPtr camera);
+
     // USB Vision specifics
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     public static extern int arv_camera_uv_get_bandwidth(IntPtr camera, out IntPtr error);
@@ -488,4 +507,19 @@ public static class ArvPixelFormat
     
     public const uint ARV_PIXEL_FORMAT_YUV_422_PACKED = 0x0210001F;
     public const uint ARV_PIXEL_FORMAT_YUV_422_YUYV_PACKED = 0x02100032;
+}
+
+/// <summary>
+/// GigE Vision IP configuration mode flags (can be combined with bitwise OR)
+/// </summary>
+[Flags]
+public enum ArvGvIpConfigurationMode : int
+{
+    None = 0,
+    /// <summary>Persistent (static) IP address</summary>
+    PersistentIp = 1,
+    /// <summary>DHCP address assignment</summary>
+    Dhcp = 2,
+    /// <summary>Link-Local Address (169.254.x.x auto-configuration)</summary>
+    Lla = 4
 }
