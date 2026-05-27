@@ -6,7 +6,7 @@ AravisSharp uses three logical library names in its P/Invoke declarations:
 
 | Logical Name | C# File | Purpose |
 |-------------|---------|---------|
-| `aravis-0.8` | `AravisNative.cs`, `AravisGenerated.cs` | Aravis camera API |
+| `aravis-0.8` | `AravisNative.cs` | Audited Aravis 0.8 camera API |
 | `gobject-2.0` | `GLibNative.cs` | GObject ref-counting (`g_object_ref` / `g_object_unref`) |
 | `glib-2.0` | `GLibNative.cs` | GLib utilities (`g_error_free`, `g_free`) |
 
@@ -20,7 +20,8 @@ At startup, `AravisLibrary.RegisterResolver()` installs a `NativeLibrary.SetDllI
 
 The resolver tries:
 1. **Bare name** — lets the OS search system paths (`LD_LIBRARY_PATH`, `PATH`, etc.)
-2. **`runtimes/{rid}/native/`** — NuGet package layout next to the assembly
+2. **Application directory** — native assets copied next to the managed assembly
+3. **`runtimes/{rid}/native/`** — NuGet package layout next to the assembly
 
 ---
 
@@ -84,7 +85,7 @@ pacman -S mingw-w64-x86_64-aravis mingw-w64-x86_64-toolchain
 ### Linux (from source)
 
 ```bash
-# Build Aravis 0.8.33 with minimal dependencies (no viewer, no GStreamer):
+# Build Aravis 0.8.36 with minimal dependencies (no viewer, no GStreamer):
 ./build_aravis_linux_nuget.sh
 
 # Output: ~/dev/AravisSharpLinux/runtimes/linux-x64/native/libaravis-0.8.so.0
@@ -93,7 +94,7 @@ pacman -S mingw-w64-x86_64-aravis mingw-w64-x86_64-toolchain
 
 The build script:
 1. Installs build dependencies (`meson`, `ninja`, `libglib2.0-dev`, `libxml2-dev`, `libusb-1.0-0-dev`).
-2. Downloads Aravis 0.8.33 source tarball.
+2. Builds the pinned Aravis 0.8.36 source.
 3. Configures with `meson setup -Dviewer=disabled -Dgst-plugin=disabled -Dintrospection=disabled`.
 4. Builds with `ninja` and stages into a temporary DESTDIR.
 5. Copies `libaravis-0.8.so.0` into the NuGet `runtimes/linux-x64/native/` layout.

@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VERSION="0.8.33"
+VERSION="0.8.36"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SUBMODULE_SRC="$REPO_ROOT/aravis"
 
 # Où tu veux sortir les fichiers prêts à packager
 OUT_ROOT="$HOME/dev/AravisSharpLinux"
@@ -9,7 +11,6 @@ RID="linux-x64"
 NATIVE_DIR="$OUT_ROOT/runtimes/$RID/native"
 
 WORK="$OUT_ROOT/_work"
-TARBALL="$WORK/aravis-$VERSION.tar.gz"
 SRC="$WORK/aravis-$VERSION"
 BUILD="$SRC/build"
 STAGE="$SRC/stage"
@@ -26,9 +27,16 @@ rm -rf "$WORK"
 mkdir -p "$WORK"
 cd "$WORK"
 
-echo "== Download Aravis $VERSION sources =="
-curl -L -o "$TARBALL" "https://github.com/AravisProject/aravis/archive/refs/tags/$VERSION.tar.gz"
-tar -xzf "$TARBALL"
+if [[ -d "$SUBMODULE_SRC/.git" || -f "$SUBMODULE_SRC/.git" ]]; then
+  echo "== Copy Aravis $VERSION sources from submodule =="
+  mkdir -p "$SRC"
+  git -C "$SUBMODULE_SRC" archive --format=tar HEAD | tar -x -C "$SRC"
+else
+  echo "== Download Aravis $VERSION sources =="
+  TARBALL="$WORK/aravis-$VERSION.tar.gz"
+  curl -L -o "$TARBALL" "https://github.com/AravisProject/aravis/archive/refs/tags/$VERSION.tar.gz"
+  tar -xzf "$TARBALL"
+fi
 
 echo "== Configure + Build (no viewer, no gst plugin) =="
 cd "$SRC"

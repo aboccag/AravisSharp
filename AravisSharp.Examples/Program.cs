@@ -17,7 +17,7 @@ Console.Write("Aravis Status: ");
 
 if (AravisLibrary.IsAravisAvailable())
 {
-    Console.WriteLine("✓ Available\n");
+    Console.WriteLine($"✓ Available ({AravisLibrary.GetNativeVersion()})\n");
 }
 else
 {
@@ -31,12 +31,12 @@ else
 Console.WriteLine("=== Aravis Interfaces ===");
 try
 {
-    var nInterfaces = AravisSharp.Generated.AravisGenerated.arv_get_n_interfaces();
+    var nInterfaces = AravisNative.arv_get_n_interfaces();
     Console.WriteLine($"Number of interfaces: {nInterfaces}");
     for (uint i = 0; i < nInterfaces; i++)
     {
-        var idPtr = AravisSharp.Generated.AravisGenerated.arv_get_interface_id(i);
-        var id = idPtr != IntPtr.Zero ? System.Runtime.InteropServices.Marshal.PtrToStringAnsi(idPtr) : "(null)";
+        var idPtr = AravisNative.arv_get_interface_id(i);
+        var id = idPtr != IntPtr.Zero ? System.Runtime.InteropServices.Marshal.PtrToStringUTF8(idPtr) : "(null)";
         Console.WriteLine($"  [{i}] {id}");
     }
 }
@@ -321,7 +321,7 @@ try
     Console.WriteLine("\nStopping acquisition...");
     camera.StopAcquisition();
     
-    // Dispose buffers (Stream.Dispose() will drain them automatically)
+    // The stream owns queued buffers after PushBuffer(); these wrappers are already detached.
     foreach (var buf in buffers)
         buf.Dispose();
     

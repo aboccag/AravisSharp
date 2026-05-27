@@ -1,6 +1,6 @@
 # AravisSharp — Cross-Platform .NET Bindings for Aravis
 
-**AravisSharp** is a complete C# binding for the [Aravis](https://github.com/AravisProject/aravis) industrial camera library, supporting **USB3 Vision** and **GigE Vision** cameras on Windows, Linux, and macOS.
+**AravisSharp** is a C# binding for the [Aravis](https://github.com/AravisProject/aravis) industrial camera library, targeting the stable **Aravis 0.8.36 / libaravis-0.8** ABI and supporting **USB3 Vision** and **GigE Vision** cameras on Windows, Linux, and macOS.
 
 > Think of it as an open-source alternative to vendor SDKs like Basler Pylon — one library, any GenICam camera.
 
@@ -31,7 +31,7 @@ sudo apt install -y libaravis-0.8-0
 dotnet add package AravisSharp.runtime.linux-x64
 ```
 
-**Option C — Build Aravis 0.8.33 from source:**
+**Option C — Build Aravis 0.8.36 from source:**
 ```bash
 ./build_aravis_linux_nuget.sh
 ```
@@ -140,12 +140,10 @@ camera.StopAcquisition();
 ```
 AravisSharp/
 ├── Native/
-│   ├── AravisNative.cs        # ~80 hand-crafted P/Invoke bindings (aravis-0.8)
+│   ├── AravisNative.cs        # Audited hand-written P/Invoke bindings (aravis-0.8)
 │   ├── GLibNative.cs          # GLib / GObject P/Invoke (gobject-2.0, glib-2.0)
 │   ├── AravisLibrary.cs       # Cross-platform DllImportResolver
 │   └── GErrorStructure.cs     # GError marshalling
-├── Generated/
-│   └── AravisGenerated.cs     # 475 auto-generated bindings (GObject Introspection)
 ├── GenICam/
 │   ├── NodeMap.cs             # GenICam feature access (read/write/browse)
 │   ├── GenICamNode.cs         # Individual node wrapper
@@ -190,7 +188,7 @@ On **Windows**, the runtime package includes every dependency. On **Linux**, onl
 - **Camera discovery** — enumerate USB3 Vision and GigE Vision devices
 - **High-level API** — `Camera`, `Stream`, `Buffer` with `IDisposable` and proper GObject ref-counting
 - **GenICam feature browser** — introspect features with type, access mode, range, and enumeration choices
-- **475 auto-generated bindings** — full Aravis C API via GObject Introspection
+- **Audited native surface** — high-value 0.8.36 calls are hand checked; broad GIR generation is kept out of the public API until regenerated safely
 - **80 hand-crafted bindings** — curated, documented, with correct error handling
 - **Zero-copy image access** — `ReadOnlySpan<byte>` via `buffer.GetDataSpan()`
 - **Image export** — PNG / JPEG via SixLabors.ImageSharp, raw / PGM via `ImageHelper`
@@ -212,7 +210,7 @@ On **Windows**, the runtime package includes every dependency. On **Linux**, onl
 | Requirement | Version |
 |-------------|---------|
 | .NET SDK | **10.0** |
-| Aravis | **0.8.x** (system package, NuGet, or built from source) |
+| Aravis | **0.8.36 target** (`libaravis-0.8`; compatible with the 0.8 ABI) |
 | SixLabors.ImageSharp | 3.1.12 (NuGet) |
 
 ## License
