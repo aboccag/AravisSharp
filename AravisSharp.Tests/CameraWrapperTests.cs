@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using AravisSharp;
 using Xunit;
 
@@ -16,10 +17,14 @@ public class CameraWrapperTests : IDisposable
     {
         try
         {
-            CameraDiscovery.UpdateDeviceList();
-            if (CameraDiscovery.GetDeviceCount() > 0)
+            var cameras = CameraDiscovery.DiscoverCameras();
+            // Prefer a real camera over the fake interface when both are present
+            var preferred = cameras.FirstOrDefault(c =>
+                !string.Equals(c.Protocol, "Fake", StringComparison.OrdinalIgnoreCase))
+                ?? cameras.FirstOrDefault();
+            if (preferred != null)
             {
-                _camera = new Camera(null);
+                _camera = new Camera(preferred.DeviceId);
                 _hasCamera = true;
             }
         }
