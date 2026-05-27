@@ -272,12 +272,13 @@ jobs:
           name: nuget-packages
           path: _packages/*.nupkg
 
-      - name: Publish to NuGet.org
-        if: startsWith(github.ref, 'refs/tags/v')
-        env:
-          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
-        run: |
-          dotnet nuget push _packages/*.nupkg \
-            --api-key "$NUGET_API_KEY" \
-            --source https://api.nuget.org/v3/index.json \
-            --skip-duplicate
+      # NuGet publish is intentionally disabled — enable once packages are validated
+      # - name: Publish to NuGet.org
+      #   if: startsWith(github.ref, 'refs/tags/v')
+      #   env:
+      #     NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+      #   run: |
+      #     dotnet nuget push _packages/*.nupkg \
+      #       --api-key "$NUGET_API_KEY" \
+      #       --source https://api.nuget.org/v3/index.json \
+      #       --skip-duplicate
