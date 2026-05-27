@@ -1,0 +1,283 @@
+name: Build and Publish
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Shared meson options — disable everything not needed for the .NET binding
+env:
+  MESON_OPTS: >-
+    --buildtype=release
+    -Dviewer=disabled
+    -Dtests=false
+    -Ddocumentation=disabled
+    -Dintrospection=disabled
+    -Dgst-plugin=disabled
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────
+  # 1. Build native Aravis on every target platform
+  # ─────────────────────────────────────────────────────────────────────────
+  build-native:
+    name: Native (${{ matrix.rid }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-22.04,     rid: linux-x64   }
+          - { os: ubuntu-22.04-arm, rid: linux-arm64 }
+          - { os: macos-13,         rid: osx-x64     }
+          - { os: macos-latest,     rid: osx-arm64   }
+          - { os: windows-latest,   rid: win-x64     }
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # ── Linux ──────────────────────────────────────────────────────────────
+      - name: Install deps (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libglib2.0-dev libxml2-dev libusb-1.0-0-dev \
+            meson ninja-build pkg-config patchelf
+
+      - name: Build Aravis (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          meson setup _build aravis ${{ env.MESON_OPTS }} --prefix=$PWD/_install
+          ninja -C _build install
+
+      - name: Collect native libs (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p _native
+
+          # Copy aravis .so and any versioned symlinks
+          find _install -name 'libaravis-0.8.so*' | while read f; do
+            cp -P --no-clobber "$f" _native/ 2>/dev/null || true
+          done
+
+          # Resolve the real .so (not a symlink) for ldd
+          ARAVIS_SO=$(find _native -name 'libaravis-0.8.so*' -not -type l | head -1)
+
+          # Collect GLib/xml/usb deps — skip glibc, libm, ld-linux etc.
+          SKIP='linux-vdso|ld-linux|libc\.so|libm\.so|libdl\.so|libpthread\.so|librt\.so|libresolv\.so|libnss'
+          ldd "$ARAVIS_SO" | grep -vE "$SKIP" | awk '{print $3}' | grep '^/' | sort -u | \
+          while read lib; do
+            real=$(readlink -f "$lib")
+            cp --no-clobber "$real" _native/ 2>/dev/null || true
+            link=$(basename "$lib"); base=$(basename "$real")
+            if [ "$link" != "$base" ] && [ ! -e "_native/$link" ]; then
+              (cd _native && ln -sf "$base" "$link")
+            fi
+          done
+
+          # Patch rpath so bundled libs find each other via $ORIGIN
+          for so in _native/*.so*; do
+            [ -L "$so" ] && continue
+            patchelf --set-rpath '$ORIGIN' "$so" 2>/dev/null || true
+          done
+
+          ls -la _native/
+
+      # ── macOS ──────────────────────────────────────────────────────────────
+      - name: Install deps (macOS)
+        if: runner.os == 'macOS'
+        run: brew install glib libxml2 libusb meson ninja pkg-config
+
+      - name: Build Aravis (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          # Homebrew libxml2 is keg-only — expose its pkg-config path
+          export PKG_CONFIG_PATH="$(brew --prefix libxml2)/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+          meson setup _build aravis ${{ env.MESON_OPTS }} --prefix=$PWD/_install
+          ninja -C _build install
+
+      - name: Collect and fix native libs (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          BREW=$(brew --prefix)
+          mkdir -p _native
+
+          # Aravis dylib
+          find _install -name 'libaravis-0.8*.dylib' | head -1 | xargs -I{} cp {} _native/
+
+          # Bundle Homebrew deps (GLib family + libxml2 + libusb + common transitive deps)
+          for dep in \
+            libglib-2.0.0.dylib libgobject-2.0.0.dylib libgio-2.0.0.dylib libgmodule-2.0.0.dylib \
+            libxml2.2.dylib libusb-1.0.0.dylib libffi.8.dylib libpcre2-8.0.dylib \
+            libintl.8.dylib libiconv.2.dylib; do
+            for dir in "$BREW/lib" "$(brew --prefix libxml2)/lib" "$(brew --prefix gettext)/lib"; do
+              [ -f "$dir/$dep" ] && cp "$dir/$dep" _native/ && break || true
+            done
+          done
+
+          # Rewrite all absolute load paths to @loader_path so the bundle is self-contained
+          cd _native
+          for dylib in *.dylib; do
+            install_name_tool -id "@loader_path/$dylib" "$dylib" 2>/dev/null || true
+            while IFS= read -r dep_path; do
+              dep_name=$(basename "$dep_path")
+              [ -f "./$dep_name" ] && \
+                install_name_tool -change "$dep_path" "@loader_path/$dep_name" "$dylib" 2>/dev/null || true
+            done < <(otool -L "$dylib" | tail -n +2 | awk '{print $1}' | grep '^/')
+          done
+          cd ..
+
+          ls -la _native/
+
+      # ── Windows (MSYS2 / MinGW64) ──────────────────────────────────────────
+      - name: Set up MSYS2 (Windows)
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-glib2
+            mingw-w64-x86_64-libxml2
+            mingw-w64-x86_64-libusb
+            mingw-w64-x86_64-meson
+            mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-pkg-config
+
+      - name: Build Aravis (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          meson setup _build aravis ${{ env.MESON_OPTS }} --prefix=/mingw64
+          ninja -C _build install
+
+      - name: Collect native DLLs (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          mkdir -p _native
+          cp /mingw64/bin/libaravis-0.8-0.dll _native/
+          # Bundle GLib + all transitive deps needed at runtime
+          for dll in \
+            libglib-2.0-0.dll libgobject-2.0-0.dll libgio-2.0-0.dll libgmodule-2.0-0.dll \
+            libxml2-2.dll libusb-1.0.dll libffi-8.dll libpcre2-8-0.dll \
+            libintl-8.dll libiconv-2.dll libwinpthread-1.dll zlib1.dll; do
+            [ -f "/mingw64/bin/$dll" ] && cp "/mingw64/bin/$dll" _native/ || true
+          done
+          ls -la _native/
+
+      - name: Upload native artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-${{ matrix.rid }}
+          path: _native/
+          if-no-files-found: error
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # 2. Build .NET and run tests using the Fake camera interface (no hardware)
+  # ─────────────────────────────────────────────────────────────────────────
+  test-dotnet:
+    name: Test .NET (Fake interface)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Install Aravis system-wide for test runner
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libglib2.0-dev libxml2-dev libusb-1.0-0-dev \
+            meson ninja-build pkg-config
+          meson setup _build aravis \
+            --buildtype=release --prefix=/usr/local \
+            -Dviewer=disabled -Dtests=false -Ddocumentation=disabled \
+            -Dintrospection=disabled -Dgst-plugin=disabled
+          sudo ninja -C _build install
+          sudo ldconfig
+
+      - name: Run FakeCameraTests
+        run: |
+          dotnet test AravisSharp.Tests/ -c Release \
+            --filter "FullyQualifiedName~FakeCameraTests" \
+            --logger "console;verbosity=normal"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # 3. Assemble the all-in-one NuGet package and publish on tag
+  # ─────────────────────────────────────────────────────────────────────────
+  pack-and-publish:
+    name: Pack & Publish NuGet
+    needs: [build-native, test-dotnet]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      # Download all five native artifacts
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: native-*
+          path: _native/
+
+      # Lay them out under AravisSharp/runtimes/{rid}/native/
+      # dotnet pack will pick them up via the <Content> items in the csproj
+      - name: Arrange runtimes layout
+        run: |
+          for rid in linux-x64 linux-arm64 osx-x64 osx-arm64 win-x64; do
+            dest=AravisSharp/runtimes/$rid/native
+            mkdir -p "$dest"
+            src=_native/native-$rid
+            [ -d "$src" ] && cp -r "$src/." "$dest/" || echo "WARNING: no artifact for $rid"
+          done
+          find AravisSharp/runtimes -type f | sort
+
+      # On a tag push use the tag (strip leading 'v'); otherwise a pre-release CI version
+      - name: Compute package version
+        id: ver
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=0.0.0-ci.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Pack
+        run: |
+          dotnet pack AravisSharp/AravisSharp.csproj \
+            -c Release \
+            -p:Version=${{ steps.ver.outputs.version }} \
+            --no-restore \
+            -o _packages/
+
+      - name: Upload NuGet artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-packages
+          path: _packages/*.nupkg
+
+      - name: Publish to NuGet.org
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          dotnet nuget push _packages/*.nupkg \
+            --api-key "$NUGET_API_KEY" \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
