@@ -1698,6 +1698,361 @@ public class Camera : IDisposable
         return AravisNative.arv_camera_gv_get_n_network_interfaces(_handle);
     }
 
+
+    // === Convenience acquisition ===
+
+    /// <summary>
+    /// Convenience method: creates a stream, allocates one buffer, starts acquisition,
+    /// waits for a single frame, stops acquisition, and returns the buffer.
+    /// The caller owns the returned <see cref="Buffer"/> and must dispose it.
+    /// </summary>
+    /// <param name="timeoutUs">Timeout in microseconds (0 = infinite)</param>
+    public Buffer AcquireSingleFrame(ulong timeoutUs = 2_000_000)
+    {
+        CheckDisposed();
+        IntPtr error = IntPtr.Zero;
+        try
+        {
+            var bufferHandle = AravisNative.arv_camera_acquisition(_handle, timeoutUs, out error);
+            CheckError(error);
+            if (bufferHandle == IntPtr.Zero)
+                throw new AravisException("arv_camera_acquisition returned null buffer");
+            return new Buffer(bufferHandle, true);
+        }
+        finally
+        {
+            if (error != IntPtr.Zero)
+                GLibNative.g_error_free(error);
+        }
+    }
+
+    // === Enumerate available values ===
+
+    /// <summary>
+    /// Returns the names of all pixel formats supported by the camera.
+    /// </summary>
+    public string[] GetAvailablePixelFormats()
+    {
+        CheckDisposed();
+        IntPtr error = IntPtr.Zero;
+        try
+        {
+            var ptr = AravisNative.arv_camera_dup_available_pixel_formats_as_strings(_handle, out uint count, out error);
+            CheckError(error);
+            return MarshalStringArray(ptr, count);
+        }
+        finally
+        {
+            if (error != IntPtr.Zero)
+                GLibNative.g_error_free(error);
+        }
+    }
+
+    /// <summary>
+    /// Returns the display names of all pixel formats supported by the camera.
+    /// </summary>
+    public string[] GetAvailablePixelFormatDisplayNames()
+    {
+        CheckDisposed();
+        IntPtr error = IntPtr.Zero;
+        try
+        {
+            var ptr = AravisNative.arv_camera_dup_available_pixel_formats_as_display_names(_handle, out uint count, out error);
+            CheckError(error);
+            return MarshalStringArray(ptr, count);
+        }
+        finally
+        {
+            if (error != IntPtr.Zero)
+                GLibNative.g_error_free(error);
+        }
+    }
+
+    /// <summary>
+    /// Returns the valid string values for any enumeration feature (e.g. "TriggerSource").
+    /// </summary>
+    public string[] GetAvailableEnumerationValues(string feature)
+    {
+        CheckDisposed();
+        IntPtr error = IntPtr.Zero;
+        IntPtr featurePtr = IntPtr.Zero;
+        try
+        {
+            featurePtr = Marshal.StringToCoTaskMemUTF8(feature);
+            var ptr = AravisNative.arv_camera_dup_available_enumerations_as_strings(_handle, featurePtr, out uint count, out error);
+            CheckError(error);
+            return MarshalStringArray(ptr, count);
+        }
+        finally
+        {
+            if (featurePtr != IntPtr.Zero) Marshal.FreeCoTaskMem(featurePtr);
+            if (error != IntPtr.Zero) GLibNative.g_error_free(error);
+        }
+    }
+
+    // === Feature meta ===
+
+    /// <summary>Gets the exposure time increment in microseconds (0 if continuous).</summary>
+    public double GetExposureTimeIncrement()
+    {
+        CheckDisposed();
+        IntPtr error = IntPtr.Zero;
+        try
+        {
+            var v = AravisNative.arv_camera_get_exposure_time_increment(_handle, out error);
+            CheckError(error);
+            return v;
+        }
+        finally { if (error != IntPtr.Zero) GLibNative.g_error_free(error); }
+    }
+
+    /// <summary>Gets the gain increment (0 if continuous).</summary>
+    public double GetGainIncrement()
+    {
+        CheckDisposed();
+        IntPtr error = IntPtr.Zero;
+        try
+        {
+            var v = AravisNative.arv_camera_get_gain_increment(_handle, out error);
+            CheckError(error);
+            return v;
+        }
+        finally { if (error != IntPtr.Zero) GLibNative.g_error_free(error); }
+    }
+
+    /// <summary>Gets whether the frame rate is enabled.</summary>
+    public bool GetFrameRateEnable()
+    {
+        CheckDisposed();
+        IntPtr error = IntPtr.Zero;
+        try
+        {
+            var v = AravisNative.arv_camera_get_frame_rate_enable(_handle, out error);
+            CheckError(error);
+            return v;
+        }
+        finally { if (error != IntPtr.Zero) GLibNative.g_error_free(error); }
+    }
+
+    /// <summary>Enables or disables the frame rate control.</summary>
+    public void SetFrameRateEnable(bool enable)
+    {
+        CheckDisposed();
+        IntPtr error = IntPtr.Zero;
+        try
+        {
+            AravisNative.arv_camera_set_frame_rate_enable(_handle, enable, out error);
+            CheckError(error);
+        }
+        finally { if (error != IntPtr.Zero) GLibNative.g_error_free(error); }
+    }
+
+    /// <summary>Sets the exposure mode (Timed, TriggerWidth, TriggerControlled).</summary>
+    public void SetExposureMode(ArvExposureMode mode)
+    {
+        CheckDisposed();
+        IntPtr error = IntPtr.Zero;
+        try
+        {
+            AravisNative.arv_camera_set_exposure_mode(_handle, mode, out error);
+            CheckError(error);
+        }
+        finally { if (error != IntPtr.Zero) GLibNative.g_error_free(error); }
+    }
+
+    /// <summary>Checks if a feature is implemented by the camera (vs. just available).</summary>
+    public bool IsFeatureImplemented(string feature)
+    {
+        CheckDisposed();
+        IntPtr error = IntPtr.Zero;
+        IntPtr featurePtr = IntPtr.Zero;
+        try
+        {
+            featurePtr = Marshal.StringToCoTaskMemUTF8(feature);
+            var v = AravisNative.arv_camera_is_feature_implemented(_handle, featurePtr, out error);
+            CheckError(error);
+            return v;
+        }
+        finally
+        {
+            if (featurePtr != IntPtr.Zero) Marshal.FreeCoTaskMem(featurePtr);
+            if (error != IntPtr.Zero) GLibNative.g_error_free(error);
+        }
+    }
+
+    /// <summary>Checks if the ROI offset (OffsetX/OffsetY) is adjustable.</summary>
+    public bool IsRegionOffsetAvailable()
+    {
+        CheckDisposed();
+        IntPtr error = IntPtr.Zero;
+        try
+        {
+            var v = AravisNative.arv_camera_is_region_offset_available(_handle, out error);
+            CheckError(error);
+            return v;
+        }
+        finally { if (error != IntPtr.Zero) GLibNative.g_error_free(error); }
+    }
+
+    // === ROI offset bounds ===
+
+    /// <summary>Gets the allowed X offset (OffsetX) range.</summary>
+    public (int Min, int Max) GetXOffsetBounds()
+    {
+        CheckDisposed();
+        IntPtr error = IntPtr.Zero;
+        try
+        {
+            AravisNative.arv_camera_get_x_offset_bounds(_handle, out int min, out int max, out error);
+            CheckError(error);
+            return (min, max);
+        }
+        finally { if (error != IntPtr.Zero) GLibNative.g_error_free(error); }
+    }
+
+    /// <summary>Gets the X offset increment.</summary>
+    public int GetXOffsetIncrement()
+    {
+        CheckDisposed();
+        IntPtr error = IntPtr.Zero;
+        try
+        {
+            var v = AravisNative.arv_camera_get_x_offset_increment(_handle, out error);
+            CheckError(error);
+            return v;
+        }
+        finally { if (error != IntPtr.Zero) GLibNative.g_error_free(error); }
+    }
+
+    /// <summary>Gets the allowed Y offset (OffsetY) range.</summary>
+    public (int Min, int Max) GetYOffsetBounds()
+    {
+        CheckDisposed();
+        IntPtr error = IntPtr.Zero;
+        try
+        {
+            AravisNative.arv_camera_get_y_offset_bounds(_handle, out int min, out int max, out error);
+            CheckError(error);
+            return (min, max);
+        }
+        finally { if (error != IntPtr.Zero) GLibNative.g_error_free(error); }
+    }
+
+    /// <summary>Gets the Y offset increment.</summary>
+    public int GetYOffsetIncrement()
+    {
+        CheckDisposed();
+        IntPtr error = IntPtr.Zero;
+        try
+        {
+            var v = AravisNative.arv_camera_get_y_offset_increment(_handle, out error);
+            CheckError(error);
+            return v;
+        }
+        finally { if (error != IntPtr.Zero) GLibNative.g_error_free(error); }
+    }
+
+    // === Per-axis binning bounds ===
+
+    /// <summary>Gets the allowed horizontal binning range.</summary>
+    public (int Min, int Max) GetXBinningBounds()
+    {
+        CheckDisposed();
+        IntPtr error = IntPtr.Zero;
+        try
+        {
+            AravisNative.arv_camera_get_x_binning_bounds(_handle, out int min, out int max, out error);
+            CheckError(error);
+            return (min, max);
+        }
+        finally { if (error != IntPtr.Zero) GLibNative.g_error_free(error); }
+    }
+
+    /// <summary>Gets the horizontal binning increment.</summary>
+    public int GetXBinningIncrement()
+    {
+        CheckDisposed();
+        IntPtr error = IntPtr.Zero;
+        try
+        {
+            var v = AravisNative.arv_camera_get_x_binning_increment(_handle, out error);
+            CheckError(error);
+            return v;
+        }
+        finally { if (error != IntPtr.Zero) GLibNative.g_error_free(error); }
+    }
+
+    /// <summary>Gets the allowed vertical binning range.</summary>
+    public (int Min, int Max) GetYBinningBounds()
+    {
+        CheckDisposed();
+        IntPtr error = IntPtr.Zero;
+        try
+        {
+            AravisNative.arv_camera_get_y_binning_bounds(_handle, out int min, out int max, out error);
+            CheckError(error);
+            return (min, max);
+        }
+        finally { if (error != IntPtr.Zero) GLibNative.g_error_free(error); }
+    }
+
+    /// <summary>Gets the vertical binning increment.</summary>
+    public int GetYBinningIncrement()
+    {
+        CheckDisposed();
+        IntPtr error = IntPtr.Zero;
+        try
+        {
+            var v = AravisNative.arv_camera_get_y_binning_increment(_handle, out error);
+            CheckError(error);
+            return v;
+        }
+        finally { if (error != IntPtr.Zero) GLibNative.g_error_free(error); }
+    }
+
+    // === GigE Vision — extended ===
+
+    /// <summary>Gets the inter-packet delay in nanoseconds for GigE Vision cameras.</summary>
+    public long GvGetPacketDelay()
+    {
+        CheckDisposed();
+        IntPtr error = IntPtr.Zero;
+        try
+        {
+            var v = AravisNative.arv_camera_gv_get_packet_delay(_handle, out error);
+            CheckError(error);
+            return v;
+        }
+        finally { if (error != IntPtr.Zero) GLibNative.g_error_free(error); }
+    }
+
+    /// <summary>Sets the inter-packet delay in nanoseconds for GigE Vision cameras.</summary>
+    public void GvSetPacketDelay(long delayNs)
+    {
+        CheckDisposed();
+        IntPtr error = IntPtr.Zero;
+        try
+        {
+            AravisNative.arv_camera_gv_set_packet_delay(_handle, delayNs, out error);
+            CheckError(error);
+        }
+        finally { if (error != IntPtr.Zero) GLibNative.g_error_free(error); }
+    }
+
+    /// <summary>Gets the number of stream channels for GigE Vision cameras.</summary>
+    public int GvGetStreamChannelCount()
+    {
+        CheckDisposed();
+        IntPtr error = IntPtr.Zero;
+        try
+        {
+            var v = AravisNative.arv_camera_gv_get_n_stream_channels(_handle, out error);
+            CheckError(error);
+            return v;
+        }
+        finally { if (error != IntPtr.Zero) GLibNative.g_error_free(error); }
+    }
+
     // === Stream Creation ===
 
     /// <summary>
@@ -1763,6 +2118,20 @@ public class Camera : IDisposable
 
         var gerror = Marshal.PtrToStructure<GError>(error);
         return Marshal.PtrToStringUTF8(gerror.Message) ?? "Unknown error";
+    }
+
+
+    private static string[] MarshalStringArray(IntPtr arrayPtr, uint count)
+    {
+        if (arrayPtr == IntPtr.Zero || count == 0)
+            return Array.Empty<string>();
+        var result = new string[count];
+        for (uint i = 0; i < count; i++)
+        {
+            var strPtr = Marshal.ReadIntPtr(arrayPtr, (int)(i * IntPtr.Size));
+            result[i] = Marshal.PtrToStringUTF8(strPtr) ?? string.Empty;
+        }
+        return result;
     }
 
     private static string MarshalString(IntPtr ptr)

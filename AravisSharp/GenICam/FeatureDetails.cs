@@ -44,7 +44,7 @@ public class FeatureDetails
             var gc = AravisNative.arv_device_get_genicam(device);
             if (gc == IntPtr.Zero) return details;
             
-            IntPtr nameHGlobal = Marshal.StringToHGlobalAnsi(featureName);
+            IntPtr nameHGlobal = Marshal.StringToCoTaskMemUTF8(featureName);
             try
             {
                 var nodePtr = AravisNative.arv_gc_get_node(gc, nameHGlobal);
@@ -53,27 +53,27 @@ public class FeatureDetails
                 // Get display name
                 var displayNamePtr = AravisNative.arv_gc_feature_node_get_display_name(nodePtr);
                 if (displayNamePtr != IntPtr.Zero)
-                    details.DisplayName = Marshal.PtrToStringAnsi(displayNamePtr) ?? featureName;
+                    details.DisplayName = Marshal.PtrToStringUTF8(displayNamePtr) ?? featureName;
                 else
                     details.DisplayName = featureName;
                 
                 // Get description
                 var descPtr = AravisNative.arv_gc_feature_node_get_description(nodePtr);
                 if (descPtr != IntPtr.Zero)
-                    details.Description = Marshal.PtrToStringAnsi(descPtr) ?? string.Empty;
+                    details.Description = Marshal.PtrToStringUTF8(descPtr) ?? string.Empty;
                 
                 // Get tooltip
                 var tooltipPtr = AravisNative.arv_gc_feature_node_get_tooltip(nodePtr);
                 if (tooltipPtr != IntPtr.Zero)
-                    details.Tooltip = Marshal.PtrToStringAnsi(tooltipPtr) ?? string.Empty;
+                    details.Tooltip = Marshal.PtrToStringUTF8(tooltipPtr) ?? string.Empty;
                 
                 // Get access mode (returns ArvGcAccessMode enum: RO=0, WO=1, RW=2, UNDEFINED=-1)
                 var accessModeValue = AravisNative.arv_gc_feature_node_get_actual_access_mode(nodePtr);
-                details.AccessMode = ParseAccessMode((int)accessModeValue);
+                details.AccessMode = ParseAccessMode(accessModeValue);
                 
                 // Get visibility (returns ArvGcVisibility enum: INVISIBLE=0, GURU=1, EXPERT=2, BEGINNER=3, UNDEFINED=-1)
                 var visibilityValue = AravisNative.arv_gc_feature_node_get_visibility(nodePtr);
-                details.Visibility = ParseVisibility((int)visibilityValue);
+                details.Visibility = ParseVisibility(visibilityValue);
                 
                 // Get availability — each call uses its own error pointer
                 IntPtr error = IntPtr.Zero;
@@ -93,7 +93,7 @@ public class FeatureDetails
                     var valuePtr = AravisNative.arv_gc_feature_node_get_value_as_string(nodePtr, out error);
                     GLibNative.ClearError(ref error);
                     if (valuePtr != IntPtr.Zero)
-                        details.CurrentValue = Marshal.PtrToStringAnsi(valuePtr);
+                        details.CurrentValue = Marshal.PtrToStringUTF8(valuePtr);
                 }
                 
                 // Determine feature type using GObject type introspection (no trial-and-error)
@@ -101,7 +101,7 @@ public class FeatureDetails
             }
             finally
             {
-                Marshal.FreeHGlobal(nameHGlobal);
+                Marshal.FreeCoTaskMem(nameHGlobal);
             }
         }
         catch
@@ -114,7 +114,7 @@ public class FeatureDetails
     
     private static void DetermineTypeAndConstraints(IntPtr device, string featureName, IntPtr nodePtr, FeatureDetails details)
     {
-        IntPtr namePtr = Marshal.StringToHGlobalAnsi(featureName);
+        IntPtr namePtr = Marshal.StringToCoTaskMemUTF8(featureName);
         
         try
         {
@@ -165,7 +165,7 @@ public class FeatureDetails
         }
         finally
         {
-            Marshal.FreeHGlobal(namePtr);
+            Marshal.FreeCoTaskMem(namePtr);
         }
     }
     
@@ -231,13 +231,15 @@ public class FeatureDetails
                     var strPtr = Marshal.ReadIntPtr(choicesPtr, (int)i * IntPtr.Size);
                     if (strPtr != IntPtr.Zero)
                     {
-                        var choice = Marshal.PtrToStringAnsi(strPtr);
+                        var choice = Marshal.PtrToStringUTF8(strPtr);
                         if (choice != null)
                             details.EnumChoices.Add(choice);
                     }
                 }
             }
             GLibNative.ClearError(ref error);
+            if (choicesPtr != IntPtr.Zero)
+                GLibNative.g_free(choicesPtr);
             
             // Try to get display names
             var displayNamesPtr = AravisNative.arv_device_dup_available_enumeration_feature_values_as_display_names(device, namePtr, out count, out error);
@@ -248,13 +250,15 @@ public class FeatureDetails
                     var strPtr = Marshal.ReadIntPtr(displayNamesPtr, (int)i * IntPtr.Size);
                     if (strPtr != IntPtr.Zero)
                     {
-                        var displayName = Marshal.PtrToStringAnsi(strPtr);
+                        var displayName = Marshal.PtrToStringUTF8(strPtr);
                         if (displayName != null)
                             details.EnumDisplayNames.Add(displayName);
                     }
                 }
             }
             GLibNative.ClearError(ref error);
+            if (displayNamesPtr != IntPtr.Zero)
+                GLibNative.g_free(displayNamesPtr);
         }
         catch
         {

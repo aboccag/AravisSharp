@@ -26,18 +26,44 @@ public enum ArvAcquisitionMode
 /// </summary>
 public enum ArvAuto
 {
-    /// <summary>
-    /// Manual mode (auto disabled)
-    /// </summary>
+    /// <summary>Manual mode (auto disabled)</summary>
     Off = 0,
-
-    /// <summary>
-    /// Single-shot auto (performs one automatic adjustment then returns to manual)
-    /// </summary>
+    /// <summary>Single-shot auto (one adjustment then returns to manual)</summary>
     Once = 1,
-
-    /// <summary>
-    /// Continuous auto mode
-    /// </summary>
+    /// <summary>Continuous auto mode</summary>
     Continuous = 2
+}
+
+/// <summary>
+/// Exposure mode — controls how exposure duration is determined
+/// </summary>
+public enum ArvExposureMode
+{
+    /// <summary>Exposure disabled; shutter stays open</summary>
+    Off = 0,
+    /// <summary>Timed exposure set via ExposureTime / ExposureAuto</summary>
+    Timed = 1,
+    /// <summary>Exposure duration equals the width of the trigger pulse</summary>
+    TriggerWidth = 2,
+    /// <summary>Separate trigger signals control start and end of exposure</summary>
+    TriggerControlled = 3
+}
+
+/// <summary>
+/// Buffer payload type — describes the kind of data in the buffer
+/// </summary>
+public enum ArvBufferPayloadType
+{
+    Unknown = -1,
+    NoData = 0x0000,
+    Image = 0x0001,
+    RawData = 0x0002,
+    File = 0x0003,
+    ChunkData = 0x0004,
+    ExtendedChunkData = 0x0005,
+    Jpeg = 0x0006,
+    Jpeg2000 = 0x0007,
+    H264 = 0x000D,
+    MultizoneImage = 0x0012,
+    Multipart = 0x002A
 }

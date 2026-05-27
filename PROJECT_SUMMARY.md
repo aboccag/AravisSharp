@@ -2,7 +2,7 @@
 
 ## Overview
 
-AravisSharp provides complete C# (.NET 10.0) bindings for the [Aravis](https://github.com/AravisProject/aravis) industrial camera library. It supports USB3 Vision and GigE Vision cameras on Windows, Linux, and macOS through a cross-platform `DllImportResolver` and NuGet runtime packages.
+AravisSharp provides C# bindings for the [Aravis](https://github.com/AravisProject/aravis) industrial camera library, currently pinned to the stable Aravis 0.8.36 / `libaravis-0.8` ABI. It supports USB3 Vision and GigE Vision cameras on Windows, Linux, and macOS through a cross-platform `DllImportResolver` and NuGet runtime packages.
 
 **Tested camera**: Basler acA720-520um (USB3 Vision, 724×542, up to 520 fps)
 
@@ -20,25 +20,21 @@ AravisSharp/
 ├── FEATURE_BROWSER_GUIDE.md        # GenICam feature browser guide
 ├── PROJECT_SUMMARY.md              # This file
 │
-├── build_aravis_linux_nuget.sh     # Build Aravis 0.8.33 for linux-x64 NuGet
+├── build_aravis_linux_nuget.sh     # Build Aravis 0.8.36 for linux-x64 NuGet
 ├── copy-aravis-dlls.ps1            # Extract Windows DLLs from MSYS2
 ├── check-setup.sh                  # Verify 8 Linux runtime dependencies
 ├── setup-usb-permissions.sh        # Configure udev rules for USB3 Vision
 ├── increase-usb-buffer.sh          # Increase USB buffer size
-├── generate-bindings.py            # Auto-generate P/Invoke from GIR data
 │
 ├── AravisSharp/                    # Main library + demo app
-│   ├── AravisSharp.csproj          # .NET 10.0, multi-RID, unsafe enabled
+│   ├── AravisSharp.csproj          # net8.0/net10.0, multi-RID, unsafe enabled
 │   ├── Program.cs                  # Interactive demo menu (8 options)
 │   │
 │   ├── Native/
-│   │   ├── AravisNative.cs         # ~80 hand-crafted P/Invoke (aravis-0.8)
+│   │   ├── AravisNative.cs         # Audited hand-crafted P/Invoke (aravis-0.8)
 │   │   ├── GLibNative.cs           # GLib/GObject P/Invoke (gobject-2.0, glib-2.0)
 │   │   ├── AravisLibrary.cs        # DllImportResolver + platform detection
 │   │   └── GErrorStructure.cs      # GError struct marshalling
-│   │
-│   ├── Generated/
-│   │   └── AravisGenerated.cs      # 475 auto-generated bindings from GIR
 │   │
 │   ├── GenICam/
 │   │   ├── NodeMap.cs              # Feature read/write/browse
@@ -69,8 +65,8 @@ AravisSharp/
     ├── AravisSharp.Tests.csproj
     ├── NativeLibraryFixture.cs     # Shared test fixture
     ├── AravisNativeTests.cs        # Tests for hand-crafted bindings
-    ├── AravisGeneratedTests.cs     # Tests for auto-generated bindings
-    └── BindingCompatibilityTests.cs # Cross-check manual vs generated
+    ├── AravisNativeDiscoveryTests.cs # Tests for discovery/interface bindings
+    └── CameraWrapperTests.cs       # High-level wrapper tests
 ```
 
 ---
@@ -81,8 +77,7 @@ AravisSharp/
 
 | Layer | File | Functions | Library |
 |-------|------|-----------|---------|
-| Hand-crafted | `AravisNative.cs` | ~80 `arv_*` functions | `aravis-0.8` |
-| Auto-generated | `AravisGenerated.cs` | 475 `arv_*` functions | `aravis-0.8` |
+| Hand-crafted | `AravisNative.cs` | Audited high-value `arv_*` functions | `aravis-0.8` |
 | GLib/GObject | `GLibNative.cs` | 5 functions (`g_object_ref/unref`, `g_error_free`, `g_clear_error`, `g_free`) | `gobject-2.0`, `glib-2.0` |
 
 **Key design decision**: GLib functions (`g_object_unref`, `g_error_free`) are declared in `GLibNative.cs` pointing to `gobject-2.0` / `glib-2.0`, **not** in `AravisNative.cs`. On Linux, calling them from the wrong DLL might work (the dynamic linker resolves symbols globally), but on Windows each DLL has its own export table — calling `g_object_unref` from `libaravis-0.8-0.dll` causes `EntryPointNotFoundException`.
@@ -95,7 +90,7 @@ AravisSharp/
 - `gobject-2.0` → `libgobject-2.0-0.dll` / `libgobject-2.0.so.0` / `libgobject-2.0.dylib`
 - `glib-2.0` → `libglib-2.0-0.dll` / `libglib-2.0.so.0` / `libglib-2.0.dylib`
 
-The resolver probes system paths first, then `runtimes/{rid}/native/` (NuGet layout).
+The resolver probes system paths first, then the app directory and `runtimes/{rid}/native/` (NuGet layout).
 
 ### High-Level API
 
@@ -127,12 +122,11 @@ All wrapper classes use `IDisposable` and call `GLibNative.g_object_unref()` in 
 
 | Script | Platform | Purpose |
 |--------|----------|---------|
-| `build_aravis_linux_nuget.sh` | Linux | Build Aravis 0.8.33 from source, stage `libaravis-0.8.so.0` into NuGet layout |
+| `build_aravis_linux_nuget.sh` | Linux | Build Aravis 0.8.36 from source, stage `libaravis-0.8.so.0` into NuGet layout |
 | `copy-aravis-dlls.ps1` | Windows | Extract Aravis + transitive DLLs from MSYS2 into NuGet layout |
 | `check-setup.sh` | Linux | Verify all 8 runtime shared libraries are present |
 | `setup-usb-permissions.sh` | Linux | Configure udev rules for USB3 Vision cameras |
 | `increase-usb-buffer.sh` | Linux | Increase USB buffer size for high-speed capture |
-| `generate-bindings.py` | Any | Parse GIR XML and generate `AravisGenerated.cs` |
 
 ---
 
@@ -143,11 +137,11 @@ All wrapper classes use `IDisposable` and call `GLibNative.g_object_unref()` in 
 | Test File | Tests | Coverage |
 |-----------|-------|----------|
 | `AravisNativeTests.cs` | 11 | Device enumeration, camera info, buffer allocation |
-| `AravisGeneratedTests.cs` | 11 | Generated binding validation, function count |
-| `BindingCompatibilityTests.cs` | 7 | Manual vs generated binding consistency |
-| **Total** | **29** | |
+| `AravisNativeDiscoveryTests.cs` | 4 | Discovery, interface, and version bindings |
+| `CameraWrapperTests.cs` | 50 | High-level camera wrapper behavior |
+| **Total** | **65** | |
 
-Tests auto-skip camera-specific checks if no camera is connected.
+Tests auto-skip native Aravis checks if `libaravis-0.8` is not installed, and camera-specific checks if no camera is connected.
 
 ---
 

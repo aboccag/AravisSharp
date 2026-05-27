@@ -189,17 +189,11 @@ nodeMap.ExecuteCommand("TriggerSoftware");
 
 ---
 
-## AravisNative vs AravisGenerated
+## Native Binding Policy
 
-| Aspect | AravisNative (hand-crafted) | AravisGenerated (auto) |
-|--------|-----------------------------|------------------------|
-| Functions | ~80 | 475 |
-| Error handling | ✅ Correct `GError**` parameters | ⚠️ Some lost in generation |
-| Type safety | ✅ Proper C# types | ⚠️ Some generic `IntPtr` |
-| Documentation | ✅ XML docs | ❌ None |
-| Use for | Production code | API discovery, advanced/rare calls |
+AravisSharp now uses audited hand-crafted bindings only. `AravisNative` exposes the Aravis 0.8.36 functions used by the high-level API, with explicit C# signatures for `GError**`, transfer ownership, UTF-8 strings, GLib-owned memory, and native sizes.
 
-**Recommendation**: Use `AravisNative` for day-to-day work. Consult `AravisGenerated` when you need a function not covered by the hand-crafted bindings, then promote it to `AravisNative` if you use it regularly.
+When a new Aravis function is needed, add it directly to `AravisNative` from the Aravis 0.8.36 C header prototype and cover it with a focused test. Do not reintroduce a generated binding layer.
 
 ---
 

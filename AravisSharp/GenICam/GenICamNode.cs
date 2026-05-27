@@ -1,6 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
-using AravisSharp.Generated;
+using AravisSharp.Native;
 
 namespace AravisSharp.GenICam;
 
@@ -25,20 +25,20 @@ public class GenICamNode : IDisposable
         _genicamHandle = genicamHandle;
 
         // Get node name
-        IntPtr namePtr = AravisGenerated.arv_gc_feature_node_get_name();
-        Name = Marshal.PtrToStringAnsi(namePtr) ?? "Unknown";
+        IntPtr namePtr = AravisNative.arv_gc_feature_node_get_name(_nodeHandle);
+        Name = Marshal.PtrToStringUTF8(namePtr) ?? "Unknown";
 
         // Get display name
-        IntPtr displayNamePtr = AravisGenerated.arv_gc_feature_node_get_display_name();
-        DisplayName = Marshal.PtrToStringAnsi(displayNamePtr);
+        IntPtr displayNamePtr = AravisNative.arv_gc_feature_node_get_display_name(_nodeHandle);
+        DisplayName = Marshal.PtrToStringUTF8(displayNamePtr);
 
         // Get description
-        IntPtr descPtr = AravisGenerated.arv_gc_feature_node_get_description();
-        Description = Marshal.PtrToStringAnsi(descPtr);
+        IntPtr descPtr = AravisNative.arv_gc_feature_node_get_description(_nodeHandle);
+        Description = Marshal.PtrToStringUTF8(descPtr);
 
         // Get tooltip
-        IntPtr tooltipPtr = AravisGenerated.arv_gc_feature_node_get_tooltip();
-        Tooltip = Marshal.PtrToStringAnsi(tooltipPtr);
+        IntPtr tooltipPtr = AravisNative.arv_gc_feature_node_get_tooltip(_nodeHandle);
+        Tooltip = Marshal.PtrToStringUTF8(tooltipPtr);
 
         // Determine node type (simplified)
         NodeType = DetermineNodeType();
@@ -46,35 +46,75 @@ public class GenICamNode : IDisposable
 
     public bool IsAvailable()
     {
-        return AravisGenerated.arv_gc_feature_node_is_available();
+        IntPtr error = IntPtr.Zero;
+        try
+        {
+            return AravisNative.arv_gc_feature_node_is_available(_nodeHandle, out error);
+        }
+        finally
+        {
+            GLibNative.ClearError(ref error);
+        }
     }
 
     public bool IsImplemented()
     {
-        return AravisGenerated.arv_gc_feature_node_is_implemented();
+        IntPtr error = IntPtr.Zero;
+        try
+        {
+            return AravisNative.arv_gc_feature_node_is_implemented(_nodeHandle, out error);
+        }
+        finally
+        {
+            GLibNative.ClearError(ref error);
+        }
     }
 
     public bool IsLocked()
     {
-        return AravisGenerated.arv_gc_feature_node_is_locked();
+        IntPtr error = IntPtr.Zero;
+        try
+        {
+            return AravisNative.arv_gc_feature_node_is_locked(_nodeHandle, out error);
+        }
+        finally
+        {
+            GLibNative.ClearError(ref error);
+        }
     }
 
     public string? GetValueAsString()
     {
-        IntPtr valuePtr = AravisGenerated.arv_gc_feature_node_get_value_as_string();
-        return Marshal.PtrToStringAnsi(valuePtr);
+        IntPtr error = IntPtr.Zero;
+        try
+        {
+            IntPtr valuePtr = AravisNative.arv_gc_feature_node_get_value_as_string(_nodeHandle, out error);
+            return Marshal.PtrToStringUTF8(valuePtr);
+        }
+        finally
+        {
+            GLibNative.ClearError(ref error);
+        }
     }
 
     public void SetValueFromString(string value)
     {
-        IntPtr valuePtr = Marshal.StringToHGlobalAnsi(value);
+        IntPtr valuePtr = Marshal.StringToCoTaskMemUTF8(value);
+        IntPtr error = IntPtr.Zero;
         try
         {
-            AravisGenerated.arv_gc_feature_node_set_value_from_string(valuePtr);
+            AravisNative.arv_gc_feature_node_set_value_from_string(_nodeHandle, valuePtr, out error);
+            if (error != IntPtr.Zero)
+            {
+                var gerror = Marshal.PtrToStructure<GError>(error);
+                var message = Marshal.PtrToStringUTF8(gerror.Message) ?? "Unknown error";
+                throw new AravisException(message);
+            }
         }
         finally
         {
-            Marshal.FreeHGlobal(valuePtr);
+            GLibNative.ClearError(ref error);
+            Marshal.FreeCoTaskMem(valuePtr);
         }
     }
 

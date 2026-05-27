@@ -84,7 +84,7 @@ public class NodeMap : IDisposable
         {
             if (_genicam == IntPtr.Zero) return features;
             
-            var categoryNamePtr = Marshal.StringToHGlobalAnsi(categoryName);
+            var categoryNamePtr = Marshal.StringToCoTaskMemUTF8(categoryName);
             IntPtr categoryPtr;
             try
             {
@@ -92,7 +92,7 @@ public class NodeMap : IDisposable
             }
             finally
             {
-                Marshal.FreeHGlobal(categoryNamePtr);
+                Marshal.FreeCoTaskMem(categoryNamePtr);
             }
             if (categoryPtr == IntPtr.Zero) return features;
             
@@ -107,7 +107,7 @@ public class NodeMap : IDisposable
                 var nameStringPtr = Marshal.ReadIntPtr(current, 0); // data = const char*
                 if (nameStringPtr != IntPtr.Zero)
                 {
-                    var name = Marshal.PtrToStringAnsi(nameStringPtr);
+                    var name = Marshal.PtrToStringUTF8(nameStringPtr);
                     if (name != null)
                     {
                         var details = GetFeatureDetails(name);
@@ -179,7 +179,7 @@ public class NodeMap : IDisposable
     /// </summary>
     public string? GetStringFeature(string featureName)
     {
-        IntPtr namePtr = Marshal.StringToHGlobalAnsi(featureName);
+        IntPtr namePtr = Marshal.StringToCoTaskMemUTF8(featureName);
         IntPtr error = IntPtr.Zero;
         try
         {
@@ -188,12 +188,12 @@ public class NodeMap : IDisposable
             if (error != IntPtr.Zero)
                 return null;
 
-            return Marshal.PtrToStringAnsi(valuePtr);
+            return Marshal.PtrToStringUTF8(valuePtr);
         }
         finally
         {
             GLibNative.ClearError(ref error);
-            Marshal.FreeHGlobal(namePtr);
+            Marshal.FreeCoTaskMem(namePtr);
         }
     }
 
@@ -202,8 +202,8 @@ public class NodeMap : IDisposable
     /// </summary>
     public void SetStringFeature(string featureName, string value)
     {
-        IntPtr namePtr = Marshal.StringToHGlobalAnsi(featureName);
-        IntPtr valuePtr = Marshal.StringToHGlobalAnsi(value);
+        IntPtr namePtr = Marshal.StringToCoTaskMemUTF8(featureName);
+        IntPtr valuePtr = Marshal.StringToCoTaskMemUTF8(value);
         IntPtr error = IntPtr.Zero;
         try
         {
@@ -215,8 +215,8 @@ public class NodeMap : IDisposable
         finally
         {
             GLibNative.ClearError(ref error);
-            Marshal.FreeHGlobal(namePtr);
-            Marshal.FreeHGlobal(valuePtr);
+            Marshal.FreeCoTaskMem(namePtr);
+            Marshal.FreeCoTaskMem(valuePtr);
         }
     }
 
@@ -225,7 +225,7 @@ public class NodeMap : IDisposable
     /// </summary>
     public long GetIntegerFeature(string featureName)
     {
-        IntPtr namePtr = Marshal.StringToHGlobalAnsi(featureName);
+        IntPtr namePtr = Marshal.StringToCoTaskMemUTF8(featureName);
         IntPtr error = IntPtr.Zero;
         try
         {
@@ -239,7 +239,7 @@ public class NodeMap : IDisposable
         finally
         {
             GLibNative.ClearError(ref error);
-            Marshal.FreeHGlobal(namePtr);
+            Marshal.FreeCoTaskMem(namePtr);
         }
     }
 
@@ -248,7 +248,7 @@ public class NodeMap : IDisposable
     /// </summary>
     public void SetIntegerFeature(string featureName, long value)
     {
-        IntPtr namePtr = Marshal.StringToHGlobalAnsi(featureName);
+        IntPtr namePtr = Marshal.StringToCoTaskMemUTF8(featureName);
         IntPtr error = IntPtr.Zero;
         try
         {
@@ -260,7 +260,7 @@ public class NodeMap : IDisposable
         finally
         {
             GLibNative.ClearError(ref error);
-            Marshal.FreeHGlobal(namePtr);
+            Marshal.FreeCoTaskMem(namePtr);
         }
     }
 
@@ -269,7 +269,7 @@ public class NodeMap : IDisposable
     /// </summary>
     public double GetFloatFeature(string featureName)
     {
-        IntPtr namePtr = Marshal.StringToHGlobalAnsi(featureName);
+        IntPtr namePtr = Marshal.StringToCoTaskMemUTF8(featureName);
         IntPtr error = IntPtr.Zero;
         try
         {
@@ -283,7 +283,7 @@ public class NodeMap : IDisposable
         finally
         {
             GLibNative.ClearError(ref error);
-            Marshal.FreeHGlobal(namePtr);
+            Marshal.FreeCoTaskMem(namePtr);
         }
     }
 
@@ -292,7 +292,7 @@ public class NodeMap : IDisposable
     /// </summary>
     public void SetFloatFeature(string featureName, double value)
     {
-        IntPtr namePtr = Marshal.StringToHGlobalAnsi(featureName);
+        IntPtr namePtr = Marshal.StringToCoTaskMemUTF8(featureName);
         IntPtr error = IntPtr.Zero;
         try
         {
@@ -304,7 +304,7 @@ public class NodeMap : IDisposable
         finally
         {
             GLibNative.ClearError(ref error);
-            Marshal.FreeHGlobal(namePtr);
+            Marshal.FreeCoTaskMem(namePtr);
         }
     }
 
@@ -313,7 +313,7 @@ public class NodeMap : IDisposable
     /// </summary>
     public bool GetBooleanFeature(string featureName)
     {
-        IntPtr namePtr = Marshal.StringToHGlobalAnsi(featureName);
+        IntPtr namePtr = Marshal.StringToCoTaskMemUTF8(featureName);
         IntPtr error = IntPtr.Zero;
         try
         {
@@ -327,7 +327,7 @@ public class NodeMap : IDisposable
         finally
         {
             GLibNative.ClearError(ref error);
-            Marshal.FreeHGlobal(namePtr);
+            Marshal.FreeCoTaskMem(namePtr);
         }
     }
 
@@ -336,7 +336,7 @@ public class NodeMap : IDisposable
     /// </summary>
     public void SetBooleanFeature(string featureName, bool value)
     {
-        IntPtr namePtr = Marshal.StringToHGlobalAnsi(featureName);
+        IntPtr namePtr = Marshal.StringToCoTaskMemUTF8(featureName);
         IntPtr error = IntPtr.Zero;
         try
         {
@@ -348,7 +348,7 @@ public class NodeMap : IDisposable
         finally
         {
             GLibNative.ClearError(ref error);
-            Marshal.FreeHGlobal(namePtr);
+            Marshal.FreeCoTaskMem(namePtr);
         }
     }
 
@@ -357,7 +357,7 @@ public class NodeMap : IDisposable
     /// </summary>
     public void ExecuteCommand(string commandName)
     {
-        IntPtr namePtr = Marshal.StringToHGlobalAnsi(commandName);
+        IntPtr namePtr = Marshal.StringToCoTaskMemUTF8(commandName);
         IntPtr error = IntPtr.Zero;
         try
         {
@@ -369,7 +369,7 @@ public class NodeMap : IDisposable
         finally
         {
             GLibNative.ClearError(ref error);
-            Marshal.FreeHGlobal(namePtr);
+            Marshal.FreeCoTaskMem(namePtr);
         }
     }
 

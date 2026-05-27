@@ -1,6 +1,5 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using AravisSharp.Generated;
 using AravisSharp.Native;
 
 namespace AravisSharp.Tests;
@@ -20,7 +19,7 @@ internal static class NativeLibraryInitializer
         var idPtr = Marshal.StringToCoTaskMemUTF8(FakeInterfaceName);
         try
         {
-            AravisGenerated.arv_enable_interface(idPtr);
+            AravisNative.arv_enable_interface(idPtr);
         }
         finally
         {

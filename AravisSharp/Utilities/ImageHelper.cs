@@ -77,6 +77,29 @@ public static class ImageHelper
             var image = Image.LoadPixelData<L8>(data, width, height);
             image.SaveAsPng(filename);
         }
+        else if (pixelFormat == ArvPixelFormat.ARV_PIXEL_FORMAT_MONO_10 ||
+                 pixelFormat == ArvPixelFormat.ARV_PIXEL_FORMAT_MONO_12 ||
+                 pixelFormat == ArvPixelFormat.ARV_PIXEL_FORMAT_MONO_14 ||
+                 pixelFormat == ArvPixelFormat.ARV_PIXEL_FORMAT_MONO_16)
+        {
+            // 10/12/14/16-bit: stored as little-endian uint16, normalize to 8-bit
+            int bitsPerPixel = pixelFormat switch
+            {
+                ArvPixelFormat.ARV_PIXEL_FORMAT_MONO_10 => 10,
+                ArvPixelFormat.ARV_PIXEL_FORMAT_MONO_12 => 12,
+                ArvPixelFormat.ARV_PIXEL_FORMAT_MONO_14 => 14,
+                _ => 16,
+            };
+            int maxVal = (1 << bitsPerPixel) - 1;
+            var pixels = new L8[width * height];
+            for (int i = 0; i < pixels.Length; i++)
+            {
+                ushort raw = System.Runtime.InteropServices.MemoryMarshal.Read<ushort>(data.Slice(i * 2));
+                pixels[i] = new L8((byte)(raw * 255 / maxVal));
+            }
+            var image = Image.LoadPixelData<L8>(pixels, width, height);
+            image.SaveAsPng(filename);
+        }
         else if (pixelFormat == ArvPixelFormat.ARV_PIXEL_FORMAT_RGB_8_PACKED)
         {
             // RGB 24-bit

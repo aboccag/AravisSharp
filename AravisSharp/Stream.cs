@@ -128,7 +128,7 @@ public class Stream : IDisposable
     }
 
     /// <summary>
-    /// Pushes a buffer to the input queue for filling
+    /// Pushes a buffer to the input queue for filling and transfers ownership to the stream.
     /// </summary>
     public void PushBuffer(Buffer buffer)
     {
@@ -137,6 +137,20 @@ public class Stream : IDisposable
             throw new ArgumentNullException(nameof(buffer));
         
         AravisNative.arv_stream_push_buffer(_handle, buffer.Handle);
+        buffer.ReleaseOwnership();
+    }
+
+    /// <summary>
+    /// Pops a buffer from the output queue (non-blocking, immediate return).
+    /// Returns null if no buffer is ready.
+    /// </summary>
+    public Buffer? TryPopBuffer()
+    {
+        CheckDisposed();
+        var bufferHandle = AravisNative.arv_stream_try_pop_buffer(_handle);
+        if (bufferHandle == IntPtr.Zero)
+            return null;
+        return new Buffer(bufferHandle, true);
     }
 
     /// <summary>
@@ -150,7 +164,7 @@ public class Stream : IDisposable
         if (bufferHandle == IntPtr.Zero)
             return null;
 
-        return new Buffer(bufferHandle, false);
+        return new Buffer(bufferHandle, true);
     }
 
     /// <summary>
@@ -167,7 +181,17 @@ public class Stream : IDisposable
         if (bufferHandle == IntPtr.Zero)
             return null;
 
-        return new Buffer(bufferHandle, false);
+        return new Buffer(bufferHandle, true);
+    }
+
+    /// <summary>
+    /// Gets the number of buffers currently in the input and output queues.
+    /// </summary>
+    public (int InputBuffers, int OutputBuffers) GetBufferCounts()
+    {
+        CheckDisposed();
+        AravisNative.arv_stream_get_n_buffers(_handle, out int input, out int output);
+        return (input, output);
     }
 
     /// <summary>

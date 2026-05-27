@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using AravisSharp;
 
 namespace AravisSharp.Native;
 
@@ -12,6 +13,16 @@ public static class AravisNative
     // The resolver maps this to the correct platform-specific file:
     //   Windows: libaravis-0.8-0.dll  |  Linux: libaravis-0.8.so.0  |  macOS: libaravis-0.8.dylib
     internal const string LibraryName = "aravis-0.8";
+
+    // Version
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern uint arv_get_major_version();
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern uint arv_get_minor_version();
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern uint arv_get_micro_version();
 
     // Camera discovery and enumeration
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
@@ -37,6 +48,24 @@ public static class AravisNative
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr arv_get_device_address(uint index);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr arv_get_device_physical_id(uint index);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr arv_get_device_manufacturer_info(uint index);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern uint arv_get_n_interfaces();
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr arv_get_interface_id(uint index);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void arv_enable_interface(IntPtr interfaceId);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void arv_disable_interface(IntPtr interfaceId);
 
     // Camera opening and closing
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
@@ -342,16 +371,16 @@ public static class AravisNative
 
     // Buffer operations
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr arv_buffer_new(IntPtr size, IntPtr priv);
+    public static extern IntPtr arv_buffer_new(UIntPtr size, IntPtr priv);
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr arv_buffer_new_allocate(IntPtr size);
+    public static extern IntPtr arv_buffer_new_allocate(UIntPtr size);
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     public static extern ArvBufferStatus arv_buffer_get_status(IntPtr buffer);
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr arv_buffer_get_data(IntPtr buffer, out IntPtr size);
+    public static extern IntPtr arv_buffer_get_data(IntPtr buffer, out UIntPtr size);
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void arv_buffer_get_image_region(IntPtr buffer, out int x, out int y, out int width, out int height);
@@ -451,10 +480,13 @@ public static class AravisNative
     public static extern IntPtr arv_gc_feature_node_get_value_as_string(IntPtr node, out IntPtr error);
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr arv_gc_feature_node_get_actual_access_mode(IntPtr node);
+    public static extern int arv_gc_feature_node_get_actual_access_mode(IntPtr node);
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr arv_gc_feature_node_get_visibility(IntPtr node);
+    public static extern int arv_gc_feature_node_get_visibility(IntPtr node);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void arv_gc_feature_node_set_value_from_string(IntPtr node, IntPtr value, out IntPtr error);
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     public static extern bool arv_gc_feature_node_is_available(IntPtr node, out IntPtr error);
@@ -464,6 +496,143 @@ public static class AravisNative
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     public static extern bool arv_gc_feature_node_is_locked(IntPtr node, out IntPtr error);
+
+    // === Buffer — additional accessors ===
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int arv_buffer_get_image_x(IntPtr buffer);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int arv_buffer_get_image_y(IntPtr buffer);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void arv_buffer_get_image_padding(IntPtr buffer, out int xPadding, out int yPadding);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern ArvBufferPayloadType arv_buffer_get_payload_type(IntPtr buffer);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern ulong arv_buffer_get_system_timestamp(IntPtr buffer);
+
+    // === Camera — convenience single-frame acquisition ===
+
+    /// <summary>Acquire a single buffer with optional timeout (µs). Caller owns the returned ArvBuffer.</summary>
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr arv_camera_acquisition(IntPtr camera, ulong timeoutUs, out IntPtr error);
+
+    // === Camera — enumerate available values ===
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr arv_camera_dup_available_pixel_formats_as_strings(IntPtr camera, out uint nFormats, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr arv_camera_dup_available_pixel_formats_as_display_names(IntPtr camera, out uint nFormats, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr arv_camera_dup_available_enumerations_as_strings(IntPtr camera, IntPtr feature, out uint nValues, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr arv_camera_dup_available_enumerations_as_display_names(IntPtr camera, IntPtr feature, out uint nValues, out IntPtr error);
+
+    // === Camera — feature meta (increment / representation) ===
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern double arv_camera_get_exposure_time_increment(IntPtr camera, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern double arv_camera_get_gain_increment(IntPtr camera, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern bool arv_camera_get_frame_rate_enable(IntPtr camera, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void arv_camera_set_frame_rate_enable(IntPtr camera, bool enable, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void arv_camera_set_exposure_mode(IntPtr camera, ArvExposureMode mode, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern bool arv_camera_is_feature_implemented(IntPtr camera, IntPtr feature, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern bool arv_camera_is_region_offset_available(IntPtr camera, out IntPtr error);
+
+    // === Camera — X/Y offset bounds (ROI positioning) ===
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void arv_camera_get_x_offset_bounds(IntPtr camera, out int min, out int max, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int arv_camera_get_x_offset_increment(IntPtr camera, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void arv_camera_get_y_offset_bounds(IntPtr camera, out int min, out int max, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int arv_camera_get_y_offset_increment(IntPtr camera, out IntPtr error);
+
+    // === Camera — per-axis binning bounds ===
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void arv_camera_get_x_binning_bounds(IntPtr camera, out int min, out int max, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int arv_camera_get_x_binning_increment(IntPtr camera, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void arv_camera_get_y_binning_bounds(IntPtr camera, out int min, out int max, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int arv_camera_get_y_binning_increment(IntPtr camera, out IntPtr error);
+
+    // === Camera — GigE Vision extended ===
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern long arv_camera_gv_get_packet_delay(IntPtr camera, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void arv_camera_gv_set_packet_delay(IntPtr camera, long delayNs, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int arv_camera_gv_get_n_stream_channels(IntPtr camera, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void arv_camera_gv_select_stream_channel(IntPtr camera, int channelIndex, out IntPtr error);
+
+    // === Stream — additional ===
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr arv_stream_try_pop_buffer(IntPtr stream);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void arv_stream_get_n_buffers(IntPtr stream, out int nInputBuffers, out int nOutputBuffers);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern bool arv_stream_get_emit_signals(IntPtr stream);
+
+    // === Device — additional ===
+
+    /// <summary>Returns the raw GenICam XML descriptor. The returned string is owned by the device; do not free it.</summary>
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr arv_device_get_genicam_xml(IntPtr device, out UIntPtr size);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern bool arv_device_is_feature_available(IntPtr device, IntPtr feature, out IntPtr error);
+
+    /// <summary>Apply multiple features from a key=value string, e.g. "Width=640,Height=480".</summary>
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern bool arv_device_set_features_from_string(IntPtr device, IntPtr settings, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern bool arv_device_read_register(IntPtr device, ulong address, out uint value, out IntPtr error);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern bool arv_device_write_register(IntPtr device, ulong address, uint value, out IntPtr error);
+
+    // === System ===
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void arv_shutdown();
 
     // NOTE: g_object_ref/unref and g_error_free/g_clear_error live in GLib/GObject,
     // NOT in the Aravis library. Use GLibNative for those functions.

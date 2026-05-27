@@ -20,9 +20,9 @@ dotnet test --filter "FullyQualifiedName~AravisNativeTests"
 | File | Tests | What It Covers |
 |------|-------|----------------|
 | `AravisNativeTests.cs` | 11 | Hand-crafted P/Invoke: device enumeration, camera info, buffer allocation, pixel format constants |
-| `AravisGeneratedTests.cs` | 11 | Auto-generated bindings: device enumeration, extended info, function count (≥400) |
-| `BindingCompatibilityTests.cs` | 7 | Cross-checks manual vs generated bindings return consistent results |
-| **Total** | **29** | |
+| `AravisNativeDiscoveryTests.cs` | 4 | Hand-crafted discovery, interface, and version bindings |
+| `CameraWrapperTests.cs` | 50 | High-level camera wrapper behavior |
+| **Total** | **65** | |
 
 ## Shared Fixture
 
@@ -30,7 +30,7 @@ dotnet test --filter "FullyQualifiedName~AravisNativeTests"
 
 ## Camera-Optional
 
-Tests that require a connected camera are guarded with `Skip` conditions — they pass (skip) gracefully when no camera is plugged in. Device enumeration and constant-validation tests always run.
+Tests that require native Aravis are guarded with `NativeFact` and skip cleanly when `libaravis-0.8` is unavailable. Camera-specific wrapper tests return early when no camera is plugged in.
 
 ## Prerequisites
 

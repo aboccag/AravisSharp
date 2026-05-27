@@ -10,16 +10,23 @@ public class Buffer : IDisposable
 {
     private IntPtr _handle;
     private bool _disposed;
-    private readonly bool _ownsHandle;
+    private bool _ownsHandle;
 
-    internal IntPtr Handle => _handle;
+    internal IntPtr Handle
+    {
+        get
+        {
+            CheckDisposed();
+            return _handle;
+        }
+    }
 
     /// <summary>
     /// Creates a new buffer with the specified size
     /// </summary>
     public Buffer(IntPtr size)
     {
-        _handle = AravisNative.arv_buffer_new_allocate(size);
+        _handle = AravisNative.arv_buffer_new_allocate(ToUIntPtr(size));
         _ownsHandle = true;
         
         if (_handle == IntPtr.Zero)
@@ -28,10 +35,27 @@ public class Buffer : IDisposable
         }
     }
 
+    /// <summary>
+    /// Creates a new buffer with the specified size in bytes.
+    /// </summary>
+    public Buffer(int size)
+        : this(new IntPtr(size))
+    {
+    }
+
     internal Buffer(IntPtr handle, bool ownsHandle)
     {
         _handle = handle;
         _ownsHandle = ownsHandle;
+    }
+
+    internal void ReleaseOwnership()
+    {
+        CheckDisposed();
+        _ownsHandle = false;
+        _handle = IntPtr.Zero;
+        _disposed = true;
+        GC.SuppressFinalize(this);
     }
 
     /// <summary>
@@ -107,6 +131,64 @@ public class Buffer : IDisposable
     }
 
     /// <summary>
+    /// Gets the image origin X offset within the sensor
+    /// </summary>
+    public int ImageX
+    {
+        get
+        {
+            CheckDisposed();
+            return AravisNative.arv_buffer_get_image_x(_handle);
+        }
+    }
+
+    /// <summary>
+    /// Gets the image origin Y offset within the sensor
+    /// </summary>
+    public int ImageY
+    {
+        get
+        {
+            CheckDisposed();
+            return AravisNative.arv_buffer_get_image_y(_handle);
+        }
+    }
+
+    /// <summary>
+    /// Gets the row padding (extra bytes at end of each row)
+    /// </summary>
+    public (int XPadding, int YPadding) GetImagePadding()
+    {
+        CheckDisposed();
+        AravisNative.arv_buffer_get_image_padding(_handle, out int x, out int y);
+        return (x, y);
+    }
+
+    /// <summary>
+    /// Gets the payload type (Image, ChunkData, RawData, etc.)
+    /// </summary>
+    public ArvBufferPayloadType PayloadType
+    {
+        get
+        {
+            CheckDisposed();
+            return AravisNative.arv_buffer_get_payload_type(_handle);
+        }
+    }
+
+    /// <summary>
+    /// Gets the system (wall-clock) timestamp in nanoseconds
+    /// </summary>
+    public ulong SystemTimestamp
+    {
+        get
+        {
+            CheckDisposed();
+            return AravisNative.arv_buffer_get_system_timestamp(_handle);
+        }
+    }
+
+    /// <summary>
     /// Gets the image region
     /// </summary>
     public (int X, int Y, int Width, int Height) GetImageRegion()
@@ -120,18 +202,24 @@ public class Buffer : IDisposable
     /// Gets the raw buffer data
     /// </summary>
     /// <returns>Pointer to buffer data and size</returns>
-    public unsafe (IntPtr Data, int Size) GetData()
+    public (IntPtr Data, int Size) GetData()
     {
         CheckDisposed();
-        var dataPtr = AravisNative.arv_buffer_get_data(_handle, out IntPtr sizePtr);
-        int size = (int)sizePtr.ToInt64();
+        var dataPtr = AravisNative.arv_buffer_get_data(_handle, out UIntPtr sizePtr);
+        ulong nativeSize = sizePtr.ToUInt64();
+        if (nativeSize > int.MaxValue)
+        {
+            throw new InvalidOperationException($"Buffer data is too large for a managed span or array: {nativeSize} bytes.");
+        }
+
+        int size = (int)nativeSize;
         return (dataPtr, size);
     }
 
     /// <summary>
     /// Copies the buffer data to a byte array
     /// </summary>
-    public unsafe byte[] CopyData()
+    public byte[] CopyData()
     {
         CheckDisposed();
         var (dataPtr, size) = GetData();
@@ -195,6 +283,12 @@ public class Buffer : IDisposable
 
     public void Dispose()
     {
+        Dispose(disposing: true);
+        GC.SuppressFinalize(this);
+    }
+
+    private void Dispose(bool disposing)
+    {
         if (!_disposed)
         {
             if (_handle != IntPtr.Zero && _ownsHandle)
@@ -207,19 +301,25 @@ public class Buffer : IDisposable
                 {
                     // Ignore errors during cleanup
                 }
-                _handle = IntPtr.Zero;
             }
+            _handle = IntPtr.Zero;
             _disposed = true;
         }
-        GC.SuppressFinalize(this);
     }
 
     ~Buffer()
     {
-        // Don't call Dispose in finalizer to avoid issues
-        if (_handle != IntPtr.Zero && _ownsHandle)
+        Dispose(disposing: false);
+    }
+
+    private static UIntPtr ToUIntPtr(IntPtr size)
+    {
+        long value = size.ToInt64();
+        if (value < 0)
         {
-            _handle = IntPtr.Zero;
+            throw new ArgumentOutOfRangeException(nameof(size), "Buffer size must be non-negative.");
         }
+
+        return new UIntPtr((ulong)value);
     }
 }

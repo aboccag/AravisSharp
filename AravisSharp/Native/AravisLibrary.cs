@@ -14,10 +14,8 @@ public static class AravisLibrary
     private static readonly object _lock = new();
 
     /// <summary>
-    /// Registers a <see cref="NativeLibrary.SetDllImportResolver"/> for both
-    /// <see cref="AravisNative"/> and <see cref="AravisSharp.Generated.AravisGenerated"/>
-    /// so that the logical name "aravis-0.8" is mapped to the correct platform-specific
-    /// file at runtime.
+    /// Registers a <see cref="NativeLibrary.SetDllImportResolver"/> so that the logical
+    /// name "aravis-0.8" is mapped to the correct platform-specific file at runtime.
     /// </summary>
     public static void RegisterResolver()
     {
@@ -60,18 +58,28 @@ public static class AravisLibrary
                 return handle;
         }
 
-        // 2. Probe runtimes/{rid}/native/ relative to the assembly location
+        // 2. Probe common application and NuGet native-asset locations.
         var assemblyDir = Path.GetDirectoryName(typeof(AravisLibrary).Assembly.Location);
-        if (assemblyDir is not null)
+        var probeRoots = new[]
+        {
+            AppContext.BaseDirectory,
+            assemblyDir
+        }.Where(path => !string.IsNullOrWhiteSpace(path)).Distinct();
+
+        foreach (var root in probeRoots)
         {
             var rid = GetRuntimeIdentifier();
-            var runtimeNativeDir = Path.Combine(assemblyDir, "runtimes", rid, "native");
+            var runtimeNativeDir = Path.Combine(root!, "runtimes", rid, "native");
+            var directories = new[] { root!, runtimeNativeDir };
 
-            foreach (var name in candidates)
+            foreach (var directory in directories)
             {
-                var full = Path.Combine(runtimeNativeDir, name);
-                if (NativeLibrary.TryLoad(full, out var handle))
-                    return handle;
+                foreach (var name in candidates)
+                {
+                    var full = Path.Combine(directory, name);
+                    if (NativeLibrary.TryLoad(full, out var handle))
+                        return handle;
+                }
             }
         }
 
@@ -175,6 +183,18 @@ public static class AravisLibrary
     }
 
     /// <summary>
+    /// Gets the runtime Aravis library version.
+    /// </summary>
+    public static Version GetNativeVersion()
+    {
+        RegisterResolver();
+        return new Version(
+            (int)AravisNative.arv_get_major_version(),
+            (int)AravisNative.arv_get_minor_version(),
+            (int)AravisNative.arv_get_micro_version());
+    }
+
+    /// <summary>
     /// Gets detailed platform information
     /// </summary>
     public static string GetPlatformInfo()
@@ -201,6 +221,14 @@ public static class AravisLibrary
             return true;
         }
         catch (DllNotFoundException)
+        {
+            return false;
+        }
+        catch (BadImageFormatException)
+        {
+            return false;
+        }
+        catch (EntryPointNotFoundException)
         {
             return false;
         }
@@ -253,6 +281,7 @@ Arch Linux:
 From source:
   git clone https://github.com/AravisProject/aravis.git
   cd aravis
+  git checkout 0.8.36
   meson build
   cd build
   ninja
@@ -275,6 +304,7 @@ Build from source (recommended for ARM):
   sudo apt-get install libxml2-dev libglib2.0-dev libusb-1.0-0-dev
   git clone https://github.com/AravisProject/aravis.git
   cd aravis
+  git checkout 0.8.36
   meson build -Dintrospection=disabled -Dviewer=disabled
   cd build
   ninja
@@ -294,6 +324,7 @@ Using Homebrew:
 From source:
   git clone https://github.com/AravisProject/aravis.git
   cd aravis
+  git checkout 0.8.36
   meson build
   cd build
   ninja

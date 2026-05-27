@@ -143,6 +143,6 @@ public static class GLibNative
         if (instance == IntPtr.Zero) return null;
         var namePtr = g_type_name_from_instance(instance);
         if (namePtr == IntPtr.Zero) return null;
-        return Marshal.PtrToStringAnsi(namePtr);
+        return Marshal.PtrToStringUTF8(namePtr);
     }
 }
