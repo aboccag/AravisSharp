@@ -30,7 +30,7 @@ jobs:
         include:
           - { os: ubuntu-22.04,     rid: linux-x64   }
           - { os: ubuntu-22.04-arm, rid: linux-arm64 }
-          - { os: macos-13,         rid: osx-x64     }
+          # - { os: macos-13,         rid: osx-x64     }  # disabled: macos-13 runners have hour-long queues
           - { os: macos-latest,     rid: osx-arm64   }
           - { os: windows-latest,   rid: win-x64     }
     runs-on: ${{ matrix.os }}
@@ -142,6 +142,7 @@ jobs:
           msystem: MINGW64
           update: true
           install: >-
+            mingw-w64-x86_64-gcc
             mingw-w64-x86_64-glib2
             mingw-w64-x86_64-libxml2
             mingw-w64-x86_64-libusb
@@ -152,6 +153,9 @@ jobs:
       - name: Build Aravis (Windows)
         if: runner.os == 'Windows'
         shell: msys2 {0}
+        env:
+          CC: gcc
+          CXX: g++
         run: |
           meson setup _build aravis ${{ env.MESON_OPTS }} --prefix=/mingw64
           ninja -C _build install
@@ -240,7 +244,7 @@ jobs:
       # dotnet pack will pick them up via the <Content> items in the csproj
       - name: Arrange runtimes layout
         run: |
-          for rid in linux-x64 linux-arm64 osx-x64 osx-arm64 win-x64; do
+          for rid in linux-x64 linux-arm64 osx-arm64 win-x64; do
             dest=AravisSharp/runtimes/$rid/native
             mkdir -p "$dest"
             src=_native/native-$rid
@@ -263,7 +267,6 @@ jobs:
           dotnet pack AravisSharp/AravisSharp.csproj \
             -c Release \
             -p:Version=${{ steps.ver.outputs.version }} \
-            --no-restore \
             -o _packages/
 
       - name: Upload NuGet artifact
