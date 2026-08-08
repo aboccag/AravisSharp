@@ -18,16 +18,44 @@
         
         <!-- Library package metadata -->
         <PackageId>AravisSharp</PackageId>
-        <Version>0.1.0</Version>
+        <!--
+          Package versions intentionally start with the target native Aravis version.
+          Patch releases on the same native line use a fourth component, for example v0.8.36.1.
+        -->
+        <AravisNativeVersion>0.8.36</AravisNativeVersion>
+        <AravisSharpPatchVersion>0</AravisSharpPatchVersion>
+        <AravisSharpPackageVersion Condition="'$(AravisSharpPatchVersion)' == '0'">$(AravisNativeVersion)</AravisSharpPackageVersion>
+        <AravisSharpPackageVersion Condition="'$(AravisSharpPatchVersion)' != '0'">$(AravisNativeVersion).$(AravisSharpPatchVersion)</AravisSharpPackageVersion>
+        <Version>$(AravisSharpPackageVersion)</Version>
+        <PackageVersion>$(Version)</PackageVersion>
+        <AssemblyVersion>$(AravisNativeVersion).0</AssemblyVersion>
+        <FileVersion>$(AravisNativeVersion).$(AravisSharpPatchVersion)</FileVersion>
+        <InformationalVersion>$(PackageVersion)+aravis.$(AravisNativeVersion)</InformationalVersion>
         <Authors>Alexandre</Authors>
         <Description>C# bindings for the Aravis industrial camera library (GenICam/GigE Vision/USB3 Vision)</Description>
         <PackageLicenseExpression>LGPL-2.1-or-later</PackageLicenseExpression>
-        <PackageTags>aravis;genicam;gigevision;usb3vision;camera;industrial;imaging</PackageTags>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageTags>aravis;aravis-$(AravisNativeVersion);genicam;gigevision;usb3vision;camera;industrial;imaging</PackageTags>
+        <PackageReleaseNotes>Targets Aravis $(AravisNativeVersion) / libaravis-0.8 ABI; AravisSharp patch revision $(AravisSharpPatchVersion).</PackageReleaseNotes>
+
+        <!-- Work around a .NET 10 SDK pack issue where parallel pack target walks can fail without diagnostics. -->
+        <BuildInParallel Condition="'$(_IsPacking)' == 'true'">false</BuildInParallel>
     </PropertyGroup>
 
     <ItemGroup>
       <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
     </ItemGroup>
+
+    <ItemGroup>
+      <None Include="../README.md" Pack="true" PackagePath="\" />
+    </ItemGroup>
+
+    <Target Name="ValidateAravisSharpVersioning" BeforeTargets="GenerateAssemblyInfo;Pack">
+      <Error Condition="!$([System.Text.RegularExpressions.Regex]::IsMatch('$(AravisNativeVersion)', '^[0-9]+\.[0-9]+\.[0-9]+$'))"
+             Text="AravisNativeVersion must be a three-part version such as 0.8.36." />
+      <Error Condition="!$([System.Text.RegularExpressions.Regex]::IsMatch('$(AravisSharpPatchVersion)', '^(0|[1-9][0-9]*)$'))"
+             Text="AravisSharpPatchVersion must be a non-negative integer." />
+    </Target>
 
     <!--
       Native runtime libraries are placed here by the CI pipeline (not checked in).

@@ -183,6 +183,12 @@ The resolver probes system paths first, then falls back to `runtimes/{rid}/nativ
 
 On **Windows**, the runtime package includes every dependency. On **Linux**, only `libaravis` is bundled — GLib / libxml2 / libusb / zlib are expected from the OS package manager.
 
+### Versioning
+
+AravisSharp package versions intentionally start with the target native Aravis release. A package or tag named `v0.8.36` targets Aravis `0.8.36` / `libaravis-0.8`; same-native fixes use a fourth component such as `v0.8.36.1`.
+
+Use `v0.8.36.N` for managed binding fixes, bundled dependency updates, or native security backports that keep the public Aravis target at `0.8.36`. If a security issue affects every supported native line, release one patched package per supported line, for example `v0.8.36.1` and `v0.8.35.2`, so consumers can update without changing native ABI expectations. When the upstream Aravis version changes, start a new line such as `v0.8.37`.
+
 ## Features
 
 - **Camera discovery** — enumerate USB3 Vision and GigE Vision devices

@@ -1,8 +1,24 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VERSION="0.8.36"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_FILE="$REPO_ROOT/AravisSharp/AravisSharp.csproj"
+VERSION="${ARAVIS_NATIVE_VERSION:-$(sed -nE 's:.*<AravisNativeVersion>([^<]+)</AravisNativeVersion>.*:\1:p' "$PROJECT_FILE" | head -n 1)}"
+if [[ -z "$VERSION" ]]; then
+  echo "ERROR: AravisNativeVersion not found in $PROJECT_FILE"
+  exit 1
+fi
+PATCH_VERSION="${ARAVISSHARP_PATCH_VERSION:-$(sed -nE 's:.*<AravisSharpPatchVersion>([^<]+)</AravisSharpPatchVersion>.*:\1:p' "$PROJECT_FILE" | head -n 1)}"
+if [[ ! "$PATCH_VERSION" =~ ^(0|[1-9][0-9]*)$ ]]; then
+  echo "ERROR: AravisSharpPatchVersion must be a non-negative integer"
+  exit 1
+fi
+if [[ "$PATCH_VERSION" == "0" ]]; then
+  PACKAGE_VERSION="$VERSION"
+else
+  PACKAGE_VERSION="$VERSION.$PATCH_VERSION"
+fi
+
 SUBMODULE_SRC="$REPO_ROOT/aravis"
 
 # Où tu veux sortir les fichiers prêts à packager
@@ -63,9 +79,9 @@ cat > "$OUT_ROOT/AravisSharp.runtime.$RID.nuspec" <<EOF
 <package>
   <metadata>
     <id>AravisSharp.runtime.$RID</id>
-    <version>$VERSION.0</version>
+    <version>$PACKAGE_VERSION</version>
     <authors>AravisSharp</authors>
-    <description>Native Aravis $VERSION for $RID (GenICam camera control), packaged for AravisSharp.</description>
+    <description>Native Aravis $VERSION for $RID (GenICam camera control), packaged for AravisSharp $PACKAGE_VERSION.</description>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <tags>aravis genicam gigE usb3vision vision</tags>
   </metadata>

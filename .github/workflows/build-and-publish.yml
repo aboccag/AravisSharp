@@ -40,6 +40,20 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Verify Aravis source version
+        shell: bash
+        run: |
+          expected="$(sed -nE 's:.*<AravisNativeVersion>([^<]+)</AravisNativeVersion>.*:\1:p' AravisSharp/AravisSharp.csproj | head -n 1)"
+          actual="$(sed -nE "s:.*version: '([^']+)'.*:\1:p" aravis/meson.build | head -n 1)"
+          if [[ -z "$expected" || -z "$actual" ]]; then
+            echo "::error::Could not determine expected or actual Aravis version"
+            exit 1
+          fi
+          if [[ "$actual" != "$expected" ]]; then
+            echo "::error::Aravis submodule version $actual does not match AravisNativeVersion $expected"
+            exit 1
+          fi
+
       # ── Linux ──────────────────────────────────────────────────────────────
       - name: Install deps (Linux)
         if: runner.os == 'Linux'
@@ -234,7 +248,7 @@ jobs:
             8.0.x
             10.0.x
 
-      # Download all five native artifacts
+      # Download all native artifacts
       - uses: actions/download-artifact@v4
         with:
           pattern: native-*
@@ -252,21 +266,44 @@ jobs:
           done
           find AravisSharp/runtimes -type f | sort
 
-      # On a tag push use the tag (strip leading 'v'); otherwise a pre-release CI version
+      # On a tag push use the tag (strip leading 'v'); otherwise a native-versioned CI pre-release.
       - name: Compute package version
         id: ver
         run: |
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
-          else
-            echo "version=0.0.0-ci.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+          native_version="$(dotnet msbuild AravisSharp/AravisSharp.csproj -getProperty:AravisNativeVersion | tail -n 1 | tr -d '\r')"
+          if [[ -z "$native_version" ]]; then
+            echo "::error::Could not determine AravisNativeVersion"
+            exit 1
           fi
+
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            version="${GITHUB_REF_NAME#v}"
+            native_version_regex="${native_version//./\\.}"
+            if [[ "$version" == "$native_version" ]]; then
+              patch_version="0"
+            elif [[ "$version" =~ ^${native_version_regex}\.([1-9][0-9]*)$ ]]; then
+              patch_version="${BASH_REMATCH[1]}"
+            else
+              echo "::error::Release tag v$version must match Aravis native version $native_version. Use v$native_version or v$native_version.N where N >= 1 for same-native patch fixes."
+              exit 1
+            fi
+          else
+            version="$native_version-ci.${GITHUB_RUN_NUMBER}"
+            patch_version="0"
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "native_version=$native_version" >> "$GITHUB_OUTPUT"
+          echo "patch_version=$patch_version" >> "$GITHUB_OUTPUT"
 
       - name: Pack
         run: |
           dotnet pack AravisSharp/AravisSharp.csproj \
             -c Release \
             -p:Version=${{ steps.ver.outputs.version }} \
+            -p:PackageVersion=${{ steps.ver.outputs.version }} \
+            -p:AravisSharpPatchVersion=${{ steps.ver.outputs.patch_version }} \
+            -p:BuildInParallel=false \
             -o _packages/
 
       - name: Upload NuGet artifact

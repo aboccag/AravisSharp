@@ -7,11 +7,46 @@ param(
     [string]$DestRoot = "C:\dev\projects\abo\AravisSharpWindows",
     [ValidateSet("mingw64","ucrt64","clang64")]
     [string]$Env = "mingw64",
-    [string]$AravisDllName = "libaravis-0.8-0.dll"
+    [string]$AravisDllName = "libaravis-0.8-0.dll",
+    [string]$AravisSharpPatchVersion = ""
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+
+function Get-ProjectProperty {
+    param([string]$Name)
+
+    $projectFile = Join-Path $PSScriptRoot "AravisSharp\AravisSharp.csproj"
+    if (!(Test-Path $projectFile)) {
+        throw "Projet AravisSharp introuvable: $projectFile"
+    }
+
+    [xml]$project = Get-Content -Raw -Path $projectFile
+    $value = $project.Project.PropertyGroup |
+        ForEach-Object { $_.$Name } |
+        Where-Object { $_ } |
+        Select-Object -First 1
+
+    if (!$value) {
+        throw "$Name introuvable dans $projectFile"
+    }
+
+    return $value
+}
+
+$AravisNativeVersion = Get-ProjectProperty "AravisNativeVersion"
+if (!$AravisSharpPatchVersion) {
+    $AravisSharpPatchVersion = Get-ProjectProperty "AravisSharpPatchVersion"
+}
+if ($AravisSharpPatchVersion -notmatch "^(0|[1-9][0-9]*)$") {
+    throw "AravisSharpPatchVersion doit etre un entier positif ou zero."
+}
+if ($AravisSharpPatchVersion -eq "0") {
+    $AravisSharpPackageVersion = $AravisNativeVersion
+} else {
+    $AravisSharpPackageVersion = "$AravisNativeVersion.$AravisSharpPatchVersion"
+}
 
 function Resolve-MsysRoot {
     param([string]$Provided)
@@ -198,9 +233,9 @@ $nuspec = @"
 <package>
   <metadata>
     <id>AravisSharp.runtime.win-x64</id>
-    <version>0.8.33.0</version>
+    <version>$AravisSharpPackageVersion</version>
     <authors>AravisSharp</authors>
-    <description>Native Aravis (and dependencies) for Windows x64, packaged for AravisSharp.</description>
+    <description>Native Aravis $AravisNativeVersion (and dependencies) for Windows x64, packaged for AravisSharp $AravisSharpPackageVersion.</description>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <tags>aravis genicam gigE usb3vision vision</tags>
   </metadata>
