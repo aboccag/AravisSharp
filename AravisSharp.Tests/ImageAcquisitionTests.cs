@@ -48,6 +48,8 @@ public class ImageAcquisitionTests : IDisposable
         // Set short exposure so tests don't time out (camera default may be seconds-long)
         if (camera.IsExposureTimeAvailable())
         {
+            CameraTestHelpers.TryDisableExposureAuto(camera);
+
             var (minExp, _) = camera.GetExposureTimeBounds();
             double targetExp = Math.Max(minExp, 10_000); // 10 ms minimum
             camera.SetExposureTime(targetExp);

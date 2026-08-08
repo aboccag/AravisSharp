@@ -235,8 +235,16 @@ public class CameraWrapperTests : IDisposable
         if (!_camera.IsExposureAutoAvailable()) return;
 
         // Act
-        _camera.SetExposureTimeAuto(ArvAuto.Continuous);
-        var mode = _camera.GetExposureTimeAuto();
+        ArvAuto mode;
+        try
+        {
+            _camera.SetExposureTimeAuto(ArvAuto.Continuous);
+            mode = _camera.GetExposureTimeAuto();
+        }
+        finally
+        {
+            CameraTestHelpers.TryDisableExposureAuto(_camera);
+        }
 
         // Assert
         Assert.Equal(ArvAuto.Continuous, mode);
@@ -384,6 +392,7 @@ public class CameraWrapperTests : IDisposable
         if (!_hasCamera || _camera == null) return;
 
         if (!_camera.IsExposureTimeAvailable()) return;
+        if (!CameraTestHelpers.TryDisableExposureAuto(_camera)) return;
 
         // Arrange
         var (min, max) = _camera.GetExposureTimeBounds();
@@ -851,6 +860,8 @@ public class CameraWrapperTests : IDisposable
         // Configure exposure if available
         if (_camera.IsExposureTimeAvailable())
         {
+            if (!CameraTestHelpers.TryDisableExposureAuto(_camera)) return;
+
             var (minExp, maxExp) = _camera.GetExposureTimeBounds();
             var targetExp = minExp + (maxExp - minExp) / 2;
             _camera.SetExposureTime(targetExp);
@@ -883,14 +894,18 @@ public class CameraWrapperTests : IDisposable
         // Test auto exposure if available
         if (_camera.IsExposureAutoAvailable())
         {
-            _camera.SetExposureTimeAuto(ArvAuto.Off);
-            Assert.Equal(ArvAuto.Off, _camera.GetExposureTimeAuto());
+            try
+            {
+                _camera.SetExposureTimeAuto(ArvAuto.Off);
+                Assert.Equal(ArvAuto.Off, _camera.GetExposureTimeAuto());
 
-            _camera.SetExposureTimeAuto(ArvAuto.Continuous);
-            Assert.Equal(ArvAuto.Continuous, _camera.GetExposureTimeAuto());
-
-            // Restore to off
-            _camera.SetExposureTimeAuto(ArvAuto.Off);
+                _camera.SetExposureTimeAuto(ArvAuto.Continuous);
+                Assert.Equal(ArvAuto.Continuous, _camera.GetExposureTimeAuto());
+            }
+            finally
+            {
+                CameraTestHelpers.TryDisableExposureAuto(_camera);
+            }
         }
 
         // Test auto gain if available
