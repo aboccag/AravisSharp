@@ -44,7 +44,7 @@ jobs:
         shell: bash
         run: |
           expected="$(sed -nE 's:.*<AravisNativeVersion>([^<]+)</AravisNativeVersion>.*:\1:p' AravisSharp/AravisSharp.csproj | head -n 1)"
-          actual="$(sed -nE "s:.*version: '([^']+)'.*:\1:p" aravis/meson.build | head -n 1)"
+          actual="$(sed -nE "s|^project *\(.*[^_]version: *'([^']+)'.*|\1|p" aravis/meson.build | head -n 1)"
           if [[ -z "$expected" || -z "$actual" ]]; then
             echo "::error::Could not determine expected or actual Aravis version"
             exit 1
