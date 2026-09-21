@@ -188,12 +188,13 @@ public class AravisNativeTests
 
         try
         {
-            // When running in parallel with other test classes that hold the same USB camera
-            // open, arv_camera_new may return null. Skip rather than fail in that case.
+            // arv_camera_new may return null when no camera can be opened: the fake
+            // interface refuses a null device id, and a USB camera may already be held
+            // open by another test class. Skip rather than fail; the finally block owns
+            // the GError, so it must not be freed here.
             if (camera == IntPtr.Zero)
             {
-                if (error != IntPtr.Zero) GLibNative.g_error_free(error);
-                return; // Camera in use by another test — skip gracefully
+                return;
             }
 
             // Camera handle is valid; any residual error pointer is just a warning.
