@@ -24,7 +24,7 @@ public class FakeCameraTests
         return fake!;
     }
 
-    [Fact]
+    [NativeFact]
     public void FakeInterface_ShouldExposeAtLeastOneCamera()
     {
         var cameras = CameraDiscovery.DiscoverCameras();
@@ -36,7 +36,7 @@ public class FakeCameraTests
             string.Equals(c.Model, "Fake", StringComparison.OrdinalIgnoreCase));
     }
 
-    [Fact]
+    [NativeFact]
     public void FakeCamera_ShouldConnectAndExposeCoreMetadata()
     {
         var fake = GetFakeCameraInfo();
@@ -49,7 +49,7 @@ public class FakeCameraTests
         Assert.False(string.IsNullOrWhiteSpace(camera.GetSerialNumber()));
     }
 
-    [Fact]
+    [NativeFact]
     public void FakeCamera_ShouldReadAndWriteCoreParameters()
     {
         var fake = GetFakeCameraInfo();
@@ -72,7 +72,7 @@ public class FakeCameraTests
         Assert.False(string.IsNullOrWhiteSpace(camera.GetStringFeature("PixelFormat")));
     }
 
-    [Fact]
+    [NativeFact]
     public void FakeCamera_ShouldAcquireImageBuffer()
     {
         var fake = GetFakeCameraInfo();
