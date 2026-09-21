@@ -1,8 +1,27 @@
+# Build output
 bin/
 obj/
 /packages/
+/_packages/
+TestResults/
+/build.log
+
+# Native Aravis: the sources live in the aravis/ submodule. Manually downloaded
+# or extracted copies sitting next to it are local scratch, never committed.
+/aravis-*/
+/aravis-*.zip
+/runtimes/
+/AravisSharp/runtimes/
+
+# IDE
 riderModule.iml
 /_ReSharper.Caches/
 .idea/
 *.DotSettings.user
+/AravisSharp/AravisSharp.sln
+
+# Machine-local Claude Code settings (shared config in .claude/ stays tracked)
+.claude/settings.local.json
+
+# Capture leftovers
 /captured_frame.png
