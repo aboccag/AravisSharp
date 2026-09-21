@@ -376,10 +376,11 @@ public class CameraWrapperTests : IDisposable
         SkipIfNoCamera();
         if (!_hasCamera || _camera == null) return;
 
-        if (!_camera.IsExposureTimeAvailable()) return;
+        var feature = CameraTestHelpers.ResolveExposureTimeFeature(_camera);
+        if (feature == null) return;
 
         // Act
-        var exposure = _camera.GetFloatFeature("ExposureTime");
+        var exposure = _camera.GetFloatFeature(feature);
 
         // Assert
         Assert.True(exposure > 0);
@@ -391,7 +392,8 @@ public class CameraWrapperTests : IDisposable
         SkipIfNoCamera();
         if (!_hasCamera || _camera == null) return;
 
-        if (!_camera.IsExposureTimeAvailable()) return;
+        var feature = CameraTestHelpers.ResolveExposureTimeFeature(_camera);
+        if (feature == null) return;
         if (!CameraTestHelpers.TryDisableExposureAuto(_camera)) return;
 
         // Arrange
@@ -399,8 +401,8 @@ public class CameraWrapperTests : IDisposable
         var target = min + (max - min) / 2;
 
         // Act
-        _camera.SetFloatFeature("ExposureTime", target);
-        var actual = _camera.GetFloatFeature("ExposureTime");
+        _camera.SetFloatFeature(feature, target);
+        var actual = _camera.GetFloatFeature(feature);
 
         // Assert
         Assert.True(Math.Abs(actual - target) < 1.0); // Allow small tolerance
@@ -462,10 +464,11 @@ public class CameraWrapperTests : IDisposable
         SkipIfNoCamera();
         if (!_hasCamera || _camera == null) return;
 
-        if (!_camera.IsExposureTimeAvailable()) return;
+        var feature = CameraTestHelpers.ResolveExposureTimeFeature(_camera);
+        if (feature == null) return;
 
         // Act
-        var (min, max) = _camera.GetFloatFeatureBounds("ExposureTime");
+        var (min, max) = _camera.GetFloatFeatureBounds(feature);
 
         // Assert
         Assert.True(min > 0);
@@ -521,10 +524,11 @@ public class CameraWrapperTests : IDisposable
         SkipIfNoCamera();
         if (!_hasCamera || _camera == null) return;
 
-        if (!_camera.IsExposureTimeAvailable()) return;
+        var feature = CameraTestHelpers.ResolveExposureTimeFeature(_camera);
+        if (feature == null) return;
 
         // Act
-        var increment = _camera.GetFloatFeatureIncrement("ExposureTime");
+        var increment = _camera.GetFloatFeatureIncrement(feature);
 
         // Assert
         Assert.True(increment >= 0); // Can be 0 if continuous
