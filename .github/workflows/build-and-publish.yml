@@ -74,36 +74,11 @@ jobs:
 
       - name: Collect native libs (Linux)
         if: runner.os == 'Linux'
-        run: |
-          mkdir -p _native
+        run: .github/scripts/collect-native-linux.sh _native
 
-          # Copy aravis .so and any versioned symlinks
-          find _install -name 'libaravis-0.8.so*' | while read f; do
-            cp -P --no-clobber "$f" _native/ 2>/dev/null || true
-          done
-
-          # Resolve the real .so (not a symlink) for ldd
-          ARAVIS_SO=$(find _native -name 'libaravis-0.8.so*' -not -type l | head -1)
-
-          # Collect GLib/xml/usb deps — skip glibc, libm, ld-linux etc.
-          SKIP='linux-vdso|ld-linux|libc\.so|libm\.so|libdl\.so|libpthread\.so|librt\.so|libresolv\.so|libnss'
-          ldd "$ARAVIS_SO" | grep -vE "$SKIP" | awk '{print $3}' | grep '^/' | sort -u | \
-          while read lib; do
-            real=$(readlink -f "$lib")
-            cp --no-clobber "$real" _native/ 2>/dev/null || true
-            link=$(basename "$lib"); base=$(basename "$real")
-            if [ "$link" != "$base" ] && [ ! -e "_native/$link" ]; then
-              (cd _native && ln -sf "$base" "$link")
-            fi
-          done
-
-          # Patch rpath so bundled libs find each other via $ORIGIN
-          for so in _native/*.so*; do
-            [ -L "$so" ] && continue
-            patchelf --set-rpath '$ORIGIN' "$so" 2>/dev/null || true
-          done
-
-          ls -la _native/
+      - name: Verify native payload (Linux)
+        if: runner.os == 'Linux'
+        run: .github/scripts/verify-native-linux.sh _native
 
       # ── macOS ──────────────────────────────────────────────────────────────
       - name: Install deps (macOS)
