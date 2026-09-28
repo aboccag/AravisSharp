@@ -176,8 +176,10 @@ public class AravisNativeTests
         AravisNative.arv_update_device_list();
         uint deviceCount = AravisNative.arv_get_n_devices();
 
-        // Skip if no devices
-        if (deviceCount == 0)
+        // Skip if no devices. A null id opens whichever device enumerates first, so only
+        // run when every visible device is fake: on a shared network the first one may be
+        // a real camera owned by another application.
+        if (deviceCount == 0 || !CameraDiscovery.DiscoverCameras().All(CameraTestHelpers.IsFakeCamera))
         {
             return;
         }

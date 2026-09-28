@@ -17,14 +17,10 @@ public class CameraWrapperTests : IDisposable
     {
         try
         {
-            var cameras = CameraDiscovery.DiscoverCameras();
-            // Prefer a real camera over the fake interface when both are present
-            var preferred = cameras.FirstOrDefault(c =>
-                !string.Equals(c.Protocol, "Fake", StringComparison.OrdinalIgnoreCase))
-                ?? cameras.FirstOrDefault();
-            if (preferred != null)
+            var deviceId = CameraTestHelpers.ResolveTestDeviceId();
+            if (deviceId != null)
             {
-                _camera = new Camera(preferred.DeviceId);
+                _camera = new Camera(deviceId);
                 _hasCamera = true;
             }
         }

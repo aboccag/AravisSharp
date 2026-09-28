@@ -27,10 +27,10 @@ public class ImageAcquisitionTests : IDisposable
 
         try
         {
-            CameraDiscovery.UpdateDeviceList();
-            if (CameraDiscovery.GetDeviceCount() > 0)
+            var deviceId = CameraTestHelpers.ResolveTestDeviceId();
+            if (deviceId != null)
             {
-                _camera = new Camera(null);
+                _camera = new Camera(deviceId);
                 ConfigureCameraForAcquisition(_camera);
                 _hasCamera = true;
             }
