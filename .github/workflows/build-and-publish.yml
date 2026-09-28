@@ -146,7 +146,7 @@ jobs:
           if-no-files-found: error
 
   # ─────────────────────────────────────────────────────────────────────────
-  # 2. Build .NET and run tests using the Fake camera interface (no hardware)
+  # 2. Build .NET and run the whole suite against the fake camera (no hardware)
   # ─────────────────────────────────────────────────────────────────────────
   test-dotnet:
     name: Test .NET (Fake interface)
@@ -175,10 +175,11 @@ jobs:
           sudo ninja -C _build install
           sudo ldconfig
 
-      - name: Run FakeCameraTests
+      # The runner has no camera, so every test runs against the fake interface: the suite
+      # only opens real hardware when ARAVIS_TEST_DEVICE_ID names a device.
+      - name: Run test suite
         run: |
           dotnet test AravisSharp.Tests/ -c Release \
-            --filter "FullyQualifiedName~FakeCameraTests" \
             --logger "console;verbosity=normal"
 
   # ─────────────────────────────────────────────────────────────────────────
