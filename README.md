@@ -26,9 +26,10 @@ sudo apt update
 sudo apt install -y libaravis-0.8-0
 ```
 
-**Option B — NuGet runtime package** (no system install needed):
+**Option B — NuGet package** (bundles Aravis itself):
 ```bash
-dotnet add package AravisSharp.runtime.linux-x64
+dotnet add package AravisSharp
+sudo apt install -y libglib2.0-0 libxml2 libusb-1.0-0   # usually already present
 ```
 
 **Option C — Build Aravis 0.8.36 from source:**
@@ -66,7 +67,7 @@ The following shared libraries are required at runtime (most are pre-installed o
 <summary><strong>🪟 Windows</strong></summary>
 
 ```powershell
-dotnet add package AravisSharp.runtime.win-x64
+dotnet add package AravisSharp
 ```
 
 The NuGet package bundles **all** required native DLLs (`libaravis-0.8-0.dll`, GLib, GObject, libxml2, libusb, zlib, …) — no system-wide install necessary.
@@ -77,6 +78,14 @@ The NuGet package bundles **all** required native DLLs (`libaravis-0.8-0.dll`, G
 
 <details>
 <summary><strong>🍎 macOS</strong></summary>
+
+On Apple Silicon the NuGet package bundles Aravis and every non-system dylib it needs:
+
+```bash
+dotnet add package AravisSharp
+```
+
+Intel Macs are not covered by the package (`osx-x64` is not built); install Aravis with Homebrew instead:
 
 ```bash
 brew install aravis
@@ -175,13 +184,17 @@ The resolver probes system paths first, then falls back to `runtimes/{rid}/nativ
 
 ## NuGet Packages
 
-| Package | Contents |
-|---------|----------|
-| `AravisSharp` | Managed library (Camera, Stream, Buffer, NodeMap, …) |
-| `AravisSharp.runtime.win-x64` | `libaravis-0.8-0.dll` + all transitive DLLs (GLib, libxml2, …) |
-| `AravisSharp.runtime.linux-x64` | `libaravis-0.8.so.0` (GLib etc. come from OS packages) |
+A single `AravisSharp` package carries the managed library and the native runtimes under `runtimes/{rid}/native/`:
 
-On **Windows**, the runtime package includes every dependency. On **Linux**, only `libaravis` is bundled — GLib / libxml2 / libusb / zlib are expected from the OS package manager.
+| RID | Bundled | Expected from the system |
+|-----|---------|--------------------------|
+| `win-x64` | `libaravis-0.8-0.dll` + all transitive DLLs (GLib, libxml2, libusb, …) | — |
+| `osx-arm64` | `libaravis-0.8.0.dylib` + all non-system dylibs | — |
+| `linux-x64`, `linux-arm64` | `libaravis-0.8.so.0` | GLib, libxml2, libusb, zlib (distribution packages) |
+
+On **Linux**, only `libaravis` is bundled: a second GLib next to the system one (loaded by GStreamer or GTK, for example) would put two GObject type systems in one process. The Linux build needs glibc 2.29 or later.
+
+The bundled libraries keep their own licenses: see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). Each `runtimes/{rid}/native/aravis-native-versions.txt` records the exact versions shipped.
 
 ### Versioning
 

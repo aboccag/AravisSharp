@@ -86,7 +86,9 @@ AravisSharp/
 
 **GError pattern**: Every P/Invoke that can fail takes an `out IntPtr error` parameter. The wrappers check for non-zero error pointers, extract the message, and call `g_error_free` before throwing `AravisException`.
 
-**Fake camera**: Aravis ships a software fake camera (`Protocol: "Fake"`). `FakeCameraTests.cs` runs against it — these are the CI-gated integration tests that require no hardware. Always keep them passing.
+**Fake camera**: Aravis ships a software fake camera (`Protocol: "Fake"`). The whole test suite runs against it in CI, no hardware required. Always keep it passing.
+
+**Real hardware is opt-in**: tests reconfigure and stream from the camera they open, and GigE cameras on a shared network may belong to another application. The suite opens only the fake camera unless `ARAVIS_TEST_DEVICE_ID` names a device; route every camera open in tests through `CameraTestHelpers.ResolveTestDeviceId()`, never `new Camera(null)` or "first non-fake camera".
 
 ### Versioning scheme
 
@@ -94,9 +96,11 @@ Package versions mirror the native Aravis target: `v0.8.36` targets `libaravis-0
 
 ### CI pipeline (`.github/workflows/build-and-publish.yml`)
 
-Three jobs run in order:
-1. **build-native** — builds Aravis from the submodule on each platform (linux-x64, linux-arm64, osx-arm64, win-x64) using Meson/Ninja, collects `.so`/`.dll`/`.dylib` files with their transitive deps, and patches rpaths/install names for self-contained bundling.
-2. **test-dotnet** — installs Aravis system-wide on Ubuntu, runs `FakeCameraTests` (no hardware required).
-3. **pack-and-publish** — downloads all native artifacts, arranges them under `AravisSharp/runtimes/{rid}/native/`, then calls `dotnet pack`. NuGet publish is currently disabled in the workflow.
+Jobs, in order:
+1. **build-native** — builds Aravis from the submodule on each platform (linux-x64, linux-arm64, osx-arm64, win-x64) using Meson/Ninja. `.github/scripts/collect-native-<os>.sh` derives the payload from the built binary (ldd on MSYS2, a recursive otool walk on macOS; Linux ships `libaravis-0.8.so.0` only), `verify-native-<os>.sh` fails closed if anything is not bundled or system-provided, and `record-native-versions.sh` writes `aravis-native-versions.txt`. Never hardcode dependency lists: that is how v0.8.36 shipped without libxml2 on win-x64 and osx-arm64.
+2. **test-dotnet** — installs Aravis system-wide on Ubuntu and runs the whole suite against the fake camera.
+3. **pack** — arranges the native artifacts under `AravisSharp/runtimes/{rid}/native/`, refuses any bundled file missing from `THIRD-PARTY-NOTICES.md`, then calls `dotnet pack`.
+4. **package-smoke** — restores the `.nupkg` on each of the four runners and acquires frames from the fake camera through it (`.github/package-smoke/`), checking libaravis loads from the app's `runtimes/` folder.
+5. **publish** — pushes to NuGet.org on release tags, only when the `NUGET_PUBLISH` repository variable is `true`.
 
-Windows builds use MSYS2/MinGW64. macOS builds use Homebrew and `install_name_tool` to rewrite dylib load paths.
+Windows builds use MSYS2/MinGW64. macOS builds use Homebrew, `install_name_tool` to rewrite dylib load paths and ad-hoc `codesign`. The scripts run off CI too (the Windows ones in an MSYS2 MINGW64 shell).

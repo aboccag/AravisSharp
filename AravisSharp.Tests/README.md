@@ -30,10 +30,18 @@ dotnet test --filter "FullyQualifiedName~AravisNativeTests"
 
 ## Camera-Optional
 
-Tests that require native Aravis are guarded with `NativeFact` and skip cleanly when `libaravis-0.8` is unavailable. Camera-specific wrapper tests return early when no camera is plugged in.
+Tests that require native Aravis are guarded with `NativeFact` and skip cleanly when `libaravis-0.8` is unavailable.
+
+By default the suite only ever opens the Aravis fake camera, even when real cameras are visible. Tests reconfigure the camera they open (ROI, exposure, auto exposure, triggers) and start acquisition, and a GigE camera on a shared network may belong to another application. To run the suite against one real camera, name it explicitly:
+
+```bash
+ARAVIS_TEST_DEVICE_ID="Opto Engineering-ITA24-GM-10C-600357" dotnet test AravisSharp.Tests/
+```
+
+Device IDs are listed by `arv-tool-0.8`; discovery alone never opens a device. `CameraNew_WithNullDeviceId_ShouldOpenFirstCamera` only runs when every visible device is fake, since a null ID opens whichever device enumerates first.
 
 ## Prerequisites
 
 - .NET 10.0 SDK
 - Aravis native library (`libaravis-0.8.so.0` on Linux, `libaravis-0.8-0.dll` on Windows)
-- A connected USB3 Vision or GigE Vision camera (optional, for full coverage)
+- A USB3 Vision or GigE Vision camera, named with `ARAVIS_TEST_DEVICE_ID` (optional, for hardware coverage)
