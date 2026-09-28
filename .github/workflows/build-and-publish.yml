@@ -22,6 +22,9 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────────
   # 1. Build native Aravis on every target platform
   # ─────────────────────────────────────────────────────────────────────────
+  # Each platform collects its payload with a script under .github/scripts/ that derives
+  # the dependency set from the built binary, then a separate script checks the payload is
+  # self-contained. Both fail the job rather than ship a runtime that only loads here.
   build-native:
     name: Native (${{ matrix.rid }})
     strategy:
@@ -117,36 +120,11 @@ jobs:
 
       - name: Collect and fix native libs (macOS)
         if: runner.os == 'macOS'
-        run: |
-          BREW=$(brew --prefix)
-          mkdir -p _native
+        run: .github/scripts/collect-native-macos.sh _native _native-sources.txt
 
-          # Aravis dylib
-          find _install -name 'libaravis-0.8*.dylib' | head -1 | xargs -I{} cp {} _native/
-
-          # Bundle Homebrew deps (GLib family + libxml2 + libusb + common transitive deps)
-          for dep in \
-            libglib-2.0.0.dylib libgobject-2.0.0.dylib libgio-2.0.0.dylib libgmodule-2.0.0.dylib \
-            libxml2.2.dylib libusb-1.0.0.dylib libffi.8.dylib libpcre2-8.0.dylib \
-            libintl.8.dylib libiconv.2.dylib; do
-            for dir in "$BREW/lib" "$(brew --prefix libxml2)/lib" "$(brew --prefix gettext)/lib"; do
-              [ -f "$dir/$dep" ] && cp "$dir/$dep" _native/ && break || true
-            done
-          done
-
-          # Rewrite all absolute load paths to @loader_path so the bundle is self-contained
-          cd _native
-          for dylib in *.dylib; do
-            install_name_tool -id "@loader_path/$dylib" "$dylib" 2>/dev/null || true
-            while IFS= read -r dep_path; do
-              dep_name=$(basename "$dep_path")
-              [ -f "./$dep_name" ] && \
-                install_name_tool -change "$dep_path" "@loader_path/$dep_name" "$dylib" 2>/dev/null || true
-            done < <(otool -L "$dylib" | tail -n +2 | awk '{print $1}' | grep '^/')
-          done
-          cd ..
-
-          ls -la _native/
+      - name: Verify native payload (macOS)
+        if: runner.os == 'macOS'
+        run: .github/scripts/verify-native-macos.sh _native
 
       # ── Windows (MSYS2 / MinGW64) ──────────────────────────────────────────
       - name: Set up MSYS2 (Windows)
@@ -156,6 +134,7 @@ jobs:
           msystem: MINGW64
           update: true
           install: >-
+            mingw-w64-x86_64-binutils
             mingw-w64-x86_64-gcc
             mingw-w64-x86_64-glib2
             mingw-w64-x86_64-libxml2
@@ -177,17 +156,12 @@ jobs:
       - name: Collect native DLLs (Windows)
         if: runner.os == 'Windows'
         shell: msys2 {0}
-        run: |
-          mkdir -p _native
-          cp /mingw64/bin/libaravis-0.8-0.dll _native/
-          # Bundle GLib + all transitive deps needed at runtime
-          for dll in \
-            libglib-2.0-0.dll libgobject-2.0-0.dll libgio-2.0-0.dll libgmodule-2.0-0.dll \
-            libxml2-2.dll libusb-1.0.dll libffi-8.dll libpcre2-8-0.dll \
-            libintl-8.dll libiconv-2.dll libwinpthread-1.dll zlib1.dll; do
-            [ -f "/mingw64/bin/$dll" ] && cp "/mingw64/bin/$dll" _native/ || true
-          done
-          ls -la _native/
+        run: .github/scripts/collect-native-windows.sh _native
+
+      - name: Verify native payload (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: .github/scripts/verify-native-windows.sh _native
 
       - name: Upload native artifact
         uses: actions/upload-artifact@v4

@@ -1,0 +1,3 @@
+# Shell scripts run under bash on every CI runner, MSYS2 included: CRLF breaks them
+# on Windows checkouts, where core.autocrlf is on by default.
+*.sh text eol=lf
