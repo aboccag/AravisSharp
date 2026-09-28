@@ -109,6 +109,7 @@ jobs:
           msystem: MINGW64
           update: true
           install: >-
+            git
             mingw-w64-x86_64-binutils
             mingw-w64-x86_64-gcc
             mingw-w64-x86_64-glib2
@@ -137,6 +138,16 @@ jobs:
         if: runner.os == 'Windows'
         shell: msys2 {0}
         run: .github/scripts/verify-native-windows.sh _native
+
+      # ── All platforms ──────────────────────────────────────────────────────
+      - name: Record bundled versions
+        if: runner.os != 'Windows'
+        run: .github/scripts/record-native-versions.sh _native _native-sources.txt
+
+      - name: Record bundled versions (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: .github/scripts/record-native-versions.sh _native
 
       - name: Upload native artifact
         uses: actions/upload-artifact@v4
@@ -215,6 +226,20 @@ jobs:
             [ -d "$src" ] && cp -r "$src/." "$dest/" || echo "WARNING: no artifact for $rid"
           done
           find AravisSharp/runtimes -type f | sort
+
+      # A new transitive dependency must not ship before its license has been reviewed.
+      - name: Check every bundled library is covered by the notices
+        run: |
+          missing=0
+          for f in AravisSharp/runtimes/*/native/*; do
+            name=$(basename "$f")
+            [ "$name" = aravis-native-versions.txt ] && continue
+            if ! grep -qF "\`$name\`" THIRD-PARTY-NOTICES.md; then
+              echo "::error::$f is bundled but not listed in THIRD-PARTY-NOTICES.md"
+              missing=1
+            fi
+          done
+          exit "$missing"
 
       # On a tag push use the tag (strip leading 'v'); otherwise a native-versioned CI pre-release.
       - name: Compute package version
