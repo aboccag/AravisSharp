@@ -194,12 +194,14 @@ jobs:
             --logger "console;verbosity=normal"
 
   # ─────────────────────────────────────────────────────────────────────────
-  # 3. Assemble the all-in-one NuGet package and publish on tag
+  # 3. Assemble the all-in-one NuGet package
   # ─────────────────────────────────────────────────────────────────────────
-  pack-and-publish:
-    name: Pack & Publish NuGet
+  pack:
+    name: Pack NuGet
     needs: [build-native, test-dotnet]
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
     steps:
       - uses: actions/checkout@v4
 
@@ -220,10 +222,14 @@ jobs:
       - name: Arrange runtimes layout
         run: |
           for rid in linux-x64 linux-arm64 osx-arm64 win-x64; do
+            src=_native/native-$rid
+            if [ ! -d "$src" ]; then
+              echo "::error::no native artifact for $rid"
+              exit 1
+            fi
             dest=AravisSharp/runtimes/$rid/native
             mkdir -p "$dest"
-            src=_native/native-$rid
-            [ -d "$src" ] && cp -r "$src/." "$dest/" || echo "WARNING: no artifact for $rid"
+            cp -r "$src/." "$dest/"
           done
           find AravisSharp/runtimes -type f | sort
 
@@ -287,13 +293,98 @@ jobs:
           name: nuget-packages
           path: _packages/*.nupkg
 
-      # NuGet publish is intentionally disabled — enable once packages are validated
-      # - name: Publish to NuGet.org
-      #   if: startsWith(github.ref, 'refs/tags/v')
-      #   env:
-      #     NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
-      #   run: |
-      #     dotnet nuget push _packages/*.nupkg \
-      #       --api-key "$NUGET_API_KEY" \
-      #       --source https://api.nuget.org/v3/index.json \
-      #       --skip-duplicate
+  # ─────────────────────────────────────────────────────────────────────────
+  # 4. Install the package on each platform and acquire frames with it
+  # ─────────────────────────────────────────────────────────────────────────
+  # Tests what ships rather than what compiles: a clean runner with no Aravis installed
+  # restores the .nupkg like a user would and runs the fake camera through it.
+  package-smoke:
+    name: Package smoke (${{ matrix.rid }})
+    needs: pack
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-22.04,     rid: linux-x64   }
+          - { os: ubuntu-22.04-arm, rid: linux-arm64 }
+          - { os: macos-latest,     rid: osx-arm64   }
+          - { os: windows-latest,   rid: win-x64     }
+    runs-on: ${{ matrix.os }}
+    env:
+      # A private package folder, so nothing cached on the runner can stand in for the package.
+      NUGET_PACKAGES: ${{ github.workspace }}/_nuget-smoke
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: nuget-packages
+          path: _packages/
+
+      # Linux uses the distribution's GLib, libxml2 and libusb; Aravis must come from the package.
+      - name: Install runtime dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libglib2.0-0 libxml2 libusb-1.0-0
+          if ldconfig -p | grep -q libaravis; then
+            echo "::error::a system Aravis is installed and would mask the packaged one"
+            exit 1
+          fi
+
+      # The macOS payload must not depend on Homebrew: remove what the build job linked against.
+      - name: Remove Homebrew copies of the bundled libraries (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          for formula in glib libxml2 libusb gettext pcre2; do
+            brew uninstall --ignore-dependencies --force "$formula" 2>/dev/null || true
+          done
+          if ls "$(brew --prefix)"/opt/{glib,libxml2,libusb}/lib/*.dylib 2>/dev/null; then
+            echo "::error::Homebrew copies are still present and would mask missing bundled libraries"
+            exit 1
+          fi
+
+      - name: Acquire frames through the package
+        run: |
+          for tfm in net8.0 net10.0; do
+            dotnet run --project .github/package-smoke -c Release -f "$tfm" \
+              -p:AravisSharpVersion=${{ needs.pack.outputs.version }}
+          done
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # 5. Publish the package that passed the smoke test, on a release tag
+  # ─────────────────────────────────────────────────────────────────────────
+  # Off until the repository variable NUGET_PUBLISH is set to 'true' and the NUGET_API_KEY
+  # secret exists.
+  publish:
+    name: Publish NuGet
+    needs: [pack, package-smoke]
+    if: startsWith(github.ref, 'refs/tags/v') && vars.NUGET_PUBLISH == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: nuget-packages
+          path: _packages/
+
+      - name: Publish to NuGet.org
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          dotnet nuget push _packages/*.nupkg \
+            --api-key "$NUGET_API_KEY" \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
