@@ -14,7 +14,11 @@ public static class ContinuousAcquisitionExample
     {
         Console.WriteLine("=== Continuous Acquisition Example ===\n");
 
-        using var camera = new Camera();
+        var deviceId = CameraPicker.Choose();
+        if (deviceId == null)
+            return;
+
+        using var camera = new Camera(deviceId);
         Console.WriteLine($"Connected to: {camera.GetVendorName()} {camera.GetModelName()}\n");
 
         // --- GigE Vision: negotiate optimal packet size BEFORE creating stream ---

@@ -6,7 +6,30 @@ using AravisSharp.Examples;
 // Suppress GLib warnings about interrupted poll calls during device scanning
 Environment.SetEnvironmentVariable("G_MESSAGES_DEBUG", "");
 
-// Register the native library resolver before any P/Invoke call
+// Optional: --device <id> names the camera the examples open (see CameraPicker). Without it,
+// or ARAVIS_EXAMPLE_DEVICE_ID, the examples ask which camera to open: on a shared network the
+// first camera Aravis enumerates may belong to another application.
+for (int i = 0; i < args.Length; i++)
+{
+    string? value = null;
+    if (args[i] == "--device")
+        value = i + 1 < args.Length ? args[++i] : null;
+    else if (args[i].StartsWith("--device=", StringComparison.Ordinal))
+        value = args[i]["--device=".Length..];
+    else
+        continue;
+
+    if (string.IsNullOrWhiteSpace(value))
+    {
+        // Explicit intent that cannot be honoured: stop rather than fall back to a prompt
+        Console.WriteLine("--device needs a device ID, e.g. --device \"<device id>\".");
+        return;
+    }
+    CameraPicker.CommandLineDeviceId = value;
+}
+
+// Optional: AravisSharp registers its native library resolver automatically (module
+// initializer). The explicit call is harmless and kept for older versions of the package.
 AravisLibrary.RegisterResolver();
 
 // Display platform information
@@ -69,55 +92,64 @@ Console.Write("\nChoice: ");
 
 var choice = Console.ReadLine();
 
-switch (choice)
+// A device ID given with --device or ARAVIS_EXAMPLE_DEVICE_ID may not exist: report it
+// instead of crashing with a stack trace.
+try
 {
-    case "1":
-        BindingTests.Run();
-        break;
-    case "2":
-        RunCameraDemo();
-        break;
-    case "3":
-        ContinuousAcquisitionExample.Run();
-        break;
-    case "4":
-        TriggeredAcquisitionExample.Run();
-        break;
-    case "5":
-        FeatureAccessExample.Run();
-        break;
-    case "6":
-        SimpleNodeMapDemo.Run();
-        break;
-    case "7":
-        GenICamExplorerExample.Run();
-        break;
-    case "8":
-        FeatureBrowserExample.Run();
-        break;
-    case "9":
-        SimpleFeatureListerExample.Run();
-        break;
-    case "10":
-        FeatureOverviewExample.Run();
-        break;
-    case "11":
-        QuickFeatureDemoExample.Run();
-        break;
-    case "12":
-        MultiCameraSoftwareTriggerCheckExample.Run();
-        break;
-    case "13":
-        GigEDiagnosticExample.Run();
-        break;
-    case "14":
-        CameraNetworkConfiguratorExample.Run();
-        break;
-    case "0":
-        return;
-    default:
-        Console.WriteLine("Invalid choice!");
-        return;
+    switch (choice)
+    {
+        case "1":
+            BindingTests.Run();
+            break;
+        case "2":
+            RunCameraDemo();
+            break;
+        case "3":
+            ContinuousAcquisitionExample.Run();
+            break;
+        case "4":
+            TriggeredAcquisitionExample.Run();
+            break;
+        case "5":
+            FeatureAccessExample.Run();
+            break;
+        case "6":
+            SimpleNodeMapDemo.Run();
+            break;
+        case "7":
+            GenICamExplorerExample.Run();
+            break;
+        case "8":
+            FeatureBrowserExample.Run();
+            break;
+        case "9":
+            SimpleFeatureListerExample.Run();
+            break;
+        case "10":
+            FeatureOverviewExample.Run();
+            break;
+        case "11":
+            QuickFeatureDemoExample.Run();
+            break;
+        case "12":
+            MultiCameraSoftwareTriggerCheckExample.Run();
+            break;
+        case "13":
+            GigEDiagnosticExample.Run();
+            break;
+        case "14":
+            CameraNetworkConfiguratorExample.Run();
+            break;
+        case "0":
+            return;
+        default:
+            Console.WriteLine("Invalid choice!");
+            return;
+    }
+}
+catch (AravisException ex)
+{
+    Console.WriteLine($"\nAravis error: {ex.Message}");
 }
 
 static void RunCameraDemo()
@@ -129,8 +161,8 @@ try
     // Discover all available cameras
     Console.WriteLine("Discovering cameras...");
     var cameras = CameraDiscovery.DiscoverCameras();
-    
-    if (cameras.Count == 0)
+
+    if (cameras.Count == 0 && !CameraPicker.HasExplicitDeviceId)
     {
         Console.WriteLine("No cameras found!");
         Console.WriteLine("\nMake sure:");
@@ -140,16 +172,14 @@ try
         return;
     }
 
-    Console.WriteLine($"Found {cameras.Count} camera(s):\n");
-    for (int i = 0; i < cameras.Count; i++)
-    {
-        Console.WriteLine($"  [{i}] {cameras[i]}");
-    }
-    Console.WriteLine();
+    // Ask which camera to open (never "the first camera": on a shared network it may
+    // belong to another application)
+    var deviceId = CameraPicker.Choose(cameras);
+    if (deviceId == null)
+        return;
 
-    // Connect to the first camera
-    Console.WriteLine("Connecting to the first camera...");
-    using var camera = new Camera();
+    Console.WriteLine("Connecting to the selected camera...");
+    using var camera = new Camera(deviceId);
     
     Console.WriteLine($"Connected to: {camera.GetVendorName()} {camera.GetModelName()}");
     Console.WriteLine($"Serial Number: {camera.GetSerialNumber()}");
@@ -232,7 +262,7 @@ try
         // Fallback: try device feature, then calculate
         try
         {
-            var device = camera.GetDevice();
+            using var device = camera.GetDevice();
             payloadSize = (int)device.GetIntegerFeature("PayloadSize");
             Console.WriteLine($"Payload size (from device): {payloadSize} bytes");
         }
@@ -355,10 +385,9 @@ try
     }
     
     Console.WriteLine("\nAcquisition completed!");
-    Console.WriteLine("\nNote: If you see 'Missing_packets' errors, you may need:");
-    Console.WriteLine("  1. Add user to video group: sudo usermod -aG video $USER");
-    Console.WriteLine("  2. Create USB udev rules (see README.md)");
-    Console.WriteLine("  3. Logout and login again for group changes to take effect");
+    Console.WriteLine("\nNote: on Linux, if a USB3 camera cannot be opened or streams no frames:");
+    Console.WriteLine("  1. Run ./setup-usb-permissions.sh (installs the Aravis udev rules, uaccess)");
+    Console.WriteLine("  2. Unplug and replug the camera; no group membership or logout is needed");
 }
 catch (AravisException ex)
 {

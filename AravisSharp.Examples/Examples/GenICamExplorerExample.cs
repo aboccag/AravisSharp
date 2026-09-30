@@ -14,27 +14,19 @@ public static class GenICamExplorerExample
 
         try
         {
-            // Discover cameras
-            Console.WriteLine("Discovering cameras...");
-            var cameras = CameraDiscovery.DiscoverCameras();
-            
-            if (cameras.Count == 0)
-            {
-                Console.WriteLine("No cameras found!");
+            // Discover cameras and choose one
+            var deviceId = CameraPicker.Choose();
+            if (deviceId == null)
                 return;
-            }
 
-            Console.WriteLine($"Found {cameras.Count} camera(s)\n");
-
-            // Connect to first camera
             Console.WriteLine("Connecting to camera...");
-            using var camera = new Camera();
+            using var camera = new Camera(deviceId);
             
             Console.WriteLine($"Connected to: {camera.GetVendorName()} {camera.GetModelName()}");
             Console.WriteLine($"Serial: {camera.GetSerialNumber()}\n");
 
             // Get the device for GenICam access
-            var device = camera.GetDevice();
+            using var device = camera.GetDevice();
             var nodeMap = device.NodeMap;
 
             // Display menu
