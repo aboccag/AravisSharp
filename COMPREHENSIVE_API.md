@@ -72,7 +72,7 @@ This document lists all the high-level wrapper methods now available in the `Cam
 
 ## Trigger Control
 
-- `void SetTrigger(string source)` - Set trigger source (e.g., "Software", "Line1")
+- `void SetTrigger(string source)` - Enable triggered acquisition (FrameStart, rising edge) from a source (e.g., "Software", "Line1"); other triggers are disabled
 - `void SetTriggerSource(string source)` - Set trigger source explicitly
 - `string GetTriggerSource()` - Get current trigger source
 - `void ClearTriggers()` - Clear all trigger settings
@@ -131,14 +131,14 @@ These methods only work with GigE Vision cameras:
 
 These methods only work with USB3 Vision cameras:
 
-- `int UvGetBandwidth()` - Get bandwidth limit in bytes/second
-- `void UvSetBandwidth(int bandwidth)` - Set bandwidth limit in bytes/second (≤0 disables)
-- `(int Min, int Max) UvGetBandwidthBounds()` - Get bandwidth range
+- `uint UvGetBandwidth()` - Get bandwidth limit in bytes/second
+- `void UvSetBandwidth(uint bandwidth)` - Set bandwidth limit in bytes/second (0 disables the limit)
+- `(uint Min, uint Max) UvGetBandwidthBounds()` - Get bandwidth range
 - `bool UvIsBandwidthControlAvailable()` - Check if bandwidth control is available
 
 ## Device Access
 
-- `Device GetDevice()` - Get underlying device object for low-level access
+- `Device GetDevice()` - Get underlying device object for low-level access. `Device` is `IDisposable`: `using var device = camera.GetDevice();`
 
 ## Enumerations
 
@@ -154,9 +154,15 @@ These methods only work with USB3 Vision cameras:
 
 ## Usage Examples
 
+The examples open the camera named by `deviceId`: a `CameraInfo.DeviceId` from `CameraDiscovery.DiscoverCameras()`, or `null` for the first camera Aravis finds.
+
 ### Basic Acquisition with Auto Exposure
 ```csharp
-using var camera = Camera.Create(null);
+using AravisSharp;
+using AravisSharp.Native;   // ArvBufferStatus
+
+string? deviceId = CameraDiscovery.DiscoverCameras().FirstOrDefault()?.DeviceId;
+using var camera = new Camera(deviceId);
 
 // Enable auto exposure
 camera.SetExposureTimeAuto(ArvAuto.Continuous);
@@ -164,51 +170,98 @@ camera.SetExposureTimeAuto(ArvAuto.Continuous);
 // Set region of interest
 camera.SetRegion(0, 0, 640, 480);
 
-// Start acquisition
-camera.StartAcquisition();
+// Create the stream and queue buffers sized for the current format and ROI
 using var stream = camera.CreateStream();
+var payloadSize = (int)camera.GetPayloadSize();
+for (int i = 0; i < 10; i++)
+    stream.PushBuffer(new AravisSharp.Buffer(payloadSize));
 
-// Acquire frames...
+// Start acquisition once buffers are queued
+camera.StartAcquisition();
+
+for (int i = 0; i < 100; i++)
+{
+    var buffer = stream.PopBuffer(2000);   // timeout in ms
+    if (buffer == null)
+        continue;                          // timeout
+
+    if (buffer.Status == ArvBufferStatus.Success)
+        Console.WriteLine($"Frame {buffer.FrameId}: {buffer.Width}x{buffer.Height}");
+
+    stream.PushBuffer(buffer);             // always hand the buffer back
+}
+
+camera.StopAcquisition();
 ```
 
 ### Software Triggered Acquisition
 ```csharp
-using var camera = Camera.Create(null);
+using var camera = new Camera(deviceId);
 
 if (camera.IsSoftwareTriggerSupported())
 {
     camera.SetTrigger("Software");
-    camera.StartAcquisition();
-    
+
     using var stream = camera.CreateStream();
-    
+    var payloadSize = (int)camera.GetPayloadSize();
+    for (int i = 0; i < 4; i++)
+        stream.PushBuffer(new AravisSharp.Buffer(payloadSize));
+
+    camera.StartAcquisition();
+
     for (int i = 0; i < 10; i++)
     {
         camera.SoftwareTrigger();
-        // Pop buffer from stream...
+        var buffer = stream.PopBuffer(5000);
+        if (buffer == null)
+            continue;
+
+        if (buffer.Status == ArvBufferStatus.Success)
+        {
+            // Process the frame...
+        }
+        stream.PushBuffer(buffer);
     }
-    
+
     camera.StopAcquisition();
+    camera.ClearTriggers();   // back to free-running
 }
 ```
 
 ### Multi-Frame Acquisition
 ```csharp
-using var camera = Camera.Create(null);
+using var camera = new Camera(deviceId);
 
 // Set to multi-frame mode
 camera.SetAcquisitionMode(ArvAcquisitionMode.MultiFrame);
 camera.SetFrameCount(100);
 
-camera.StartAcquisition();
 using var stream = camera.CreateStream();
+var payloadSize = (int)camera.GetPayloadSize();
+for (int i = 0; i < 10; i++)
+    stream.PushBuffer(new AravisSharp.Buffer(payloadSize));
+
+camera.StartAcquisition();
 
 // Camera will acquire 100 frames then stop automatically
+int received = 0;
+while (received < 100)
+{
+    var buffer = stream.PopBuffer(2000);
+    if (buffer == null)
+        break;                // timeout: the camera has stopped sending
+
+    if (buffer.Status == ArvBufferStatus.Success)
+        received++;
+    stream.PushBuffer(buffer);
+}
+
+camera.StopAcquisition();
 ```
 
 ### GigE Vision Optimization
 ```csharp
-using var camera = Camera.Create(null);
+using var camera = new Camera(deviceId);
 
 if (camera.IsGigEVisionDevice())
 {
@@ -222,20 +275,20 @@ if (camera.IsGigEVisionDevice())
 
 ### USB3 Vision Bandwidth Control
 ```csharp
-using var camera = Camera.Create(null);
+using var camera = new Camera(deviceId);
 
 if (camera.IsUSB3VisionDevice() && camera.UvIsBandwidthControlAvailable())
 {
     var (min, max) = camera.UvGetBandwidthBounds();
     
     // Set to 80% of maximum bandwidth
-    camera.UvSetBandwidth((int)(max * 0.8));
+    camera.UvSetBandwidth((uint)(max * 0.8));
 }
 ```
 
 ### Generic Feature Access
 ```csharp
-using var camera = Camera.Create(null);
+using var camera = new Camera(deviceId);
 
 // Check feature availability
 if (camera.IsFeatureAvailable("GainRaw"))
@@ -247,12 +300,16 @@ if (camera.IsFeatureAvailable("GainRaw"))
     camera.SetIntegerFeature("GainRaw", min + (max - min) / 2);
 }
 
-// Execute command
-if (camera.IsFeatureAvailable("UserSetSave"))
+// Execute command: save the current settings to user set 1.
+// WARNING: this overwrites that user set in the camera's non-volatile memory.
+if (camera.IsFeatureAvailable("UserSetSelector") && camera.IsFeatureAvailable("UserSetSave"))
 {
+    camera.SetStringFeature("UserSetSelector", "UserSet1");
     camera.ExecuteCommand("UserSetSave");
 }
 ```
+
+> **Warning:** `UserSetSave` writes to the camera's non-volatile memory and replaces what the selected user set held, including a start-up configuration another application relies on. Run it only on purpose, on a camera you own — never from routine or test code.
 
 ## Notes
 

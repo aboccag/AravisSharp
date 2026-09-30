@@ -43,13 +43,15 @@ Tests require the native Aravis library to be installed. Tests decorated with `[
 # Linux: install system-wide
 sudo apt install libaravis-0.8-0
 
-# Or build from the submodule
-./build_aravis_linux_nuget.sh
+# Or build the packaged libaravis from the submodule, as CI does (in ubuntu:20.04 when docker
+# is available), into AravisSharp/runtimes/linux-<arch>/native/, and run the tests against it
+./build-native-linux-local.sh
+LD_LIBRARY_PATH=$PWD/AravisSharp/runtimes/linux-x64/native dotnet test AravisSharp.Tests/
 
 # Linux USB3 cameras: set udev permissions
-./setup-usb-permissions.sh   # then log out and back in
+./setup-usb-permissions.sh   # installs aravis/src/aravis.rules; then replug the camera
 
-# Check all runtime dependencies are satisfied
+# Check the runtime requirements: .NET, GLib / zlib / libusb, glibc and GLib floors, udev rules
 ./check-setup.sh
 ```
 
@@ -62,7 +64,7 @@ AravisSharp/
 ├── Native/           ← P/Invoke surface (do not call these from user code)
 │   ├── AravisNative.cs     # Hand-crafted DllImport declarations (aravis-0.8 ABI)
 │   ├── GLibNative.cs       # GLib/GObject P/Invoke (ref-counting, GError)
-│   ├── AravisLibrary.cs    # Cross-platform DLL resolver (call RegisterResolver() once at startup)
+│   ├── AravisLibrary.cs    # Cross-platform DLL resolver (registered automatically by a module initializer)
 │   └── GErrorStructure.cs  # GError marshalling struct
 ├── GenICam/          ← GenICam feature access layer
 │   ├── NodeMap.cs          # Read/write/browse all camera features
@@ -82,7 +84,7 @@ AravisSharp/
 
 **GObject ownership**: Aravis objects are GObject reference-counted. `Camera`, `Stream`, and `Buffer` all implement `IDisposable` and call `g_object_unref` on dispose. Never store raw `IntPtr` handles beyond the lifetime of the owning wrapper.
 
-**Native library resolution**: `AravisLibrary.RegisterResolver()` must be called once before any P/Invoke. It registers a `NativeLibrary.SetDllImportResolver` that maps logical names (`aravis-0.8`, `gobject-2.0`, `glib-2.0`, `gio-2.0`) to platform-specific filenames, probing the app directory and `runtimes/{rid}/native/` (NuGet layout) first and the system search path last (`AravisLibrary.GetProbeOrder`). Bundled first is deliberate: a system libaravis-0.8 has the same soname, and an older one lacks entry points the binding calls.
+**Native library resolution**: a `[ModuleInitializer]` calls `AravisLibrary.RegisterResolver()` when the assembly loads (calling it again is a no-op). It registers a `NativeLibrary.SetDllImportResolver` that maps logical names (`aravis-0.8`, `gobject-2.0`, `glib-2.0`, `gio-2.0`) to platform-specific filenames, probing the app directory and `runtimes/{rid}/native/` (NuGet layout) first and the system search path last (`AravisLibrary.GetProbeOrder`). Bundled first is deliberate: a system libaravis-0.8 has the same soname, and an older one lacks entry points the binding calls.
 
 **GError pattern**: Every P/Invoke that can fail takes an `out IntPtr error` parameter. The wrappers check for non-zero error pointers, extract the message, and call `g_error_free` before throwing `AravisException`.
 
@@ -101,6 +103,7 @@ Jobs, in order:
 2. **test-dotnet** — installs Aravis system-wide on Ubuntu and runs the whole suite against the fake camera.
 3. **pack** — arranges the native artifacts under `AravisSharp/runtimes/{rid}/native/`, refuses any bundled file missing from `THIRD-PARTY-NOTICES.md`, then calls `dotnet pack`.
 4. **package-smoke** — restores the `.nupkg` on each of the four runners and acquires frames from the fake camera through it (`.github/package-smoke/`), checking libaravis loads from the app's `runtimes/` folder. **package-smoke-distros** runs the self-contained app in bare `ubuntu:20.04` (the floor) and `ubuntu:26.04` (newest LTS) images on both Linux architectures.
-5. **publish** — pushes to NuGet.org on release tags, only when the `NUGET_PUBLISH` repository variable is `true`. Uses nuget.org Trusted Publishing (`NuGet/login@v1`, OIDC): no API key is stored; `NUGET_USER` is the nuget.org profile name and the policy on nuget.org names this repository and `build-and-publish.yml`.
+5. **release-sources** — on release tags, `fetch-release-sources.sh` downloads every source URL that `record-native-versions.sh` resolved at build time (MSYS2 `*.src.tar.zst`; Homebrew archive, formula and patches via `brew info --json=v2`; the static libxml2 tarball) plus a `git archive` of the aravis submodule, failing if any bundled file lacks one, and `attach-release-sources.sh` attaches them to the tag's GitHub Release (a draft if missing), refusing to replace sources already attached by a build that bundled other versions. Required by publish, since MSYS2 and Homebrew drop old versions.
+6. **publish** — pushes to NuGet.org on release tags, only when the `NUGET_PUBLISH` repository variable is `true`. Uses nuget.org Trusted Publishing (`NuGet/login@v1`, OIDC): no API key is stored; `NUGET_USER` is the nuget.org profile name and the policy on nuget.org names this repository and `build-and-publish.yml`. Runs in the `nuget-release` environment (required reviewer), which the nuget.org Trusted Publishing policy must also name.
 
-Windows builds use MSYS2/MinGW64. macOS builds use Homebrew, `install_name_tool` to rewrite dylib load paths and ad-hoc `codesign`. The scripts run off CI too (the Windows ones in an MSYS2 MINGW64 shell).
+Windows builds use MSYS2/MinGW64. macOS builds use Homebrew, `install_name_tool` to rewrite dylib load paths and ad-hoc `codesign`. The scripts run off CI too (the Windows ones in an MSYS2 MINGW64 shell); `build-native-linux-local.sh` runs the Linux job's steps locally.

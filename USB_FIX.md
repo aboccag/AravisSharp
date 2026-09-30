@@ -6,39 +6,39 @@
 # 1. Set up udev permissions (one-time)
 ./setup-usb-permissions.sh
 
-# 2. Log out and back in (required for group changes)
+# 2. Unplug and replug the camera (the rules apply to devices added from now on)
 
-# 3. Optionally increase USB buffer size for high-speed capture
+# 3. Optionally raise the usbfs memory limit for high-speed capture
 ./increase-usb-buffer.sh
 
-# 4. Run
-cd AravisSharp
-dotnet run
+# 4. Run the examples (from the repository root)
+dotnet run --project AravisSharp.Examples -f net10.0
 ```
 
 ---
 
 ## What `setup-usb-permissions.sh` Does
 
-1. Adds your user to the `video` and `plugdev` groups.
-2. Creates udev rules at `/etc/udev/rules.d/99-aravis.rules` so USB3 Vision cameras are accessible without root.
-3. Reloads udev rules.
+1. Installs the udev rules that ship with Aravis (`aravis/src/aravis.rules`) as `/etc/udev/rules.d/70-aravis.rules`. They match USB3 Vision cameras by vendor ID, open them to all users (`MODE:="0666"`) and tag them `uaccess`, so no root access is needed.
+2. Removes `/etc/udev/rules.d/99-usb-vision.rules`, written by earlier versions of the script.
+3. Reloads udev rules and lists connected cameras from the vendors the rules cover.
 
-**You must log out and back in** (or reboot) for the group membership to take effect.
+No group membership or logout is needed: **unplug and replug** a camera that was already connected.
+
+The `aravis/` submodule must be checked out (`git submodule update --init`).
 
 ### Verify
 
 ```bash
-# Check groups
-groups
-# Should include: video plugdev
+# Check the rules are installed
+ls /etc/udev/rules.d/70-aravis.rules
 
 # Check camera is visible
 lsusb | grep -i basler
 # Example: Bus 002 Device 004: ID 2676:ba02 Basler AG ace
 
-# Run the app
-cd AravisSharp && dotnet run
+# Run the examples
+dotnet run --project AravisSharp.Examples -f net10.0
 # Should show "Devices found: 1"
 ```
 
@@ -54,10 +54,10 @@ cd AravisSharp && dotnet run
 
 | Cause | Fix |
 |-------|-----|
-| USB buffer too small | `./increase-usb-buffer.sh` or `sudo sysctl -w net.core.rmem_max=33554432` |
+| usbfs memory limit too small (16 MB by default) | `./increase-usb-buffer.sh` (see [USB Buffer Size](#usb-buffer-size)) |
 | USB 2.0 port / cable | Use a USB 3.0 port and a proper USB 3.0 cable |
 | Hub bottleneck | Connect camera directly to the motherboard USB 3.0 port |
-| Permissions | Run `./setup-usb-permissions.sh` and re-login |
+| Permissions | Run `./setup-usb-permissions.sh` and replug the camera |
 
 ### Permission Denied
 
@@ -66,7 +66,7 @@ cd AravisSharp && dotnet run
 ```bash
 # Fix: set up udev rules
 ./setup-usb-permissions.sh
-# Then log out / back in
+# Then unplug / replug the camera
 ```
 
 ### Camera Not Detected at All
@@ -86,43 +86,52 @@ dmesg | tail -20
 
 ## Manual udev Rule
 
-If the script doesn't cover your camera, create a rule manually:
+If your camera's vendor is not in `aravis/src/aravis.rules`, add a rule for it in the same style:
 
 ```bash
 # Find your camera's vendor:product ID
 lsusb
-# Example output: Bus 002 Device 004: ID 2676:ba02 Basler AG
+# Example output: Bus 002 Device 004: ID 1ab2:0001 Allied Vision
 
-# Create rule
-sudo tee /etc/udev/rules.d/99-my-camera.rules << EOF
-SUBSYSTEM=="usb", ATTR{idVendor}=="2676", MODE="0666"
+# Create rule (numbered before systemd's 73-seat-late.rules, which applies uaccess)
+sudo tee /etc/udev/rules.d/70-my-camera.rules << EOF
+SUBSYSTEM=="usb", ATTRS{idVendor}=="1ab2", TAG+="uaccess"
 EOF
 
 sudo udevadm control --reload-rules
-sudo udevadm trigger
+sudo udevadm trigger --subsystem-match=usb
 ```
 
-Common USB3 Vision camera vendor IDs:
+`uaccess` grants access to the user logged in at the machine. For a headless or SSH-only machine, use `GROUP="plugdev", MODE="0660"` instead of the tag and add the user to `plugdev`.
+
+USB3 Vision camera vendor IDs covered by the Aravis rules:
 
 | Vendor | USB ID |
 |--------|--------|
 | Basler | `2676` |
-| FLIR / Teledyne | `1e10` |
-| Allied Vision | `1ab2` |
+| The Imaging Source | `199e` |
+| Point Grey / FLIR / Teledyne | `1e10` |
+| Daheng Imaging | `2ba2` |
+| Dahua Technology | `2e03` |
+| Omron Sentech | `1421` |
 | IDS | `1409` |
-| Ximea | `20f7` |
+| Hikrobot | `2bdf` |
+
+Other vendors, such as Allied Vision (`1ab2`) or Ximea (`20f7`), need a manual rule.
 
 ---
 
 ## USB Buffer Size
 
-For high-speed acquisition (>100 fps or large images), increase the USB buffer:
+For high-speed acquisition (>100 fps or large images), raise the kernel's usbfs memory limit (16 MB by default), which caps the USB transfers in flight for all devices. `./increase-usb-buffer.sh` does both steps below.
 
 ```bash
 # Temporary (lost on reboot)
-sudo sysctl -w net.core.rmem_max=33554432
+echo 1000 | sudo tee /sys/module/usbcore/parameters/usbfs_memory_mb
 
-# Permanent
-echo "net.core.rmem_max=33554432" | sudo tee -a /etc/sysctl.d/99-usb-buffer.conf
-sudo sysctl --system
+# Permanent: add the kernel parameter usbcore.usbfs_memory_mb=1000,
+# e.g. to GRUB_CMDLINE_LINUX_DEFAULT in /etc/default/grub, then:
+sudo update-grub
 ```
+
+`net.core.rmem_max` is a UDP socket buffer limit: it matters for GigE Vision cameras, not USB.

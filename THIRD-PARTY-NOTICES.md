@@ -32,10 +32,18 @@ for the package version. On Linux, libxml2 is built from the release tarball pin
 its checksum, in `.github/scripts/build-libxml2-static.sh`. The other libraries come from the
 platform's package manager at build time: MSYS2 `mingw-w64-x86_64-*` packages on Windows,
 Homebrew bottles on macOS. Every `runtimes/{rid}/native/` folder contains
-`aravis-native-versions.txt`, which records the Aravis commit and the exact versions bundled
-for that platform. The corresponding source for each is published by MSYS2
-(<https://github.com/msys2/MINGW-packages>) and Homebrew
-(<https://github.com/Homebrew/homebrew-core>) for that version.
+`aravis-native-versions.txt`, which records the Aravis commit, the exact versions bundled
+for that platform and where the source of each was obtained.
+
+The complete corresponding source of each release is attached to that release's page on
+GitHub, <https://github.com/aboccag/AravisSharp/releases>: `aravis-<version>-<commit>.tar.gz`
+holds the Aravis source, and `native-sources-<rid>.tar` holds, for each platform, the source
+of every library bundled for it — the MSYS2 source packages (upstream source, `PKGBUILD` and
+patches) for `win-x64`; the upstream archive, the Homebrew formula and its patches for
+`osx-arm64`; the libxml2 release tarball for the Linux platforms — with that platform's
+`aravis-native-versions.txt`. The scripts that build and package the native libraries are in
+`.github/` in this repository, at the release's tag. The release pipeline does not publish a
+package whose sources could not all be attached.
 
 ## Files per platform
 
@@ -47,7 +55,7 @@ systems in the same process.
 
 | Platform | Files |
 |---|---|
-| `win-x64` | `libaravis-0.8-0.dll`, `libglib-2.0-0.dll`, `libgobject-2.0-0.dll`, `libgio-2.0-0.dll`, `libgmodule-2.0-0.dll`, `libusb-1.0.dll`, `libintl-8.dll`, `libiconv-2.dll`, `libxml2-16.dll`, `libffi-8.dll`, `libpcre2-8-0.dll`, `libwinpthread-1.dll`, `zlib1.dll` |
+| `win-x64` | `libaravis-0.8-0.dll`, `libglib-2.0-0.dll`, `libgobject-2.0-0.dll`, `libgio-2.0-0.dll`, `libgmodule-2.0-0.dll`, `libusb-1.0.dll`, `libintl-8.dll`, `libiconv-2.dll`, `libxml2-16.dll`, `libffi-8.dll`, `libpcre2-8-0.dll`, `zlib1.dll` |
 | `osx-arm64` | `libaravis-0.8.0.dylib`, `libglib-2.0.0.dylib`, `libgobject-2.0.0.dylib`, `libgio-2.0.0.dylib`, `libgmodule-2.0.0.dylib`, `libusb-1.0.0.dylib`, `libintl.8.dylib`, `libxml2.16.dylib`, `libpcre2-8.0.dylib` |
 | `linux-x64`, `linux-arm64` | `libaravis-0.8.so.0` (includes libxml2) |
 

@@ -9,7 +9,7 @@ using AravisSharp;
 using AravisSharp.GenICam;
 
 using var camera = new Camera();
-var device = camera.GetDevice();
+using var device = camera.GetDevice();
 var nodeMap = device.NodeMap;
 ```
 
@@ -17,7 +17,7 @@ var nodeMap = device.NodeMap;
 
 ```csharp
 // String
-string vendor = nodeMap.GetStringFeature("DeviceVendorName");
+string? vendor = nodeMap.GetStringFeature("DeviceVendorName");
 
 // Integer
 long width = nodeMap.GetIntegerFeature("Width");
