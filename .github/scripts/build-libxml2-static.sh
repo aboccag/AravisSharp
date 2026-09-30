@@ -15,9 +15,10 @@ prefix=${1:?usage: build-libxml2-static.sh <prefix>}
 version=2.13.9
 sha256=a2c9ae7b770da34860050c309f903221c67830c86e4a7e760692b803df95143a  # from download.gnome.org
 
+url="https://download.gnome.org/sources/libxml2/${version%.*}/libxml2-$version.tar.xz"
+
 work=$(mktemp -d)
-curl -fsSL -o "$work/libxml2.tar.xz" \
-    "https://download.gnome.org/sources/libxml2/${version%.*}/libxml2-$version.tar.xz"
+curl -fsSL -o "$work/libxml2.tar.xz" "$url"
 echo "$sha256  $work/libxml2.tar.xz" | sha256sum -c -
 tar -xJf "$work/libxml2.tar.xz" -C "$work"
 
@@ -26,5 +27,9 @@ cd "$work/libxml2-$version"
     --without-python --without-icu --without-lzma --without-zlib --without-http
 make -j"$(nproc)"
 make install
+
+# Read by record-native-versions.sh: libxml2 is linked into libaravis, so its source is
+# attached to each release (fetch-release-sources.sh).
+echo "libxml2 $version: $url sha256=$sha256" > "$prefix/libxml2-source.txt"
 
 echo "libxml2 $version (static) installed into $prefix"
