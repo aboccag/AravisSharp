@@ -17,7 +17,7 @@ ldd "$aravis" | awk '$3 ~ "^/mingw64/bin/" { print $3 }' | sort -u | while read 
     cp "$dll" "$out/"
 done
 
-if ldd "$aravis" | grep -q 'not found'; then
+if ldd "$aravis" | grep 'not found' >/dev/null; then
     ldd "$aravis" | grep 'not found' >&2
     echo "::error::libaravis has unresolved dependencies" >&2
     exit 1

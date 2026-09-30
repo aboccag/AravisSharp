@@ -336,7 +336,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends libglib2.0-0 libxml2 libusb-1.0-0
-          if ldconfig -p | grep -q libaravis; then
+          if ldconfig -p | grep libaravis >/dev/null; then
             echo "::error::a system Aravis is installed and would mask the packaged one"
             exit 1
           fi
