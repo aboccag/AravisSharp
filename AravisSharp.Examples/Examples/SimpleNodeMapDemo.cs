@@ -14,21 +14,17 @@ public static class SimpleNodeMapDemo
 
         try
         {
-            // Discover and connect to camera
-            Console.WriteLine("Connecting to camera...");
-            var cameras = CameraDiscovery.DiscoverCameras();
-            
-            if (cameras.Count == 0)
-            {
-                Console.WriteLine("No cameras found!");
+            // Discover cameras, choose one and connect to it
+            var deviceId = CameraPicker.Choose();
+            if (deviceId == null)
                 return;
-            }
 
-            using var camera = new Camera();
+            Console.WriteLine("Connecting to camera...");
+            using var camera = new Camera(deviceId);
             Console.WriteLine($"Connected to: {camera.GetVendorName()} {camera.GetModelName()}\n");
 
             // Get the device node map
-            var device = camera.GetDevice();
+            using var device = camera.GetDevice();
             var nodeMap = device.NodeMap;
 
             // Demonstrate reading common camera features

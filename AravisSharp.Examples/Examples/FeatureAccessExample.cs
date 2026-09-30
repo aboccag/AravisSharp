@@ -11,8 +11,12 @@ public static class FeatureAccessExample
     {
         Console.WriteLine("=== GenICam Feature Access Example ===\n");
 
-        using var camera = new Camera();
-        var device = camera.GetDevice();
+        var deviceId = CameraPicker.Choose();
+        if (deviceId == null)
+            return;
+
+        using var camera = new Camera(deviceId);
+        using var device = camera.GetDevice();
         
         Console.WriteLine($"Camera: {camera.GetModelName()}\n");
 

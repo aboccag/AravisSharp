@@ -14,19 +14,12 @@ public static class FeatureBrowserExample
         Console.WriteLine("=== GenICam Feature Browser ===\n");
         
         // Find camera
-        CameraDiscovery.UpdateDeviceList();
-        var count = CameraDiscovery.GetDeviceCount();
-        
-        if (count == 0)
-        {
-            Console.WriteLine("No cameras found!");
+        var deviceId = CameraPicker.Choose();
+        if (deviceId == null)
             return;
-        }
-        
-        Console.WriteLine($"Found {count} camera(s)\n");
-        
-        using var camera = new Camera(null);
-        var device = camera.GetDevice();
+
+        using var camera = new Camera(deviceId);
+        using var device = camera.GetDevice();
         var nodeMap = device.NodeMap;
         
         // Display device info

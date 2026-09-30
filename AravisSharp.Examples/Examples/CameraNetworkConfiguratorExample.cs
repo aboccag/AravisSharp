@@ -63,18 +63,41 @@ public static class CameraNetworkConfiguratorExample
         for (int i = 0; i < cameras.Count; i++)
             Console.WriteLine($"    [{i}] {cameras[i]}");
 
-        // Step 3: Filter GigE cameras and check subnet alignment
+        // Step 3: Choose a GigE camera explicitly and check subnet alignment.
+        // Never pick one implicitly: a GigE camera on a shared network may belong to
+        // another application, and rewriting its IP configuration takes it off that network.
         Console.WriteLine("\n[3/4] Checking subnet alignment for GigE cameras...");
-        var gigeCamera = cameras.FirstOrDefault(c =>
+        var gigeCameras = cameras.Where(c =>
             c.Protocol.Contains("GigE", StringComparison.OrdinalIgnoreCase) ||
-            c.Protocol.Contains("GV", StringComparison.OrdinalIgnoreCase));
+            c.Protocol.Contains("GV", StringComparison.OrdinalIgnoreCase)).ToList();
 
-        if (gigeCamera == null)
+        if (gigeCameras.Count == 0)
         {
             Console.WriteLine("  No GigE Vision camera found. Network configuration only applies to GigE cameras.");
             Console.WriteLine($"  Protocols detected: {string.Join(", ", cameras.Select(c => c.Protocol).Distinct())}");
             return;
         }
+
+        Console.WriteLine("  GigE Vision camera(s):");
+        for (int i = 0; i < gigeCameras.Count; i++)
+        {
+            var info = gigeCameras[i];
+            Console.WriteLine($"    [{i}] {info.Vendor} {info.Model} (S/N {info.SerialNumber}) at {info.Address}");
+        }
+
+        Console.Write("\n  Index of the camera to inspect (empty to quit): ");
+        var indexInput = Console.ReadLine()?.Trim();
+        if (string.IsNullOrEmpty(indexInput))
+        {
+            Console.WriteLine("  No camera selected. Nothing was changed.");
+            return;
+        }
+        if (!int.TryParse(indexInput, out int selectedIndex) || selectedIndex < 0 || selectedIndex >= gigeCameras.Count)
+        {
+            Console.WriteLine($"  Invalid index '{indexInput}'. Nothing was changed.");
+            return;
+        }
+        var gigeCamera = gigeCameras[selectedIndex];
 
         Console.WriteLine($"  GigE camera: {gigeCamera.Vendor} {gigeCamera.Model}");
         Console.WriteLine($"  Camera address: {gigeCamera.Address}");
@@ -180,10 +203,12 @@ public static class CameraNetworkConfiguratorExample
             switch (choice)
             {
                 case "1":
-                    ApplyLlaMode(camera);
+                    if (ConfirmWrite(camera, "switch the camera to LLA"))
+                        ApplyLlaMode(camera);
                     break;
                 case "2":
-                    ApplyDhcpMode(camera);
+                    if (ConfirmWrite(camera, "switch the camera to DHCP"))
+                        ApplyDhcpMode(camera);
                     break;
                 case "3":
                     ApplyStaticIp(camera, adapters);
@@ -242,34 +267,49 @@ public static class CameraNetworkConfiguratorExample
         Console.WriteLine("  Enter new static IP configuration for the camera.");
         Console.WriteLine("  Leave gateway empty if not needed (direct connection).\n");
 
-        // Suggest an IP based on the first adapter
-        string suggestedIp = "192.168.1.100";
-        string suggestedMask = "255.255.255.0";
         if (adapters.Count > 0)
         {
-            var (_, adapterIp, adapterMask) = adapters[0];
-            suggestedIp = SuggestCameraIp(adapterIp, adapterMask);
-            suggestedMask = adapterMask;
-            Console.WriteLine($"  Suggested (based on '{adapters[0].Name}'): {suggestedIp} / {suggestedMask}");
+            // For reference only: the camera needs an address that is free on the chosen
+            // adapter's subnet, which this tool cannot check, so nothing is pre-filled.
+            Console.WriteLine("  Adapter subnets, for reference:");
+            foreach (var (name, adapterIp, adapterMask) in adapters)
+                Console.WriteLine($"    {name}: {GetNetworkAddress(adapterIp, adapterMask)}/{GetPrefixLength(adapterMask)} (mask {adapterMask})");
             Console.WriteLine();
         }
 
-        Console.Write($"  Camera IP   [{suggestedIp}]: ");
-        var ip = Console.ReadLine()?.Trim();
-        if (string.IsNullOrEmpty(ip)) ip = suggestedIp;
+        Console.Write("  Camera IP   : ");
+        var ip = Console.ReadLine()?.Trim() ?? "";
+        if (!TryParseIPv4(ip))
+        {
+            Console.WriteLine($"  '{ip}' is not a valid IPv4 address. Nothing was changed.");
+            return;
+        }
 
-        Console.Write($"  Subnet mask [{suggestedMask}]: ");
-        var mask = Console.ReadLine()?.Trim();
-        if (string.IsNullOrEmpty(mask)) mask = suggestedMask;
+        Console.Write("  Subnet mask : ");
+        var mask = Console.ReadLine()?.Trim() ?? "";
+        if (!TryParseIPv4(mask))
+        {
+            Console.WriteLine($"  '{mask}' is not a valid IPv4 subnet mask. Nothing was changed.");
+            return;
+        }
 
         Console.Write("  Gateway     [leave empty for none]: ");
         var gw = Console.ReadLine()?.Trim() ?? "";
+        if (gw.Length > 0 && !TryParseIPv4(gw))
+        {
+            Console.WriteLine($"  '{gw}' is not a valid IPv4 gateway address. Nothing was changed.");
+            return;
+        }
 
         Console.WriteLine();
+        Console.WriteLine($"  New configuration: IP {ip}, mask {mask}, gateway {(gw.Length == 0 ? "(none)" : gw)}");
+        if (!ConfirmWrite(camera, "write this persistent IP to the camera"))
+            return;
+
         try
         {
-            // Set mode + IP in one go
-            camera.GvSetIpConfigurationMode(ArvGvIpConfigurationMode.PersistentIp);
+            // arv_gv_device_set_persistent_ip switches the camera to persistent IP mode
+            // itself, once the address, mask and gateway have been written.
             camera.GvSetPersistentIp(ip, mask, gw);
 
             Console.WriteLine($"  Camera configured:");
@@ -345,28 +385,40 @@ public static class CameraNetworkConfiguratorExample
         catch { return 0; }
     }
 
-    private static string SuggestCameraIp(string adapterIp, string mask)
+    /// <summary>
+    /// Asks the user to type "yes" before anything is written to the camera.
+    /// </summary>
+    private static bool ConfirmWrite(Camera camera, string action)
     {
-        try
-        {
-            var a = IPAddress.Parse(adapterIp).GetAddressBytes();
-            var m = IPAddress.Parse(mask).GetAddressBytes();
-            // Use last octet = 100 as a safe suggestion
-            var suggested = a.Zip(m, (x, y) => (byte)(x & y)).ToArray();
-            suggested[3] = 100;
-            return string.Join(".", suggested);
-        }
-        catch { return "192.168.1.100"; }
+        Console.WriteLine($"  About to {action}:");
+        Console.WriteLine($"    {camera.GetVendorName()} {camera.GetModelName()} (S/N {camera.GetSerialNumber()})");
+        Console.Write("  Type 'yes' to proceed: ");
+        var answer = Console.ReadLine()?.Trim();
+        if (string.Equals(answer, "yes", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        Console.WriteLine("  Cancelled. Nothing was changed.");
+        return false;
     }
 
-    private static string FormatMode(ArvGvIpConfigurationMode mode)
+    /// <summary>
+    /// Accepts a full dotted-quad IPv4 address only: IPAddress.TryParse alone also
+    /// accepts shorthand such as "10.1" or a bare integer.
+    /// </summary>
+    private static bool TryParseIPv4(string value) =>
+        value.Split('.').Length == 4 &&
+        IPAddress.TryParse(value, out var address) &&
+        address.AddressFamily == AddressFamily.InterNetwork;
+
+    private static string FormatMode(ArvGvIpConfigurationMode mode) => mode switch
     {
-        var parts = new List<string>();
-        if (mode.HasFlag(ArvGvIpConfigurationMode.PersistentIp)) parts.Add("Static/PersistentIP");
-        if (mode.HasFlag(ArvGvIpConfigurationMode.Dhcp)) parts.Add("DHCP");
-        if (mode.HasFlag(ArvGvIpConfigurationMode.Lla)) parts.Add("LLA");
-        return parts.Count > 0 ? string.Join(" + ", parts) : $"None/Unknown ({(int)mode})";
-    }
+        ArvGvIpConfigurationMode.PersistentIp => "Static/PersistentIP",
+        ArvGvIpConfigurationMode.Dhcp => "DHCP",
+        ArvGvIpConfigurationMode.Lla => "LLA",
+        ArvGvIpConfigurationMode.ForceIp => "ForceIP",
+        ArvGvIpConfigurationMode.None => "None",
+        _ => $"Unknown ({(int)mode})",
+    };
 
     private static void PrintSubnetGuidance(
         List<(string Name, string Ip, string Mask)> adapters,

@@ -15,7 +15,11 @@ public static class TriggeredAcquisitionExample
     {
         Console.WriteLine("=== Triggered Acquisition Example ===\n");
 
-        using var camera = new Camera();
+        var deviceId = CameraPicker.Choose();
+        if (deviceId == null)
+            return;
+
+        using var camera = new Camera(deviceId);
         Console.WriteLine($"Connected to: {camera.GetModelName()}");
 
         // Check software trigger support
@@ -56,54 +60,64 @@ public static class TriggeredAcquisitionExample
         var (_, _, width, height) = camera.GetRegion();
         Console.WriteLine($"Image: {width}x{height}, payload: {payloadSize} bytes");
 
-        var buffers = new List<AravisSharp.Buffer>();
         for (int i = 0; i < 5; i++)
         {
-            var buffer = new AravisSharp.Buffer(new IntPtr(payloadSize));
-            buffers.Add(buffer);
-            stream.PushBuffer(buffer);
+            // PushBuffer hands the buffer to the stream: the stream frees whatever is
+            // still queued when it is disposed.
+            stream.PushBuffer(new AravisSharp.Buffer(new IntPtr(payloadSize)));
         }
 
         // Start acquisition
         camera.StartAcquisition();
 
-        // Small delay to let the camera arm itself
-        Thread.Sleep(200);
-
-        // Acquire 10 triggered frames
         int successCount = 0;
-        for (int i = 0; i < 10; i++)
+        try
         {
-            Console.Write($"Trigger {i + 1}/10... ");
+            // Small delay to let the camera arm itself
+            Thread.Sleep(200);
 
-            // Send software trigger
-            camera.SoftwareTrigger();
-
-            // Wait for frame (5 second timeout)
-            var buffer = stream.PopBuffer(5000);
-
-            if (buffer != null && buffer.Status == ArvBufferStatus.Success)
+            // Acquire 10 triggered frames
+            for (int i = 0; i < 10; i++)
             {
-                successCount++;
-                Console.WriteLine($"frame {buffer.FrameId}, {buffer.Width}x{buffer.Height}");
-                stream.PushBuffer(buffer);
-            }
-            else
-            {
-                Console.WriteLine("TIMEOUT - no frame received");
-            }
+                Console.Write($"Trigger {i + 1}/10... ");
 
-            Thread.Sleep(50); // Brief pause between triggers
+                // Send software trigger
+                camera.SoftwareTrigger();
+
+                // Wait for frame (5 second timeout)
+                var buffer = stream.PopBuffer(5000);
+
+                if (buffer == null)
+                {
+                    Console.WriteLine("TIMEOUT - no frame received");
+                }
+                else
+                {
+                    if (buffer.Status == ArvBufferStatus.Success)
+                    {
+                        successCount++;
+                        Console.WriteLine($"frame {buffer.FrameId}, {buffer.Width}x{buffer.Height}");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"frame failed: {buffer.Status}");
+                    }
+
+                    // Always give the buffer back, whatever its status: a buffer that is
+                    // not requeued is lost to the stream, which eventually starves.
+                    stream.PushBuffer(buffer);
+                }
+
+                Thread.Sleep(50); // Brief pause between triggers
+            }
         }
+        finally
+        {
+            camera.StopAcquisition();
 
-        camera.StopAcquisition();
-
-        // Restore camera to free-running mode
-        camera.ClearTriggers();
-
-        // Cleanup: Stream.Dispose() will drain remaining buffers automatically
-        foreach (var buf in buffers)
-            buf.Dispose();
+            // Restore camera to free-running mode, even when acquisition failed
+            camera.ClearTriggers();
+        }
 
         Console.WriteLine($"\nTriggered acquisition completed: {successCount}/10 frames received");
     }

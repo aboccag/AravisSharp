@@ -95,16 +95,35 @@ public static class MultiCameraSoftwareTriggerCheckExample
             Console.WriteLine("Checking all discovered cameras.\n");
         }
 
+        var cameraInfos = discovered.Take(expectedCameraCount).ToList();
+
+        // Every listed camera is opened, reconfigured (packet size, acquisition mode,
+        // triggers) and streamed from. Cameras on a shared network may belong to another
+        // application, so ask first; anything but an explicit yes leaves them alone.
+        Console.WriteLine("The following camera(s) will be opened and reconfigured (packet size, triggers, acquisition):");
+        foreach (var info in cameraInfos)
+            Console.WriteLine($"  {info.Vendor} {info.Model} - {info.DeviceId} ({info.Protocol})");
+        Console.Write("Proceed? [y/N]: ");
+        var answer = Console.ReadLine()?.Trim();
+        if (!string.Equals(answer, "y", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(answer, "yes", StringComparison.OrdinalIgnoreCase))
+        {
+            Console.WriteLine("Cancelled. No camera was opened.");
+            return;
+        }
+        Console.WriteLine();
+
         var sessions = new List<CameraSession>();
-        var cameraInfos = discovered.Take(expectedCameraCount);
 
         try
         {
             foreach (var info in cameraInfos)
             {
+                Camera? camera = null;
+                Stream? stream = null;
                 try
                 {
-                    var camera = new Camera(info.DeviceId);
+                    camera = new Camera(info.DeviceId);
 
                     if (camera.IsGigEVisionDevice())
                     {
@@ -118,7 +137,7 @@ public static class MultiCameraSoftwareTriggerCheckExample
                         }
                     }
 
-                    var stream = camera.CreateStream();
+                    stream = camera.CreateStream();
                     var payloadSize = (int)camera.GetPayloadSize();
                     if (payloadSize <= 0)
                     {
@@ -142,12 +161,20 @@ public static class MultiCameraSoftwareTriggerCheckExample
                         Stream = stream,
                         Buffers = buffers
                     });
+                    // The session owns them now.
+                    camera = null;
+                    stream = null;
 
                     Console.WriteLine($"READY {info.DeviceId}: payload={payloadSize} bytes, buffers={bufferCount}");
                 }
                 catch (Exception ex)
                 {
                     Console.WriteLine($"FAIL {info.DeviceId}: setup failed - {ex.Message}");
+
+                    // Not handed to a session yet: release here, stream before camera.
+                    // Buffers already pushed belong to the stream and go with it.
+                    stream?.Dispose();
+                    camera?.Dispose();
                 }
             }
 

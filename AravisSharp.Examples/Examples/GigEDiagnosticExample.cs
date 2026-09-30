@@ -21,44 +21,37 @@ public static class GigEDiagnosticExample
         CameraDiscovery.UpdateDeviceList();
         var cameras = CameraDiscovery.DiscoverCameras();
 
-        if (cameras.Count == 0)
+        // A camera named by --device / ARAVIS_EXAMPLE_DEVICE_ID may be reachable (e.g. by IP)
+        // without answering discovery, so only stop here when nothing names one.
+        if (cameras.Count == 0 && !CameraPicker.HasExplicitDeviceId)
         {
             Console.WriteLine("  ERROR: No cameras found!\n");
             PrintDiscoveryTroubleshooting();
             return;
         }
 
-        Console.WriteLine($"  Found {cameras.Count} camera(s):");
-        CameraInfo? gigeCamera = null;
-        for (int i = 0; i < cameras.Count; i++)
-        {
-            var cam = cameras[i];
-            Console.WriteLine($"    [{i}] {cam}");
-            if (cam.Protocol.Contains("GigEVision", StringComparison.OrdinalIgnoreCase) ||
-                cam.Protocol.Contains("GigE", StringComparison.OrdinalIgnoreCase) ||
-                cam.Protocol.Contains("GV", StringComparison.OrdinalIgnoreCase))
-            {
-                gigeCamera ??= cam;
-            }
-        }
+        var hasGigECamera = cameras.Any(cam =>
+            cam.Protocol.Contains("GigEVision", StringComparison.OrdinalIgnoreCase) ||
+            cam.Protocol.Contains("GigE", StringComparison.OrdinalIgnoreCase) ||
+            cam.Protocol.Contains("GV", StringComparison.OrdinalIgnoreCase));
 
-        if (gigeCamera == null)
+        if (cameras.Count > 0 && !hasGigECamera)
         {
             Console.WriteLine("\n  WARNING: No GigE Vision camera detected among discovered devices.");
             Console.WriteLine("  Protocols found: " + string.Join(", ", cameras.Select(c => c.Protocol).Distinct()));
-            Console.WriteLine("  Continuing with the first camera...\n");
         }
-        else
-        {
-            Console.WriteLine($"\n  Using GigE camera: {gigeCamera.Vendor} {gigeCamera.Model} @ {gigeCamera.Address}");
-        }
+
+        // Ask which camera to diagnose rather than taking the first GigE one: on a shared
+        // network it may belong to another application, and the diagnostic streams from it.
+        var deviceId = CameraPicker.Choose(cameras);
+        if (deviceId == null)
+            return;
 
         // Step 2: Connect to camera
         Console.WriteLine("\n[2/7] Connecting to camera...");
         Camera camera;
         try
         {
-            var deviceId = gigeCamera?.DeviceId ?? cameras[0].DeviceId;
             camera = new Camera(deviceId);
             Console.WriteLine($"  Connected: {camera.GetVendorName()} {camera.GetModelName()}");
             Console.WriteLine($"  Serial: {camera.GetSerialNumber()}");
