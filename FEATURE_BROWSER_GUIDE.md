@@ -19,11 +19,13 @@ The GenICam feature browser lets you introspect, browse, and modify every featur
 ## Quick Start
 
 ```bash
-cd AravisSharp
-dotnet run
-# Choose option 5: Feature browser (comprehensive)
-# Or option 8: Quick feature demo
+# From the repository root
+dotnet run --project AravisSharp.Examples -f net10.0
+# Choose option 8: Feature browser (comprehensive)
+# Or option 11: Quick feature demo (recommended)
 ```
+
+The example lists the cameras and asks which one to open, because on a shared network the first camera Aravis finds may belong to another application. Pass `-- --device "<device id>"` or set `ARAVIS_EXAMPLE_DEVICE_ID` to skip the prompt.
 
 ---
 
@@ -33,7 +35,7 @@ dotnet run
 
 ```csharp
 using var camera = new Camera();
-var device = camera.GetDevice();
+using var device = camera.GetDevice();
 var nodeMap = device.NodeMap;
 
 var details = nodeMap.GetFeatureDetails("ExposureTime");
@@ -197,7 +199,7 @@ When a new Aravis function is needed, add it directly to `AravisNative` from the
 
 ---
 
-## Interactive Browser (Menu Option 5)
+## Interactive Browser (Menu Option 8)
 
 The built-in interactive browser offers:
 
