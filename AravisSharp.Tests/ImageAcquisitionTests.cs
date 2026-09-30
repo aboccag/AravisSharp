@@ -8,40 +8,31 @@ using Xunit;
 namespace AravisSharp.Tests;
 
 /// <summary>
-/// Integration tests that acquire real frames from the connected camera.
-/// All tests in this class are skipped when no camera is available.
+/// Integration tests that acquire frames from the test camera: the fake camera, or the
+/// device named by ARAVIS_TEST_DEVICE_ID. Skipped only when native Aravis is missing.
 /// </summary>
 [Collection("CameraAcquisition")]
 public class ImageAcquisitionTests : IDisposable
 {
-    private readonly Camera? _camera;
-    private readonly bool _hasCamera;
+    private readonly Camera _camera;
 
+    // Open and configure failures propagate: a camera that cannot be set up must fail the
+    // test, not turn it into a silent pass.
     public ImageAcquisitionTests()
     {
-        if (!NativeTestEnvironment.IsAravisAvailable)
-        {
-            _hasCamera = false;
-            return;
-        }
-
+        _camera = CameraTestHelpers.OpenTestCamera();
         try
         {
-            var deviceId = CameraTestHelpers.ResolveTestDeviceId();
-            if (deviceId != null)
-            {
-                _camera = new Camera(deviceId);
-                ConfigureCameraForAcquisition(_camera);
-                _hasCamera = true;
-            }
+            ConfigureCameraForAcquisition(_camera);
         }
         catch
         {
-            _hasCamera = false;
+            _camera.Dispose();
+            throw;
         }
     }
 
-    public void Dispose() => _camera?.Dispose();
+    public void Dispose() => _camera.Dispose();
 
     private static void ConfigureCameraForAcquisition(Camera camera)
     {
@@ -55,7 +46,7 @@ public class ImageAcquisitionTests : IDisposable
             camera.SetExposureTime(targetExp);
         }
         // Ensure free-running (no trigger)
-        try { camera.ClearTriggers(); } catch { }
+        camera.ClearTriggers();
     }
 
     private static Stream CreateStreamWithBuffers(Camera camera, int numBuffers, out uint payloadSize)
@@ -67,11 +58,9 @@ public class ImageAcquisitionTests : IDisposable
         return stream;
     }
 
-    [Fact]
+    [NativeFact]
     public void AcquireSingleFrame_StatusShouldBeSuccess()
     {
-        if (!_hasCamera || _camera == null) return;
-
         _camera.SetAcquisitionMode(ArvAcquisitionMode.Continuous);
         using var stream = CreateStreamWithBuffers(_camera, 5, out _);
 
@@ -91,11 +80,9 @@ public class ImageAcquisitionTests : IDisposable
         }
     }
 
-    [Fact]
+    [NativeFact]
     public void AcquireSingleFrame_DimensionsShouldBePositive()
     {
-        if (!_hasCamera || _camera == null) return;
-
         _camera.SetAcquisitionMode(ArvAcquisitionMode.Continuous);
         using var stream = CreateStreamWithBuffers(_camera, 5, out _);
 
@@ -117,11 +104,9 @@ public class ImageAcquisitionTests : IDisposable
         }
     }
 
-    [Fact]
+    [NativeFact]
     public void AcquireSingleFrame_DataShouldBeNonEmpty()
     {
-        if (!_hasCamera || _camera == null) return;
-
         _camera.SetAcquisitionMode(ArvAcquisitionMode.Continuous);
         using var stream = CreateStreamWithBuffers(_camera, 5, out _);
 
@@ -144,11 +129,9 @@ public class ImageAcquisitionTests : IDisposable
         }
     }
 
-    [Fact]
+    [NativeFact]
     public void AcquireSingleFrame_DataSizeMatchesDimensions()
     {
-        if (!_hasCamera || _camera == null) return;
-
         _camera.SetAcquisitionMode(ArvAcquisitionMode.Continuous);
         using var stream = CreateStreamWithBuffers(_camera, 5, out _);
 
@@ -171,11 +154,9 @@ public class ImageAcquisitionTests : IDisposable
         }
     }
 
-    [Fact]
+    [NativeFact]
     public void AcquireAndSavePng_ShouldCreateValidFile()
     {
-        if (!_hasCamera || _camera == null) return;
-
         _camera.SetAcquisitionMode(ArvAcquisitionMode.Continuous);
         using var stream = CreateStreamWithBuffers(_camera, 5, out _);
 
@@ -214,11 +195,9 @@ public class ImageAcquisitionTests : IDisposable
         }
     }
 
-    [Fact]
+    [NativeFact]
     public void AcquireMultipleFrames_AllShouldSucceed()
     {
-        if (!_hasCamera || _camera == null) return;
-
         const int framesToAcquire = 5;
 
         _camera.SetAcquisitionMode(ArvAcquisitionMode.Continuous);
@@ -249,11 +228,9 @@ public class ImageAcquisitionTests : IDisposable
         Assert.Equal(framesToAcquire, successCount);
     }
 
-    [Fact]
+    [NativeFact]
     public void AcquireFrames_StreamStatisticsShouldShowNoFailures()
     {
-        if (!_hasCamera || _camera == null) return;
-
         const int framesToAcquire = 3;
 
         _camera.SetAcquisitionMode(ArvAcquisitionMode.Continuous);
@@ -282,11 +259,9 @@ public class ImageAcquisitionTests : IDisposable
         Assert.Equal(0UL, failures);
     }
 
-    [Fact]
+    [NativeFact]
     public void AcquireFrame_FrameIdShouldIncrement()
     {
-        if (!_hasCamera || _camera == null) return;
-
         _camera.SetAcquisitionMode(ArvAcquisitionMode.Continuous);
         using var stream = CreateStreamWithBuffers(_camera, 5, out var payloadSize);
 
@@ -320,11 +295,9 @@ public class ImageAcquisitionTests : IDisposable
         Assert.True(secondId > firstId, $"Frame IDs did not increment: {firstId} -> {secondId}");
     }
 
-    [Fact]
+    [NativeFact]
     public void AcquireFrame_TimestampShouldBeNonZero()
     {
-        if (!_hasCamera || _camera == null) return;
-
         _camera.SetAcquisitionMode(ArvAcquisitionMode.Continuous);
         using var stream = CreateStreamWithBuffers(_camera, 5, out _);
 
@@ -345,11 +318,9 @@ public class ImageAcquisitionTests : IDisposable
         }
     }
 
-    [Fact]
+    [NativeFact]
     public void AcquireFrame_CopyDataShouldMatchSpanData()
     {
-        if (!_hasCamera || _camera == null) return;
-
         _camera.SetAcquisitionMode(ArvAcquisitionMode.Continuous);
         using var stream = CreateStreamWithBuffers(_camera, 5, out _);
 

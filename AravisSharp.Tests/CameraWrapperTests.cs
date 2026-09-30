@@ -10,47 +10,40 @@ namespace AravisSharp.Tests;
 /// </summary>
 public class CameraWrapperTests : IDisposable
 {
-    private readonly Camera? _camera;
-    private readonly bool _hasCamera;
+    private readonly Camera _camera;
 
+    // xunit creates one instance per test: every test gets a freshly opened camera (the
+    // fake camera comes back with its defaults). Open failures propagate and fail the test.
     public CameraWrapperTests()
     {
-        try
-        {
-            var deviceId = CameraTestHelpers.ResolveTestDeviceId();
-            if (deviceId != null)
-            {
-                _camera = new Camera(deviceId);
-                _hasCamera = true;
-            }
-        }
-        catch
-        {
-            _hasCamera = false;
-        }
+        _camera = CameraTestHelpers.OpenTestCamera();
     }
 
     public void Dispose()
     {
-        _camera?.Dispose();
+        _camera.Dispose();
     }
 
-    private void SkipIfNoCamera()
+    /// <summary>
+    /// Returns whether the camera implements an optional feature. The fake camera is known
+    /// to implement the features this is used for, so there a missing feature is a failure;
+    /// on a real camera it lets the test return early.
+    /// </summary>
+    private static bool Supports(bool available, string feature)
     {
-        if (!_hasCamera || _camera == null)
-        {
-            return;
-        }
+        if (!available && CameraTestHelpers.UsesFakeCamera)
+            Assert.Fail($"The fake camera should implement {feature}.");
+        return available;
     }
+
+    private string? FindBooleanFeature() =>
+        new[] { "ReverseX", "TestBoolean" }.FirstOrDefault(_camera.IsFeatureAvailable);
 
     #region Sensor Size Tests
 
-    [Fact]
+    [NativeFact]
     public void GetSensorSize_ShouldReturnPositiveDimensions()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
-
         // Act
         var (width, height) = _camera.GetSensorSize();
 
@@ -63,12 +56,9 @@ public class CameraWrapperTests : IDisposable
 
     #region Acquisition Mode Tests
 
-    [Fact]
+    [NativeFact]
     public void GetAcquisitionMode_ShouldReturnValidMode()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
-
         // Act
         var mode = _camera.GetAcquisitionMode();
 
@@ -76,23 +66,17 @@ public class CameraWrapperTests : IDisposable
         Assert.True(Enum.IsDefined(typeof(ArvAcquisitionMode), mode));
     }
 
-    [Fact]
+    [NativeFact]
     public void SetAcquisitionMode_ShouldNotThrow()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
-
         // Act & Assert
         var exception = Record.Exception(() => _camera.SetAcquisitionMode(ArvAcquisitionMode.Continuous));
         Assert.Null(exception);
     }
 
-    [Fact]
+    [NativeFact]
     public void SetAcquisitionMode_SingleFrame_ShouldWork()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
-
         // Act
         _camera.SetAcquisitionMode(ArvAcquisitionMode.SingleFrame);
         var mode = _camera.GetAcquisitionMode();
@@ -101,12 +85,9 @@ public class CameraWrapperTests : IDisposable
         Assert.Equal(ArvAcquisitionMode.SingleFrame, mode);
     }
 
-    [Fact]
+    [NativeFact]
     public void SetAcquisitionMode_Continuous_ShouldWork()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
-
         // Act
         _camera.SetAcquisitionMode(ArvAcquisitionMode.Continuous);
         var mode = _camera.GetAcquisitionMode();
@@ -119,13 +100,10 @@ public class CameraWrapperTests : IDisposable
 
     #region Frame Count Tests
 
-    [Fact]
+    [RealCameraFact("AcquisitionFrameCount")]
     public void GetFrameCount_ShouldReturnNonNegative()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
-
-        // Check if feature is available
+        // Not every real camera has it either (xunit v2 cannot skip at run time).
         if (!_camera.IsFeatureAvailable("AcquisitionFrameCount")) return;
 
         // Act
@@ -135,13 +113,10 @@ public class CameraWrapperTests : IDisposable
         Assert.True(count >= 0);
     }
 
-    [Fact]
+    [RealCameraFact("AcquisitionFrameCount")]
     public void SetFrameCount_ShouldNotThrow()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
-
-        // Check if feature is available
+        // Not every real camera has it either (xunit v2 cannot skip at run time).
         if (!_camera.IsFeatureAvailable("AcquisitionFrameCount")) return;
 
         // Act & Assert
@@ -149,13 +124,10 @@ public class CameraWrapperTests : IDisposable
         Assert.Null(exception);
     }
 
-    [Fact]
+    [RealCameraFact("AcquisitionFrameCount")]
     public void GetFrameCountBounds_ShouldReturnValidRange()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
-
-        // Check if feature is available
+        // Not every real camera has it either (xunit v2 cannot skip at run time).
         if (!_camera.IsFeatureAvailable("AcquisitionFrameCount")) return;
 
         // Act
@@ -166,13 +138,10 @@ public class CameraWrapperTests : IDisposable
         Assert.True(max >= min);
     }
 
-    [Fact]
+    [RealCameraFact("AcquisitionFrameCount")]
     public void SetFrameCount_WithinBounds_ShouldWork()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
-
-        // Check if feature is available
+        // Not every real camera has it either (xunit v2 cannot skip at run time).
         if (!_camera.IsFeatureAvailable("AcquisitionFrameCount")) return;
 
         // Arrange
@@ -191,12 +160,9 @@ public class CameraWrapperTests : IDisposable
 
     #region Auto Exposure Tests
 
-    [Fact]
+    [RealCameraFact("ExposureAuto")]
     public void GetExposureTimeAuto_ShouldReturnValidMode()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
-
         if (!_camera.IsExposureAutoAvailable()) return;
 
         // Act
@@ -206,12 +172,9 @@ public class CameraWrapperTests : IDisposable
         Assert.True(Enum.IsDefined(typeof(ArvAuto), mode));
     }
 
-    [Fact]
+    [RealCameraFact("ExposureAuto")]
     public void SetExposureTimeAuto_Off_ShouldWork()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
-
         if (!_camera.IsExposureAutoAvailable()) return;
 
         // Act
@@ -222,12 +185,9 @@ public class CameraWrapperTests : IDisposable
         Assert.Equal(ArvAuto.Off, mode);
     }
 
-    [Fact]
+    [RealCameraFact("ExposureAuto")]
     public void SetExposureTimeAuto_Continuous_ShouldWork()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
-
         if (!_camera.IsExposureAutoAvailable()) return;
 
         // Act
@@ -250,13 +210,10 @@ public class CameraWrapperTests : IDisposable
 
     #region Auto Gain Tests
 
-    [Fact]
+    [NativeFact]
     public void GetGainAuto_ShouldReturnValidMode()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
-
-        if (!_camera.IsGainAutoAvailable()) return;
+        if (!Supports(_camera.IsGainAutoAvailable(), "GainAuto")) return;
 
         // Act
         var mode = _camera.GetGainAuto();
@@ -265,33 +222,45 @@ public class CameraWrapperTests : IDisposable
         Assert.True(Enum.IsDefined(typeof(ArvAuto), mode));
     }
 
-    [Fact]
+    [NativeFact]
     public void SetGainAuto_Off_ShouldWork()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
+        if (!Supports(_camera.IsGainAutoAvailable(), "GainAuto")) return;
 
-        if (!_camera.IsGainAutoAvailable()) return;
-
-        // Act
-        _camera.SetGainAuto(ArvAuto.Off);
-        var mode = _camera.GetGainAuto();
+        var original = _camera.GetGainAuto();
+        ArvAuto mode;
+        try
+        {
+            // Act
+            _camera.SetGainAuto(ArvAuto.Off);
+            mode = _camera.GetGainAuto();
+        }
+        finally
+        {
+            _camera.SetGainAuto(original);
+        }
 
         // Assert
         Assert.Equal(ArvAuto.Off, mode);
     }
 
-    [Fact]
+    [NativeFact]
     public void SetGainAuto_Continuous_ShouldWork()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
+        if (!Supports(_camera.IsGainAutoAvailable(), "GainAuto")) return;
 
-        if (!_camera.IsGainAutoAvailable()) return;
-
-        // Act
-        _camera.SetGainAuto(ArvAuto.Continuous);
-        var mode = _camera.GetGainAuto();
+        var original = _camera.GetGainAuto();
+        ArvAuto mode;
+        try
+        {
+            // Act
+            _camera.SetGainAuto(ArvAuto.Continuous);
+            mode = _camera.GetGainAuto();
+        }
+        finally
+        {
+            _camera.SetGainAuto(original);
+        }
 
         // Assert
         Assert.Equal(ArvAuto.Continuous, mode);
@@ -308,12 +277,9 @@ public class CameraWrapperTests : IDisposable
 
     #region Generic Feature Access Tests
 
-    [Fact]
+    [NativeFact]
     public void GetStringFeature_PixelFormat_ShouldReturnNonEmpty()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
-
         // Act
         var pixelFormat = _camera.GetStringFeature("PixelFormat");
 
@@ -322,12 +288,9 @@ public class CameraWrapperTests : IDisposable
         Assert.NotEmpty(pixelFormat);
     }
 
-    [Fact]
+    [NativeFact]
     public void SetStringFeature_PixelFormat_ShouldWork()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
-
         // Arrange
         var originalFormat = _camera.GetPixelFormat();
 
@@ -336,12 +299,9 @@ public class CameraWrapperTests : IDisposable
         Assert.Null(exception);
     }
 
-    [Fact]
+    [NativeFact]
     public void GetIntegerFeature_Width_ShouldReturnPositive()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
-
         // Act
         var width = _camera.GetIntegerFeature("Width");
 
@@ -349,12 +309,9 @@ public class CameraWrapperTests : IDisposable
         Assert.True(width > 0);
     }
 
-    [Fact]
+    [NativeFact]
     public void SetIntegerFeature_Width_ShouldWork()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
-
         // Arrange
         var (minWidth, maxWidth) = _camera.GetWidthBounds();
 
@@ -366,30 +323,24 @@ public class CameraWrapperTests : IDisposable
         Assert.Equal(maxWidth, width);
     }
 
-    [Fact]
+    [NativeFact]
     public void GetFloatFeature_ExposureTime_ShouldReturnPositive()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
-
         var feature = CameraTestHelpers.ResolveExposureTimeFeature(_camera);
-        if (feature == null) return;
+        if (!Supports(feature != null, "an exposure time feature")) return;
 
         // Act
-        var exposure = _camera.GetFloatFeature(feature);
+        var exposure = _camera.GetFloatFeature(feature!);
 
         // Assert
         Assert.True(exposure > 0);
     }
 
-    [Fact]
+    [NativeFact]
     public void SetFloatFeature_ExposureTime_ShouldWork()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
-
         var feature = CameraTestHelpers.ResolveExposureTimeFeature(_camera);
-        if (feature == null) return;
+        if (!Supports(feature != null, "an exposure time feature")) return;
         if (!CameraTestHelpers.TryDisableExposureAuto(_camera)) return;
 
         // Arrange
@@ -397,55 +348,56 @@ public class CameraWrapperTests : IDisposable
         var target = min + (max - min) / 2;
 
         // Act
-        _camera.SetFloatFeature(feature, target);
-        var actual = _camera.GetFloatFeature(feature);
+        _camera.SetFloatFeature(feature!, target);
+        var actual = _camera.GetFloatFeature(feature!);
 
         // Assert
         Assert.True(Math.Abs(actual - target) < 1.0); // Allow small tolerance
     }
 
-    [Fact]
+    [NativeFact]
     public void GetBooleanFeature_ShouldReturnBool()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
+        // ReverseX on real cameras, TestBoolean on the fake camera
+        var feature = FindBooleanFeature();
+        if (!Supports(feature != null, "a boolean feature")) return;
 
-        // Try to find a boolean feature
-        if (_camera.IsFeatureAvailable("ReverseX"))
-        {
-            // Act
-            var value = _camera.GetBooleanFeature("ReverseX");
-
-            // Assert - just check it doesn't throw
-            Assert.True(value == true || value == false);
-        }
+        // Act & Assert - reading must not throw
+        var exception = Record.Exception(() => _camera.GetBooleanFeature(feature!));
+        Assert.Null(exception);
     }
 
-    [Fact]
+    [NativeFact]
     public void SetBooleanFeature_ShouldWork()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
+        var feature = FindBooleanFeature();
+        if (!Supports(feature != null, "a boolean feature")) return;
 
-        // Try to find a boolean feature
-        if (_camera.IsFeatureAvailable("ReverseX"))
+        var original = _camera.GetBooleanFeature(feature!);
+        bool toggled;
+        try
         {
-            // Act & Assert - should not throw
-            var exception = Record.Exception(() => _camera.SetBooleanFeature("ReverseX", false));
-            Assert.Null(exception);
+            // Act
+            _camera.SetBooleanFeature(feature!, !original);
+            toggled = _camera.GetBooleanFeature(feature!);
         }
+        finally
+        {
+            _camera.SetBooleanFeature(feature!, original);
+        }
+
+        // Assert
+        Assert.Equal(!original, toggled);
+        Assert.Equal(original, _camera.GetBooleanFeature(feature!));
     }
 
     #endregion
 
     #region Feature Bounds Tests
 
-    [Fact]
+    [NativeFact]
     public void GetIntegerFeatureBounds_Width_ShouldReturnValidRange()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
-
         // Act
         var (min, max) = _camera.GetIntegerFeatureBounds("Width");
 
@@ -454,17 +406,14 @@ public class CameraWrapperTests : IDisposable
         Assert.True(max >= min);
     }
 
-    [Fact]
+    [NativeFact]
     public void GetFloatFeatureBounds_ExposureTime_ShouldReturnValidRange()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
-
         var feature = CameraTestHelpers.ResolveExposureTimeFeature(_camera);
-        if (feature == null) return;
+        if (!Supports(feature != null, "an exposure time feature")) return;
 
         // Act
-        var (min, max) = _camera.GetFloatFeatureBounds(feature);
+        var (min, max) = _camera.GetFloatFeatureBounds(feature!);
 
         // Assert
         Assert.True(min > 0);
@@ -475,12 +424,9 @@ public class CameraWrapperTests : IDisposable
 
     #region Feature Increment Tests
 
-    [Fact]
+    [NativeFact]
     public void GetWidthIncrement_ShouldReturnPositive()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
-
         // Act
         var increment = _camera.GetWidthIncrement();
 
@@ -488,12 +434,9 @@ public class CameraWrapperTests : IDisposable
         Assert.True(increment > 0);
     }
 
-    [Fact]
+    [NativeFact]
     public void GetHeightIncrement_ShouldReturnPositive()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
-
         // Act
         var increment = _camera.GetHeightIncrement();
 
@@ -501,12 +444,9 @@ public class CameraWrapperTests : IDisposable
         Assert.True(increment > 0);
     }
 
-    [Fact]
+    [NativeFact]
     public void GetIntegerFeatureIncrement_Width_ShouldReturnPositive()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
-
         // Act
         var increment = _camera.GetIntegerFeatureIncrement("Width");
 
@@ -514,17 +454,23 @@ public class CameraWrapperTests : IDisposable
         Assert.True(increment > 0);
     }
 
-    [Fact]
+    [NativeFact]
     public void GetFloatFeatureIncrement_ExposureTime_ShouldReturnPositive()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
-
         var feature = CameraTestHelpers.ResolveExposureTimeFeature(_camera);
-        if (feature == null) return;
+        if (!Supports(feature != null, "an exposure time feature")) return;
 
         // Act
-        var increment = _camera.GetFloatFeatureIncrement(feature);
+        double increment;
+        try
+        {
+            increment = _camera.GetFloatFeatureIncrement(feature!);
+        }
+        catch (AravisException) when (!CameraTestHelpers.UsesFakeCamera)
+        {
+            // Some descriptions give no increment at all (Opto ITA24: "<Inc> node not found").
+            return;
+        }
 
         // Assert
         Assert.True(increment >= 0); // Can be 0 if continuous
@@ -534,12 +480,9 @@ public class CameraWrapperTests : IDisposable
 
     #region Feature Availability Tests
 
-    [Fact]
+    [NativeFact]
     public void IsFeatureAvailable_Width_ShouldReturnTrue()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
-
         // Act
         var available = _camera.IsFeatureAvailable("Width");
 
@@ -547,12 +490,9 @@ public class CameraWrapperTests : IDisposable
         Assert.True(available);
     }
 
-    [Fact]
+    [NativeFact]
     public void IsFeatureAvailable_NonExistent_ShouldReturnFalse()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
-
         // Act
         var available = _camera.IsFeatureAvailable("ThisFeatureDoesNotExist12345");
 
@@ -560,12 +500,9 @@ public class CameraWrapperTests : IDisposable
         Assert.False(available);
     }
 
-    [Fact]
+    [NativeFact]
     public void IsBinningAvailable_ShouldReturnBool()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
-
         // Act
         var available = _camera.IsBinningAvailable();
 
@@ -573,12 +510,9 @@ public class CameraWrapperTests : IDisposable
         Assert.True(available == true || available == false);
     }
 
-    [Fact]
+    [NativeFact]
     public void IsExposureTimeAvailable_ShouldReturnBool()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
-
         // Act
         var available = _camera.IsExposureTimeAvailable();
 
@@ -586,12 +520,9 @@ public class CameraWrapperTests : IDisposable
         Assert.True(available == true || available == false);
     }
 
-    [Fact]
+    [NativeFact]
     public void IsExposureAutoAvailable_ShouldReturnBool()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
-
         // Act
         var available = _camera.IsExposureAutoAvailable();
 
@@ -599,12 +530,9 @@ public class CameraWrapperTests : IDisposable
         Assert.True(available == true || available == false);
     }
 
-    [Fact]
+    [NativeFact]
     public void IsGainAvailable_ShouldReturnBool()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
-
         // Act
         var available = _camera.IsGainAvailable();
 
@@ -612,12 +540,9 @@ public class CameraWrapperTests : IDisposable
         Assert.True(available == true || available == false);
     }
 
-    [Fact]
+    [NativeFact]
     public void IsGainAutoAvailable_ShouldReturnBool()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
-
         // Act
         var available = _camera.IsGainAutoAvailable();
 
@@ -625,12 +550,9 @@ public class CameraWrapperTests : IDisposable
         Assert.True(available == true || available == false);
     }
 
-    [Fact]
+    [NativeFact]
     public void IsFrameRateAvailable_ShouldReturnBool()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
-
         // Act
         var available = _camera.IsFrameRateAvailable();
 
@@ -642,12 +564,9 @@ public class CameraWrapperTests : IDisposable
 
     #region Device Type Tests
 
-    [Fact]
+    [NativeFact]
     public void IsGigEVisionDevice_ShouldReturnBool()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
-
         // Act
         var isGigE = _camera.IsGigEVisionDevice();
 
@@ -655,12 +574,9 @@ public class CameraWrapperTests : IDisposable
         Assert.True(isGigE == true || isGigE == false);
     }
 
-    [Fact]
+    [NativeFact]
     public void IsUSB3VisionDevice_ShouldReturnBool()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
-
         // Act
         var isUSB = _camera.IsUSB3VisionDevice();
 
@@ -668,12 +584,9 @@ public class CameraWrapperTests : IDisposable
         Assert.True(isUSB == true || isUSB == false);
     }
 
-    [Fact]
+    [NativeFact]
     public void DeviceType_ShouldBeEitherGigEOrUSB()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
-
         // Act
         var isGigE = _camera.IsGigEVisionDevice();
         var isUSB = _camera.IsUSB3VisionDevice();
@@ -687,26 +600,20 @@ public class CameraWrapperTests : IDisposable
 
     #region GigE Vision Specific Tests
 
-    [Fact]
+    [GigECameraFact]
     public void GvAutoPacketSize_OnGigECamera_ShouldNotThrow()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
-
-        if (!_camera.IsGigEVisionDevice()) return;
+        Assert.True(_camera.IsGigEVisionDevice());
 
         // Act & Assert
         var exception = Record.Exception(() => _camera.GvAutoPacketSize());
         Assert.Null(exception);
     }
 
-    [Fact]
+    [GigECameraFact]
     public void GvGetPacketSize_OnGigECamera_ShouldReturnPositive()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
-
-        if (!_camera.IsGigEVisionDevice()) return;
+        Assert.True(_camera.IsGigEVisionDevice());
 
         // Act
         var packetSize = _camera.GvGetPacketSize();
@@ -715,39 +622,38 @@ public class CameraWrapperTests : IDisposable
         Assert.True(packetSize > 0);
     }
 
-    [Fact]
+    [GigECameraFact]
     public void GvSetPacketSize_OnGigECamera_ShouldWork()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
-
-        if (!_camera.IsGigEVisionDevice()) return;
+        Assert.True(_camera.IsGigEVisionDevice());
 
         // Arrange
         var originalSize = _camera.GvGetPacketSize();
 
-        // Act
-        _camera.GvSetPacketSize(1500);
-        var newSize = _camera.GvGetPacketSize();
+        int newSize;
+        try
+        {
+            // Act
+            _camera.GvSetPacketSize(1500);
+            newSize = _camera.GvGetPacketSize();
+        }
+        finally
+        {
+            _camera.GvSetPacketSize(originalSize);
+        }
 
-        // Restore
-        _camera.GvSetPacketSize(originalSize);
-
-        // Assert
-        Assert.Equal(1500, newSize);
+        // Assert: cameras round down to their packet size increment (the Opto ITA24 gives 1496)
+        Assert.InRange(newSize, 1500 - 64, 1500);
     }
 
     #endregion
 
     #region USB3 Vision Specific Tests
 
-    [Fact]
+    [Usb3CameraFact]
     public void UvIsBandwidthControlAvailable_OnUSBCamera_ShouldReturnBool()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
-
-        if (!_camera.IsUSB3VisionDevice()) return;
+        Assert.True(_camera.IsUSB3VisionDevice());
 
         // Act
         var available = _camera.UvIsBandwidthControlAvailable();
@@ -756,46 +662,41 @@ public class CameraWrapperTests : IDisposable
         Assert.True(available == true || available == false);
     }
 
-    [Fact]
-    public void UvGetBandwidth_OnUSBCameraWithControl_ShouldReturnNonNegative()
+    [Usb3CameraFact]
+    public void UvGetBandwidth_OnUSBCameraWithControl_ShouldBeZeroOrWithinBounds()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
-
-        if (!_camera.IsUSB3VisionDevice()) return;
+        Assert.True(_camera.IsUSB3VisionDevice());
+        // Bandwidth control is optional in USB3 Vision (xunit v2 cannot skip at run time).
         if (!_camera.UvIsBandwidthControlAvailable()) return;
 
         // Act
         var bandwidth = _camera.UvGetBandwidth();
+        var (min, max) = _camera.UvGetBandwidthBounds();
 
-        // Assert
-        Assert.True(bandwidth >= 0);
+        // Assert - 0 means bandwidth limiting is disabled
+        Assert.True(bandwidth == 0 || (bandwidth >= min && bandwidth <= max),
+            $"Bandwidth {bandwidth} outside [{min}, {max}]");
     }
 
-    [Fact]
+    [Usb3CameraFact]
     public void UvGetBandwidthBounds_OnUSBCameraWithControl_ShouldReturnValidRange()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
-
-        if (!_camera.IsUSB3VisionDevice()) return;
+        Assert.True(_camera.IsUSB3VisionDevice());
+        // Bandwidth control is optional in USB3 Vision (xunit v2 cannot skip at run time).
         if (!_camera.UvIsBandwidthControlAvailable()) return;
 
         // Act
         var (min, max) = _camera.UvGetBandwidthBounds();
 
         // Assert
-        Assert.True(min >= 0);
         Assert.True(max >= min);
     }
 
-    [Fact]
+    [Usb3CameraFact]
     public void UvSetBandwidth_OnUSBCameraWithControl_ShouldWork()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
-
-        if (!_camera.IsUSB3VisionDevice()) return;
+        Assert.True(_camera.IsUSB3VisionDevice());
+        // Bandwidth control is optional in USB3 Vision (xunit v2 cannot skip at run time).
         if (!_camera.UvIsBandwidthControlAvailable()) return;
 
         // Arrange
@@ -803,12 +704,17 @@ public class CameraWrapperTests : IDisposable
         var (min, max) = _camera.UvGetBandwidthBounds();
         var targetBandwidth = min + (max - min) / 2;
 
-        // Act
-        _camera.UvSetBandwidth(targetBandwidth);
-        var newBandwidth = _camera.UvGetBandwidth();
-
-        // Restore
-        _camera.UvSetBandwidth(originalBandwidth);
+        uint newBandwidth;
+        try
+        {
+            // Act
+            _camera.UvSetBandwidth(targetBandwidth);
+            newBandwidth = _camera.UvGetBandwidth();
+        }
+        finally
+        {
+            _camera.UvSetBandwidth(originalBandwidth);
+        }
 
         // Assert
         Assert.Equal(targetBandwidth, newBandwidth);
@@ -818,31 +724,33 @@ public class CameraWrapperTests : IDisposable
 
     #region Command Execution Tests
 
-    [Fact]
+    [NativeFact]
     public void ExecuteCommand_WithValidCommand_ShouldNotThrow()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
+        if (!Supports(_camera.IsFeatureAvailable("AcquisitionStart"), "AcquisitionStart")) return;
 
-        // Try common commands that might be available
-        if (_camera.IsFeatureAvailable("AcquisitionStart"))
+        Exception? exception;
+        try
         {
-            // Act & Assert
-            var exception = Record.Exception(() => _camera.ExecuteCommand("AcquisitionStart"));
-            // Note: This might fail if acquisition is already running
+            // Act
+            exception = Record.Exception(() => _camera.ExecuteCommand("AcquisitionStart"));
         }
+        finally
+        {
+            _camera.StopAcquisition();
+        }
+
+        // Assert
+        Assert.Null(exception);
     }
 
     #endregion
 
     #region Integration Tests
 
-    [Fact]
+    [NativeFact]
     public void FullWorkflow_SetupAndQuery_ShouldWork()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
-
         // Get sensor size
         var (sensorWidth, sensorHeight) = _camera.GetSensorSize();
         Assert.True(sensorWidth > 0);
@@ -885,12 +793,9 @@ public class CameraWrapperTests : IDisposable
         Assert.True(_camera.IsFeatureAvailable("PixelFormat"));
     }
 
-    [Fact]
+    [NativeFact]
     public void AutoModes_EnableAndDisable_ShouldWork()
     {
-        SkipIfNoCamera();
-        if (!_hasCamera || _camera == null) return;
-
         // Test auto exposure if available
         if (_camera.IsExposureAutoAvailable())
         {
@@ -909,16 +814,21 @@ public class CameraWrapperTests : IDisposable
         }
 
         // Test auto gain if available
-        if (_camera.IsGainAutoAvailable())
+        if (Supports(_camera.IsGainAutoAvailable(), "GainAuto"))
         {
-            _camera.SetGainAuto(ArvAuto.Off);
-            Assert.Equal(ArvAuto.Off, _camera.GetGainAuto());
+            var original = _camera.GetGainAuto();
+            try
+            {
+                _camera.SetGainAuto(ArvAuto.Off);
+                Assert.Equal(ArvAuto.Off, _camera.GetGainAuto());
 
-            _camera.SetGainAuto(ArvAuto.Continuous);
-            Assert.Equal(ArvAuto.Continuous, _camera.GetGainAuto());
-
-            // Restore to off
-            _camera.SetGainAuto(ArvAuto.Off);
+                _camera.SetGainAuto(ArvAuto.Continuous);
+                Assert.Equal(ArvAuto.Continuous, _camera.GetGainAuto());
+            }
+            finally
+            {
+                _camera.SetGainAuto(original);
+            }
         }
     }
 

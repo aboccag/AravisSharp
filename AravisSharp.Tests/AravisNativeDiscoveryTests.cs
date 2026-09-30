@@ -11,15 +11,9 @@ public class AravisNativeDiscoveryTests
     [NativeFact]
     public void GetDevicePhysicalId_WithValidIndex_ShouldReturnNonNull()
     {
-        AravisNative.arv_update_device_list();
-        uint deviceCount = AravisNative.arv_get_n_devices();
+        uint index = AravisNativeTests.FakeDeviceIndex();
 
-        if (deviceCount == 0)
-        {
-            return;
-        }
-
-        IntPtr physicalIdPtr = AravisNative.arv_get_device_physical_id(0);
+        IntPtr physicalIdPtr = AravisNative.arv_get_device_physical_id(index);
         string? physicalId = Marshal.PtrToStringUTF8(physicalIdPtr);
 
         Assert.NotEqual(IntPtr.Zero, physicalIdPtr);
@@ -33,10 +27,8 @@ public class AravisNativeDiscoveryTests
         AravisNative.arv_update_device_list();
         uint interfaceCount = AravisNative.arv_get_n_interfaces();
 
-        if (interfaceCount == 0)
-        {
-            return;
-        }
+        // Aravis always registers its interfaces (at least GigE Vision and Fake).
+        Assert.True(interfaceCount > 0);
 
         IntPtr interfaceIdPtr = AravisNative.arv_get_interface_id(0);
         string? interfaceId = Marshal.PtrToStringUTF8(interfaceIdPtr);
@@ -47,23 +39,16 @@ public class AravisNativeDiscoveryTests
     }
 
     [NativeFact]
-    public void GetDeviceManufacturerInfo_WithValidIndex_ShouldReturnStringWhenAvailable()
+    public void GetDeviceManufacturerInfo_ForFakeCamera_ShouldReturnString()
     {
-        AravisNative.arv_update_device_list();
-        uint deviceCount = AravisNative.arv_get_n_devices();
+        uint index = AravisNativeTests.FakeDeviceIndex();
 
-        if (deviceCount == 0)
-        {
-            return;
-        }
+        // The fake interface always reports a manufacturer info string.
+        IntPtr manufacturerInfoPtr = AravisNative.arv_get_device_manufacturer_info(index);
+        string? manufacturerInfo = Marshal.PtrToStringUTF8(manufacturerInfoPtr);
 
-        IntPtr manufacturerInfoPtr = AravisNative.arv_get_device_manufacturer_info(0);
-
-        if (manufacturerInfoPtr != IntPtr.Zero)
-        {
-            string? manufacturerInfo = Marshal.PtrToStringUTF8(manufacturerInfoPtr);
-            Assert.NotNull(manufacturerInfo);
-        }
+        Assert.NotEqual(IntPtr.Zero, manufacturerInfoPtr);
+        Assert.False(string.IsNullOrEmpty(manufacturerInfo));
     }
 
     [NativeFact]
