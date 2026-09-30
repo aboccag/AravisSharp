@@ -33,13 +33,18 @@
         <InformationalVersion>$(PackageVersion)+aravis.$(AravisNativeVersion)</InformationalVersion>
         <Authors>Alexandre</Authors>
         <Description>C# bindings for the Aravis industrial camera library (GenICam/GigE Vision/USB3 Vision)</Description>
-        <PackageLicenseExpression>LGPL-2.1-or-later</PackageLicenseExpression>
+        <PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <PackageProjectUrl>https://github.com/aboccag/AravisSharp</PackageProjectUrl>
         <RepositoryUrl>https://github.com/aboccag/AravisSharp.git</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
         <PackageTags>aravis;aravis-$(AravisNativeVersion);genicam;gigevision;usb3vision;camera;industrial;imaging</PackageTags>
         <PackageReleaseNotes>Targets Aravis $(AravisNativeVersion) / libaravis-0.8 ABI; AravisSharp patch revision $(AravisSharpPatchVersion).</PackageReleaseNotes>
+
+        <!-- Symbols ship as a .snupkg next to the .nupkg; CI builds get deterministic source paths. -->
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+        <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
 
         <!-- Work around a .NET 10 SDK pack issue where parallel pack target walks can fail without diagnostics. -->
         <BuildInParallel Condition="'$(_IsPacking)' == 'true'">false</BuildInParallel>
@@ -55,6 +60,7 @@
 
     <ItemGroup>
       <None Include="../README.md" Pack="true" PackagePath="\" />
+      <None Include="../LICENSE" Pack="true" PackagePath="\" />
       <!-- The native runtimes bundle third-party libraries; their notices and license texts ship with them. -->
       <None Include="../THIRD-PARTY-NOTICES.md" Pack="true" PackagePath="\" />
       <None Include="../licenses/*" Pack="true" PackagePath="licenses/" />
