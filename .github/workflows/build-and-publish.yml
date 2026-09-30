@@ -419,13 +419,18 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────────
   # 5. Publish the package that passed the smoke test, on a release tag
   # ─────────────────────────────────────────────────────────────────────────
-  # Off until the repository variable NUGET_PUBLISH is set to 'true' and the NUGET_API_KEY
-  # secret exists.
+  # nuget.org Trusted Publishing: no stored API key. The job exchanges its GitHub OIDC token
+  # for a nuget.org key valid one hour, under the policy set on nuget.org for this
+  # repository and workflow file (build-and-publish.yml). Off until the repository
+  # variable NUGET_PUBLISH is 'true'; NUGET_USER holds the nuget.org profile name.
   publish:
     name: Publish NuGet
     needs: [pack, package-smoke, package-smoke-distros]
     if: startsWith(github.ref, 'refs/tags/v') && vars.NUGET_PUBLISH == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write   # GitHub OIDC token for nuget.org
+      contents: read
     steps:
       - uses: actions/setup-dotnet@v4
         with:
@@ -436,11 +441,13 @@ jobs:
           name: nuget-packages
           path: _packages/
 
+      # Right before the push: the temporary key expires after an hour.
+      - name: NuGet login (OIDC to temporary API key)
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: ${{ vars.NUGET_USER }}
+
       - name: Publish to NuGet.org
-        env:
-          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
         run: |
-          dotnet nuget push _packages/*.nupkg \
-            --api-key "$NUGET_API_KEY" \
-            --source https://api.nuget.org/v3/index.json \
-            --skip-duplicate
+          dotnet nuget push _packages/*.nupkg             --api-key "${{ steps.login.outputs.NUGET_API_KEY }}"             --source https://api.nuget.org/v3/index.json             --skip-duplicate

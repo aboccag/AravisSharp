@@ -101,6 +101,6 @@ Jobs, in order:
 2. **test-dotnet** — installs Aravis system-wide on Ubuntu and runs the whole suite against the fake camera.
 3. **pack** — arranges the native artifacts under `AravisSharp/runtimes/{rid}/native/`, refuses any bundled file missing from `THIRD-PARTY-NOTICES.md`, then calls `dotnet pack`.
 4. **package-smoke** — restores the `.nupkg` on each of the four runners and acquires frames from the fake camera through it (`.github/package-smoke/`), checking libaravis loads from the app's `runtimes/` folder. **package-smoke-distros** runs the self-contained app in bare `ubuntu:20.04` (the floor) and `ubuntu:26.04` (newest LTS) images on both Linux architectures.
-5. **publish** — pushes to NuGet.org on release tags, only when the `NUGET_PUBLISH` repository variable is `true`.
+5. **publish** — pushes to NuGet.org on release tags, only when the `NUGET_PUBLISH` repository variable is `true`. Uses nuget.org Trusted Publishing (`NuGet/login@v1`, OIDC): no API key is stored; `NUGET_USER` is the nuget.org profile name and the policy on nuget.org names this repository and `build-and-publish.yml`.
 
 Windows builds use MSYS2/MinGW64. macOS builds use Homebrew, `install_name_tool` to rewrite dylib load paths and ad-hoc `codesign`. The scripts run off CI too (the Windows ones in an MSYS2 MINGW64 shell).
