@@ -29,10 +29,7 @@ public static class ImageHelper
     /// </summary>
     public static void SaveToPgm(AravisSharp.Buffer buffer, string filename)
     {
-        if (buffer.Status != ArvBufferStatus.Success)
-        {
-            throw new InvalidOperationException($"Cannot save buffer with status: {buffer.Status}");
-        }
+        EnsureSuccess(buffer);
 
         var width = buffer.Width;
         var height = buffer.Height;
@@ -44,16 +41,11 @@ public static class ImageHelper
             throw new NotSupportedException($"PGM format only supports MONO_8. Current format: 0x{pixelFormat:X8}");
         }
 
-        var data = buffer.CopyData();
-        
-        using var writer = new StreamWriter(filename);
-        writer.WriteLine("P5");
-        writer.WriteLine($"{width} {height}");
-        writer.WriteLine("255");
-        writer.Flush();
-        
-        using var stream = writer.BaseStream;
-        stream.Write(data, 0, data.Length);
+        // PGM allows exactly one whitespace byte after maxval, so write "\n", never "\r\n".
+        using var file = File.Create(filename);
+        file.Write(System.Text.Encoding.ASCII.GetBytes($"P5\n{width} {height}\n255\n"));
+        file.Write(GetPackedPixels(buffer, 1));
+        GC.KeepAlive(buffer);
     }
 
     /// <summary>
@@ -61,21 +53,58 @@ public static class ImageHelper
     /// </summary>
     public static void SaveToPng(AravisSharp.Buffer buffer, string filename)
     {
+        EnsureSuccess(buffer);
+        var pixelFormat = buffer.PixelFormat;
+        if (!IsImageSharpFormat(pixelFormat))
+            throw new NotSupportedException($"PNG saving not supported for pixel format: {GetPixelFormatName(pixelFormat)} (0x{pixelFormat:X8})");
+
+        using var image = LoadImage(buffer);
+        image.SaveAsPng(filename);
+    }
+
+    /// <summary>
+    /// Saves a buffer to a JPEG file
+    /// </summary>
+    public static void SaveToJpeg(AravisSharp.Buffer buffer, string filename, int quality = 90)
+    {
+        EnsureSuccess(buffer);
+        var pixelFormat = buffer.PixelFormat;
+        if (pixelFormat != ArvPixelFormat.ARV_PIXEL_FORMAT_MONO_8 &&
+            pixelFormat != ArvPixelFormat.ARV_PIXEL_FORMAT_RGB_8_PACKED)
+            throw new NotSupportedException($"JPEG saving not supported for pixel format: {GetPixelFormatName(pixelFormat)}");
+
+        using var image = LoadImage(buffer);
+        image.SaveAsJpeg(filename, new SixLabors.ImageSharp.Formats.Jpeg.JpegEncoder { Quality = quality });
+    }
+
+    private static void EnsureSuccess(AravisSharp.Buffer buffer)
+    {
         if (buffer.Status != ArvBufferStatus.Success)
         {
             throw new InvalidOperationException($"Cannot save buffer with status: {buffer.Status}");
         }
+    }
 
+    private static bool IsImageSharpFormat(uint pixelFormat)
+    {
+        return IsMonoFormat(pixelFormat) || IsColorFormat(pixelFormat);
+    }
+
+    /// <summary>
+    /// Copies the buffer into an ImageSharp image. The pixels are copied, so the image
+    /// does not depend on the buffer once this returns.
+    /// </summary>
+    private static Image LoadImage(AravisSharp.Buffer buffer)
+    {
         var width = buffer.Width;
         var height = buffer.Height;
         var pixelFormat = buffer.PixelFormat;
-        var data = buffer.GetDataSpan();
+        var data = GetPackedPixels(buffer, GetBytesPerPixel(pixelFormat));
 
+        Image image;
         if (pixelFormat == ArvPixelFormat.ARV_PIXEL_FORMAT_MONO_8)
         {
-            // 8-bit grayscale
-            var image = Image.LoadPixelData<L8>(data, width, height);
-            image.SaveAsPng(filename);
+            image = Image.LoadPixelData<L8>(data, width, height);
         }
         else if (pixelFormat == ArvPixelFormat.ARV_PIXEL_FORMAT_MONO_10 ||
                  pixelFormat == ArvPixelFormat.ARV_PIXEL_FORMAT_MONO_12 ||
@@ -94,71 +123,65 @@ public static class ImageHelper
             var pixels = new L8[width * height];
             for (int i = 0; i < pixels.Length; i++)
             {
-                ushort raw = System.Runtime.InteropServices.MemoryMarshal.Read<ushort>(data.Slice(i * 2));
-                pixels[i] = new L8((byte)(raw * 255 / maxVal));
+                ushort raw = System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(data.Slice(i * 2));
+                pixels[i] = new L8((byte)(Math.Min((int)raw, maxVal) * 255 / maxVal));
             }
-            var image = Image.LoadPixelData<L8>(pixels, width, height);
-            image.SaveAsPng(filename);
+            image = Image.LoadPixelData<L8>(pixels, width, height);
         }
         else if (pixelFormat == ArvPixelFormat.ARV_PIXEL_FORMAT_RGB_8_PACKED)
         {
-            // RGB 24-bit
-            var image = Image.LoadPixelData<Rgb24>(data, width, height);
-            image.SaveAsPng(filename);
+            image = Image.LoadPixelData<Rgb24>(data, width, height);
         }
         else if (pixelFormat == ArvPixelFormat.ARV_PIXEL_FORMAT_RGBA_8_PACKED)
         {
-            // RGBA 32-bit
-            var image = Image.LoadPixelData<Rgba32>(data, width, height);
-            image.SaveAsPng(filename);
+            image = Image.LoadPixelData<Rgba32>(data, width, height);
         }
         else if (pixelFormat == ArvPixelFormat.ARV_PIXEL_FORMAT_BGR_8_PACKED)
         {
-            // BGR 24-bit
-            var image = Image.LoadPixelData<Bgr24>(data, width, height);
-            image.SaveAsPng(filename);
+            image = Image.LoadPixelData<Bgr24>(data, width, height);
         }
         else if (pixelFormat == ArvPixelFormat.ARV_PIXEL_FORMAT_BGRA_8_PACKED)
         {
-            // BGRA 32-bit
-            var image = Image.LoadPixelData<Bgra32>(data, width, height);
-            image.SaveAsPng(filename);
+            image = Image.LoadPixelData<Bgra32>(data, width, height);
         }
         else
         {
-            throw new NotSupportedException($"PNG saving not supported for pixel format: {GetPixelFormatName(pixelFormat)} (0x{pixelFormat:X8})");
+            throw new NotSupportedException($"Unsupported pixel format: {GetPixelFormatName(pixelFormat)} (0x{pixelFormat:X8})");
         }
+
+        // The span above points into the native buffer: keep it alive until the copy is done.
+        GC.KeepAlive(buffer);
+        return image;
     }
 
     /// <summary>
-    /// Saves a buffer to a JPEG file
+    /// Returns the image pixels without row padding, after checking the buffer holds a whole image.
+    /// The span may point into the buffer's native memory: keep the buffer alive while using it.
     /// </summary>
-    public static void SaveToJpeg(AravisSharp.Buffer buffer, string filename, int quality = 90)
+    private static ReadOnlySpan<byte> GetPackedPixels(AravisSharp.Buffer buffer, int bytesPerPixel)
     {
-        if (buffer.Status != ArvBufferStatus.Success)
-        {
-            throw new InvalidOperationException($"Cannot save buffer with status: {buffer.Status}");
-        }
-
         var width = buffer.Width;
         var height = buffer.Height;
-        var pixelFormat = buffer.PixelFormat;
+        var (xPadding, _) = buffer.GetImagePadding();
         var data = buffer.GetDataSpan();
 
-        if (pixelFormat == ArvPixelFormat.ARV_PIXEL_FORMAT_MONO_8)
+        long rowBytes = (long)width * bytesPerPixel;
+        long stride = rowBytes + xPadding;
+        if (width <= 0 || height <= 0 || data.Length < stride * (height - 1) + rowBytes)
         {
-            var image = Image.LoadPixelData<L8>(data, width, height);
-            image.SaveAsJpeg(filename, new SixLabors.ImageSharp.Formats.Jpeg.JpegEncoder { Quality = quality });
+            throw new InvalidOperationException(
+                $"Buffer holds {data.Length} bytes, too few for a {width}x{height} image with {xPadding} bytes of row padding.");
         }
-        else if (pixelFormat == ArvPixelFormat.ARV_PIXEL_FORMAT_RGB_8_PACKED)
+
+        if (xPadding == 0)
+            return data.Slice(0, (int)(rowBytes * height));
+
+        var packed = new byte[rowBytes * height];
+        for (int y = 0; y < height; y++)
         {
-            var image = Image.LoadPixelData<Rgb24>(data, width, height);
-            image.SaveAsJpeg(filename, new SixLabors.ImageSharp.Formats.Jpeg.JpegEncoder { Quality = quality });
+            data.Slice((int)(y * stride), (int)rowBytes).CopyTo(packed.AsSpan((int)(y * rowBytes)));
         }
-        else
-        {
-            throw new NotSupportedException($"JPEG saving not supported for pixel format: {GetPixelFormatName(pixelFormat)}");
-        }
+        return packed;
     }
 
     /// <summary>

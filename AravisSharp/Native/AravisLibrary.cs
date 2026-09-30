@@ -5,13 +5,18 @@ namespace AravisSharp.Native;
 
 /// <summary>
 /// Cross-platform library name resolution for Aravis.
-/// Call <see cref="RegisterResolver"/> once at application startup (before any P/Invoke call)
-/// to enable automatic native-library resolution from the NuGet runtimes/ folder.
+/// The resolver is registered automatically when the AravisSharp assembly loads;
+/// calling <see cref="RegisterResolver"/> yourself is optional and harmless.
 /// </summary>
 public static class AravisLibrary
 {
     private static bool _resolverRegistered;
     private static readonly object _lock = new();
+
+#pragma warning disable CA2255 // The resolver must be in place before the first P/Invoke from any entry point
+    [System.Runtime.CompilerServices.ModuleInitializer]
+    internal static void RegisterOnLoad() => RegisterResolver();
+#pragma warning restore CA2255
 
     /// <summary>
     /// Registers a <see cref="NativeLibrary.SetDllImportResolver"/> so that the logical
@@ -223,8 +228,8 @@ public static class AravisLibrary
 
         try
         {
-            // Try to load the library by calling a simple function
-            AravisNative.arv_update_device_list();
+            // Loading the library is enough: no device discovery, no I/O
+            AravisNative.arv_get_major_version();
             return true;
         }
         catch (DllNotFoundException)

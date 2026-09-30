@@ -63,7 +63,9 @@ public enum ArvBufferPayloadType
     ExtendedChunkData = 0x0005,
     Jpeg = 0x0006,
     Jpeg2000 = 0x0007,
-    H264 = 0x000D,
-    MultizoneImage = 0x0012,
-    Multipart = 0x002A
+    H264 = 0x0008,
+    MultizoneImage = 0x0009,
+    Multipart = 0x000A,
+    GenDCContainer = 0x000B,
+    GenDCComponentData = 0x000C
 }

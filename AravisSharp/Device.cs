@@ -5,16 +5,29 @@ using AravisSharp.GenICam;
 namespace AravisSharp;
 
 /// <summary>
-/// Represents a low-level Aravis device for GenICam feature access
+/// Represents a low-level Aravis device for GenICam feature access.
+/// Holds its own reference on the native device, so it stays valid after the
+/// <see cref="Camera"/> it came from is disposed. Dispose it when done.
 /// </summary>
-public class Device
+public class Device : IDisposable
 {
-    private readonly IntPtr _handle;
+    private IntPtr _handle;
+    private bool _disposed;
     private NodeMap? _nodeMap;
 
+    /// <param name="handle">A borrowed ArvDevice pointer; the wrapper takes its own reference.</param>
     internal Device(IntPtr handle)
     {
-        _handle = handle;
+        _handle = GLibNative.g_object_ref(handle);
+    }
+
+    internal IntPtr Handle
+    {
+        get
+        {
+            CheckDisposed();
+            return _handle;
+        }
     }
 
     /// <summary>
@@ -24,9 +37,10 @@ public class Device
     {
         get
         {
+            CheckDisposed();
             if (_nodeMap == null)
             {
-                _nodeMap = new NodeMap(_handle);
+                _nodeMap = new NodeMap(this);
             }
             return _nodeMap;
         }
@@ -37,6 +51,7 @@ public class Device
     /// </summary>
     public string GetStringFeature(string featureName)
     {
+        CheckDisposed();
         IntPtr error = IntPtr.Zero;
         IntPtr featurePtr = IntPtr.Zero;
         
@@ -61,6 +76,7 @@ public class Device
     /// </summary>
     public void SetStringFeature(string featureName, string value)
     {
+        CheckDisposed();
         IntPtr error = IntPtr.Zero;
         IntPtr featurePtr = IntPtr.Zero;
         IntPtr valuePtr = IntPtr.Zero;
@@ -88,6 +104,7 @@ public class Device
     /// </summary>
     public long GetIntegerFeature(string featureName)
     {
+        CheckDisposed();
         IntPtr error = IntPtr.Zero;
         IntPtr featurePtr = IntPtr.Zero;
         
@@ -112,6 +129,7 @@ public class Device
     /// </summary>
     public void SetIntegerFeature(string featureName, long value)
     {
+        CheckDisposed();
         IntPtr error = IntPtr.Zero;
         IntPtr featurePtr = IntPtr.Zero;
         
@@ -135,6 +153,7 @@ public class Device
     /// </summary>
     public double GetFloatFeature(string featureName)
     {
+        CheckDisposed();
         IntPtr error = IntPtr.Zero;
         IntPtr featurePtr = IntPtr.Zero;
         
@@ -159,6 +178,7 @@ public class Device
     /// </summary>
     public void SetFloatFeature(string featureName, double value)
     {
+        CheckDisposed();
         IntPtr error = IntPtr.Zero;
         IntPtr featurePtr = IntPtr.Zero;
         
@@ -182,6 +202,7 @@ public class Device
     /// </summary>
     public bool GetBooleanFeature(string featureName)
     {
+        CheckDisposed();
         IntPtr error = IntPtr.Zero;
         IntPtr featurePtr = IntPtr.Zero;
         
@@ -206,6 +227,7 @@ public class Device
     /// </summary>
     public void SetBooleanFeature(string featureName, bool value)
     {
+        CheckDisposed();
         IntPtr error = IntPtr.Zero;
         IntPtr featurePtr = IntPtr.Zero;
         
@@ -229,6 +251,7 @@ public class Device
     /// </summary>
     public void ExecuteCommand(string featureName)
     {
+        CheckDisposed();
         IntPtr error = IntPtr.Zero;
         IntPtr featurePtr = IntPtr.Zero;
         
@@ -247,8 +270,16 @@ public class Device
         }
     }
 
+    private void CheckDisposed()
+    {
+        if (_disposed)
+            throw new ObjectDisposedException(nameof(Device));
+    }
+
     private void CheckError(IntPtr error)
     {
+        // Keeps this wrapper, and so the native device, alive until the native call has returned.
+        GC.KeepAlive(this);
         if (error != IntPtr.Zero)
         {
             var gerror = Marshal.PtrToStructure<GError>(error);
@@ -257,11 +288,36 @@ public class Device
         }
     }
 
-    private static string MarshalString(IntPtr ptr)
+    /// <summary>
+    /// Copies a (transfer none) string owned by the native device. Not static: it keeps this
+    /// Device alive until the copy is done, since finalizing it would free the string.
+    /// </summary>
+    private string MarshalString(IntPtr ptr)
     {
         if (ptr == IntPtr.Zero)
             return string.Empty;
-        
-        return Marshal.PtrToStringUTF8(ptr) ?? string.Empty;
+
+        var value = Marshal.PtrToStringUTF8(ptr) ?? string.Empty;
+        GC.KeepAlive(this);
+        return value;
+    }
+
+    public void Dispose()
+    {
+        if (!_disposed)
+        {
+            if (_handle != IntPtr.Zero)
+            {
+                GLibNative.g_object_unref(_handle);
+                _handle = IntPtr.Zero;
+            }
+            _disposed = true;
+        }
+        GC.SuppressFinalize(this);
+    }
+
+    ~Device()
+    {
+        Dispose();
     }
 }

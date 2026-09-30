@@ -1406,7 +1406,9 @@ public class Camera : IDisposable
     public bool IsGigEVisionDevice()
     {
         CheckDisposed();
-        return AravisNative.arv_camera_is_gv_device(_handle);
+        var result = AravisNative.arv_camera_is_gv_device(_handle);
+        GC.KeepAlive(this);
+        return result;
     }
 
     /// <summary>
@@ -1415,7 +1417,9 @@ public class Camera : IDisposable
     public bool IsUSB3VisionDevice()
     {
         CheckDisposed();
-        return AravisNative.arv_camera_is_uv_device(_handle);
+        var result = AravisNative.arv_camera_is_uv_device(_handle);
+        GC.KeepAlive(this);
+        return result;
     }
 
     // === GigE Vision Specific ===
@@ -1483,7 +1487,7 @@ public class Camera : IDisposable
     /// <summary>
     /// Gets the bandwidth limit for USB3 Vision cameras (in bytes/second)
     /// </summary>
-    public int UvGetBandwidth()
+    public uint UvGetBandwidth()
     {
         CheckDisposed();
         IntPtr error = IntPtr.Zero;
@@ -1502,9 +1506,9 @@ public class Camera : IDisposable
 
     /// <summary>
     /// Sets the bandwidth limit for USB3 Vision cameras (in bytes/second).
-    /// A value &lt;= 0 disables the limit.
+    /// 0 disables the limit.
     /// </summary>
-    public void UvSetBandwidth(int bandwidth)
+    public void UvSetBandwidth(uint bandwidth)
     {
         CheckDisposed();
         IntPtr error = IntPtr.Zero;
@@ -1523,13 +1527,13 @@ public class Camera : IDisposable
     /// <summary>
     /// Gets the bandwidth bounds for USB3 Vision cameras (in bytes/second)
     /// </summary>
-    public (int Min, int Max) UvGetBandwidthBounds()
+    public (uint Min, uint Max) UvGetBandwidthBounds()
     {
         CheckDisposed();
         IntPtr error = IntPtr.Zero;
         try
         {
-            AravisNative.arv_camera_uv_get_bandwidth_bounds(_handle, out int min, out int max, out error);
+            AravisNative.arv_camera_uv_get_bandwidth_bounds(_handle, out uint min, out uint max, out error);
             CheckError(error);
             return (min, max);
         }
@@ -1695,7 +1699,18 @@ public class Camera : IDisposable
     public int GvGetNetworkInterfaceCount()
     {
         CheckDisposed();
-        return AravisNative.arv_camera_gv_get_n_network_interfaces(_handle);
+        IntPtr error = IntPtr.Zero;
+        try
+        {
+            var count = AravisNative.arv_camera_gv_get_n_network_interfaces(_handle, out error);
+            CheckError(error);
+            return count;
+        }
+        finally
+        {
+            if (error != IntPtr.Zero)
+                GLibNative.g_error_free(error);
+        }
     }
 
 
@@ -1714,6 +1729,9 @@ public class Camera : IDisposable
         try
         {
             var bufferHandle = AravisNative.arv_camera_acquisition(_handle, timeoutUs, out error);
+            // A failed stop acquisition still returns the popped buffer alongside the error.
+            if (error != IntPtr.Zero && bufferHandle != IntPtr.Zero)
+                GLibNative.g_object_unref(bufferHandle);
             CheckError(error);
             if (bufferHandle == IntPtr.Zero)
                 throw new AravisException("arv_camera_acquisition returned null buffer");
@@ -1738,8 +1756,9 @@ public class Camera : IDisposable
         try
         {
             var ptr = AravisNative.arv_camera_dup_available_pixel_formats_as_strings(_handle, out uint count, out error);
+            var values = MarshalStringArray(ptr, count);
             CheckError(error);
-            return MarshalStringArray(ptr, count);
+            return values;
         }
         finally
         {
@@ -1758,8 +1777,9 @@ public class Camera : IDisposable
         try
         {
             var ptr = AravisNative.arv_camera_dup_available_pixel_formats_as_display_names(_handle, out uint count, out error);
+            var values = MarshalStringArray(ptr, count);
             CheckError(error);
-            return MarshalStringArray(ptr, count);
+            return values;
         }
         finally
         {
@@ -1780,8 +1800,9 @@ public class Camera : IDisposable
         {
             featurePtr = Marshal.StringToCoTaskMemUTF8(feature);
             var ptr = AravisNative.arv_camera_dup_available_enumerations_as_strings(_handle, featurePtr, out uint count, out error);
+            var values = MarshalStringArray(ptr, count);
             CheckError(error);
-            return MarshalStringArray(ptr, count);
+            return values;
         }
         finally
         {
@@ -2092,7 +2113,11 @@ public class Camera : IDisposable
         {
             throw new AravisException("Failed to get device");
         }
-        return new Device(deviceHandle);
+        // arv_camera_get_device is (transfer none): Device takes its own reference
+        // before this Camera can be finalized.
+        var device = new Device(deviceHandle);
+        GC.KeepAlive(this);
+        return device;
     }
 
     private void CheckDisposed()
@@ -2105,6 +2130,9 @@ public class Camera : IDisposable
 
     private void CheckError(IntPtr error)
     {
+        // Called right after each native call: keeps this Camera (and its handle) from
+        // being finalized while the call is still running.
+        GC.KeepAlive(this);
         if (error != IntPtr.Zero)
         {
             throw new AravisException(GetErrorMessage(error));
@@ -2121,25 +2149,41 @@ public class Camera : IDisposable
     }
 
 
+    /// <summary>
+    /// Copies a (transfer container) array of constant strings and frees the array with g_free.
+    /// </summary>
     private static string[] MarshalStringArray(IntPtr arrayPtr, uint count)
     {
-        if (arrayPtr == IntPtr.Zero || count == 0)
+        if (arrayPtr == IntPtr.Zero)
             return Array.Empty<string>();
-        var result = new string[count];
-        for (uint i = 0; i < count; i++)
+        try
         {
-            var strPtr = Marshal.ReadIntPtr(arrayPtr, (int)(i * IntPtr.Size));
-            result[i] = Marshal.PtrToStringUTF8(strPtr) ?? string.Empty;
+            var result = new string[count];
+            for (uint i = 0; i < count; i++)
+            {
+                var strPtr = Marshal.ReadIntPtr(arrayPtr, (int)(i * IntPtr.Size));
+                result[i] = Marshal.PtrToStringUTF8(strPtr) ?? string.Empty;
+            }
+            return result;
         }
-        return result;
+        finally
+        {
+            GLibNative.g_free(arrayPtr);
+        }
     }
 
-    private static string MarshalString(IntPtr ptr)
+    /// <summary>
+    /// Copies a (transfer none) string owned by the native camera. Not static: it keeps this
+    /// Camera alive until the copy is done, since finalizing it would free the string.
+    /// </summary>
+    private string MarshalString(IntPtr ptr)
     {
         if (ptr == IntPtr.Zero)
             return string.Empty;
-        
-        return Marshal.PtrToStringUTF8(ptr) ?? string.Empty;
+
+        var value = Marshal.PtrToStringUTF8(ptr) ?? string.Empty;
+        GC.KeepAlive(this);
+        return value;
     }
 
     public void Dispose()
