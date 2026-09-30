@@ -12,6 +12,12 @@ TestResults/
 /aravis-*.zip
 /runtimes/
 /AravisSharp/runtimes/
+# Build trees of the CI scripts and build-native-linux-local.sh
+/_deps/
+/_build/
+/_install/
+/_native/
+/_native-sources.txt
 
 # IDE
 riderModule.iml

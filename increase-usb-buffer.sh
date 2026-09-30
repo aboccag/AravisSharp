@@ -1,29 +1,40 @@
 #!/bin/bash
+# Raises the usbfs memory limit (16 MB by default) that USB3 Vision streaming needs.
+set -euo pipefail
+
+param=/sys/module/usbcore/parameters/usbfs_memory_mb
+target_mb=1000
 
 echo "=== Increasing USB Memory Buffer for Cameras ==="
 echo
 
-# Check current value
-current=$(cat /sys/module/usbcore/parameters/usbfs_memory_mb)
-echo "Current USB memory buffer: ${current} MB"
-
-# Set to 1000MB for USB3 cameras
-echo "Setting USB memory buffer to 1000 MB..."
-echo 1000 | sudo tee /sys/module/usbcore/parameters/usbfs_memory_mb > /dev/null
-
-# Make it permanent
-echo "Making change permanent..."
-if ! grep -q "usbcore.usbfs_memory_mb=1000" /etc/default/grub; then
-    sudo sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="/GRUB_CMDLINE_LINUX_DEFAULT="usbcore.usbfs_memory_mb=1000 /' /etc/default/grub
-    sudo update-grub
-    echo "✓ Added to GRUB configuration"
-else
-    echo "✓ Already in GRUB configuration"
+if [ ! -f "$param" ]; then
+    echo "$param not found: usbcore is not loaded on this system."
+    exit 1
 fi
 
-new=$(cat /sys/module/usbcore/parameters/usbfs_memory_mb)
+echo "Current USB memory buffer: $(cat "$param") MB"
+
+echo "Setting USB memory buffer to $target_mb MB..."
+echo "$target_mb" | sudo tee "$param" > /dev/null
+echo "New USB memory buffer: $(cat "$param") MB"
 echo
-echo "New USB memory buffer: ${new} MB"
-echo "✓ Done"
+
+echo "Making change permanent..."
+if [ -f /etc/default/grub ] && command -v update-grub > /dev/null 2>&1; then
+    if grep -q "usbcore.usbfs_memory_mb=$target_mb" /etc/default/grub; then
+        echo "Already in GRUB configuration"
+    else
+        sudo sed -i "s/GRUB_CMDLINE_LINUX_DEFAULT=\"/GRUB_CMDLINE_LINUX_DEFAULT=\"usbcore.usbfs_memory_mb=$target_mb /" /etc/default/grub
+        sudo update-grub
+        echo "Added usbcore.usbfs_memory_mb=$target_mb to the GRUB kernel command line"
+    fi
+else
+    echo "GRUB with update-grub not found; the setting above lasts until reboot."
+    echo "To make it permanent, add a modprobe option instead:"
+    echo "  echo 'options usbcore usbfs_memory_mb=$target_mb' | sudo tee /etc/modprobe.d/usbcore.conf"
+    echo "(if usbcore is built into the kernel, use the kernel parameter usbcore.usbfs_memory_mb=$target_mb)"
+fi
 echo
-echo "You can now run: dotnet run"
+
+echo "Done."
