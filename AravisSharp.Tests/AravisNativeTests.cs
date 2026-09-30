@@ -10,6 +10,28 @@ namespace AravisSharp.Tests;
 /// </summary>
 public class AravisNativeTests
 {
+    /// <summary>
+    /// Index of the fake camera in the device list. The fake interface is always enabled
+    /// (NativeLibraryInitializer), so it must be listed; using its index keeps the tests
+    /// independent of whatever real devices happen to enumerate first. Reads discovery
+    /// data only, never opens a device.
+    /// </summary>
+    internal static uint FakeDeviceIndex()
+    {
+        AravisNative.arv_update_device_list();
+        uint deviceCount = AravisNative.arv_get_n_devices();
+        Assert.True(deviceCount > 0, "No devices listed although the fake interface is enabled.");
+
+        for (uint i = 0; i < deviceCount; i++)
+        {
+            if (Marshal.PtrToStringUTF8(AravisNative.arv_get_device_protocol(i)) == "Fake")
+                return i;
+        }
+
+        Assert.Fail("The fake camera is not in the device list.");
+        return 0;
+    }
+
     [NativeFact]
     public void UpdateDeviceList_ShouldNotThrow()
     {
@@ -19,7 +41,7 @@ public class AravisNativeTests
     }
 
     [NativeFact]
-    public void GetNumberOfDevices_ShouldReturnNonNegativeValue()
+    public void GetNumberOfDevices_WithFakeInterfaceEnabled_ShouldBePositive()
     {
         // Arrange
         AravisNative.arv_update_device_list();
@@ -28,24 +50,17 @@ public class AravisNativeTests
         uint deviceCount = AravisNative.arv_get_n_devices();
 
         // Assert
-        Assert.True(deviceCount >= 0);
+        Assert.True(deviceCount > 0, "The fake interface is enabled by NativeLibraryInitializer, so the fake camera must be listed.");
     }
 
     [NativeFact]
     public void GetDeviceId_WithValidIndex_ShouldReturnNonNull()
     {
         // Arrange
-        AravisNative.arv_update_device_list();
-        uint deviceCount = AravisNative.arv_get_n_devices();
-
-        // Skip if no devices
-        if (deviceCount == 0)
-        {
-            return;
-        }
+        uint index = FakeDeviceIndex();
 
         // Act
-        IntPtr deviceIdPtr = AravisNative.arv_get_device_id(0);
+        IntPtr deviceIdPtr = AravisNative.arv_get_device_id(index);
         string? deviceId = Marshal.PtrToStringUTF8(deviceIdPtr);
 
         // Assert
@@ -58,17 +73,10 @@ public class AravisNativeTests
     public void GetDeviceVendor_WithValidIndex_ShouldReturnNonNull()
     {
         // Arrange
-        AravisNative.arv_update_device_list();
-        uint deviceCount = AravisNative.arv_get_n_devices();
-
-        // Skip if no devices
-        if (deviceCount == 0)
-        {
-            return;
-        }
+        uint index = FakeDeviceIndex();
 
         // Act
-        IntPtr vendorPtr = AravisNative.arv_get_device_vendor(0);
+        IntPtr vendorPtr = AravisNative.arv_get_device_vendor(index);
         string? vendor = Marshal.PtrToStringUTF8(vendorPtr);
 
         // Assert
@@ -81,17 +89,10 @@ public class AravisNativeTests
     public void GetDeviceModel_WithValidIndex_ShouldReturnNonNull()
     {
         // Arrange
-        AravisNative.arv_update_device_list();
-        uint deviceCount = AravisNative.arv_get_n_devices();
-
-        // Skip if no devices
-        if (deviceCount == 0)
-        {
-            return;
-        }
+        uint index = FakeDeviceIndex();
 
         // Act
-        IntPtr modelPtr = AravisNative.arv_get_device_model(0);
+        IntPtr modelPtr = AravisNative.arv_get_device_model(index);
         string? model = Marshal.PtrToStringUTF8(modelPtr);
 
         // Assert
@@ -104,17 +105,10 @@ public class AravisNativeTests
     public void GetDeviceSerialNumber_WithValidIndex_ShouldReturnNonNull()
     {
         // Arrange
-        AravisNative.arv_update_device_list();
-        uint deviceCount = AravisNative.arv_get_n_devices();
-
-        // Skip if no devices
-        if (deviceCount == 0)
-        {
-            return;
-        }
+        uint index = FakeDeviceIndex();
 
         // Act
-        IntPtr serialPtr = AravisNative.arv_get_device_serial_nbr(0);
+        IntPtr serialPtr = AravisNative.arv_get_device_serial_nbr(index);
         string? serial = Marshal.PtrToStringUTF8(serialPtr);
 
         // Assert
@@ -127,17 +121,10 @@ public class AravisNativeTests
     public void GetDeviceProtocol_WithValidIndex_ShouldReturnNonNull()
     {
         // Arrange
-        AravisNative.arv_update_device_list();
-        uint deviceCount = AravisNative.arv_get_n_devices();
-
-        // Skip if no devices
-        if (deviceCount == 0)
-        {
-            return;
-        }
+        uint index = FakeDeviceIndex();
 
         // Act
-        IntPtr protocolPtr = AravisNative.arv_get_device_protocol(0);
+        IntPtr protocolPtr = AravisNative.arv_get_device_protocol(index);
         string? protocol = Marshal.PtrToStringUTF8(protocolPtr);
 
         // Assert
@@ -150,65 +137,16 @@ public class AravisNativeTests
     public void GetDeviceAddress_WithValidIndex_ShouldReturnNonNull()
     {
         // Arrange
-        AravisNative.arv_update_device_list();
-        uint deviceCount = AravisNative.arv_get_n_devices();
-
-        // Skip if no devices
-        if (deviceCount == 0)
-        {
-            return;
-        }
+        uint index = FakeDeviceIndex();
 
         // Act
-        IntPtr addressPtr = AravisNative.arv_get_device_address(0);
+        IntPtr addressPtr = AravisNative.arv_get_device_address(index);
         string? address = Marshal.PtrToStringUTF8(addressPtr);
 
         // Assert
         Assert.NotEqual(IntPtr.Zero, addressPtr);
         Assert.NotNull(address);
         Assert.NotEmpty(address);
-    }
-
-    [NativeFact]
-    public void CameraNew_WithNullDeviceId_ShouldOpenFirstCamera()
-    {
-        // Arrange
-        AravisNative.arv_update_device_list();
-        uint deviceCount = AravisNative.arv_get_n_devices();
-
-        // Skip if no devices. A null id opens whichever device enumerates first, so only
-        // run when every visible device is fake: on a shared network the first one may be
-        // a real camera owned by another application.
-        if (deviceCount == 0 || !CameraDiscovery.DiscoverCameras().All(CameraTestHelpers.IsFakeCamera))
-        {
-            return;
-        }
-
-        // Act
-        IntPtr error = IntPtr.Zero;
-        IntPtr camera = AravisNative.arv_camera_new(IntPtr.Zero, out error);
-
-        try
-        {
-            // arv_camera_new may return null when no camera can be opened: the fake
-            // interface refuses a null device id, and a USB camera may already be held
-            // open by another test class. Skip rather than fail; the finally block owns
-            // the GError, so it must not be freed here.
-            if (camera == IntPtr.Zero)
-            {
-                return;
-            }
-
-            // Camera handle is valid; any residual error pointer is just a warning.
-            Assert.NotEqual(IntPtr.Zero, camera);
-        }
-        finally
-        {
-            if (error != IntPtr.Zero)
-                GLibNative.g_error_free(error);
-            if (camera != IntPtr.Zero)
-                GLibNative.g_object_unref(camera);
-        }
     }
 
     [NativeFact]
