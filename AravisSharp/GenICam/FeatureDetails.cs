@@ -118,49 +118,50 @@ public class FeatureDetails
         
         try
         {
-            // Use GObject type introspection to determine the node type directly
-            // instead of trial-and-error which causes GError "set over the top" warnings
-            var typeName = GLibNative.GetTypeName(nodePtr) ?? string.Empty;
-            
-            if (typeName.Contains("Integer") || typeName.Contains("IntReg") || typeName.Contains("IntSwissKnife"))
-            {
-                details.Type = FeatureType.Integer;
-                ReadIntegerConstraints(device, namePtr, details);
-            }
-            else if (typeName.Contains("Float") || typeName.Contains("SwissKnife") || typeName.Contains("Converter"))
-            {
-                details.Type = FeatureType.Float;
-                ReadFloatConstraints(device, namePtr, details);
-            }
-            else if (typeName.Contains("Boolean"))
-            {
-                details.Type = FeatureType.Boolean;
-            }
-            else if (typeName.Contains("Enumeration") && !typeName.Contains("Entry"))
+            // Test the GenICam interfaces the node implements rather than its class name:
+            // IntConverter is an Integer, StructEntry is an Integer, IntReg is also a Register.
+            // Enumeration first (it also implements Integer and String), String before Register
+            // (StringReg implements both).
+            bool Is(IntPtr type) => GLibNative.g_type_check_instance_is_a(nodePtr, type);
+
+            if (Is(AravisNative.arv_gc_enumeration_get_type()))
             {
                 details.Type = FeatureType.Enumeration;
                 ReadEnumerationChoices(device, namePtr, details);
             }
-            else if (typeName.Contains("Command"))
+            else if (Is(AravisNative.arv_gc_integer_get_type()))
+            {
+                details.Type = FeatureType.Integer;
+                ReadIntegerConstraints(device, namePtr, details);
+            }
+            else if (Is(AravisNative.arv_gc_float_get_type()))
+            {
+                details.Type = FeatureType.Float;
+                ReadFloatConstraints(device, namePtr, details);
+            }
+            else if (Is(AravisNative.arv_gc_boolean_get_type()))
+            {
+                details.Type = FeatureType.Boolean;
+            }
+            else if (Is(AravisNative.arv_gc_command_get_type()))
             {
                 details.Type = FeatureType.Command;
             }
-            else if (typeName.Contains("String") || typeName.Contains("StringReg"))
+            else if (Is(AravisNative.arv_gc_string_get_type()))
             {
                 details.Type = FeatureType.String;
             }
-            else if (typeName.Contains("Category"))
+            else if (Is(AravisNative.arv_gc_category_get_type()))
             {
                 details.Type = FeatureType.Category;
             }
-            else if (typeName.Contains("Register"))
+            else if (Is(AravisNative.arv_gc_register_get_type()))
             {
                 details.Type = FeatureType.Register;
             }
             else
             {
-                // Fallback: use current value presence to guess
-                details.Type = details.CurrentValue != null ? FeatureType.String : FeatureType.Command;
+                details.Type = FeatureType.Unknown;
             }
         }
         finally

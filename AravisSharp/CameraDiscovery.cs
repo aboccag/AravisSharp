@@ -26,12 +26,19 @@ public class CameraInfo
 /// </summary>
 public static class CameraDiscovery
 {
+    // The strings arv_get_device_* return belong to the device list, which the next
+    // arv_update_device_list frees: serialize updates and reads.
+    private static readonly object s_lock = new();
+
     /// <summary>
     /// Updates the internal device list by scanning the network and USB buses
     /// </summary>
     public static void UpdateDeviceList()
     {
-        AravisNative.arv_update_device_list();
+        lock (s_lock)
+        {
+            AravisNative.arv_update_device_list();
+        }
     }
 
     /// <summary>
@@ -39,7 +46,10 @@ public static class CameraDiscovery
     /// </summary>
     public static uint GetDeviceCount()
     {
-        return AravisNative.arv_get_n_devices();
+        lock (s_lock)
+        {
+            return AravisNative.arv_get_n_devices();
+        }
     }
 
     /// <summary>
@@ -48,20 +58,23 @@ public static class CameraDiscovery
     /// <returns>List of discovered cameras</returns>
     public static List<CameraInfo> DiscoverCameras()
     {
-        UpdateDeviceList();
-        var count = GetDeviceCount();
-        var cameras = new List<CameraInfo>();
-
-        for (uint i = 0; i < count; i++)
+        lock (s_lock)
         {
-            var info = GetCameraInfo(i);
-            if (info != null)
-            {
-                cameras.Add(info);
-            }
-        }
+            UpdateDeviceList();
+            var count = GetDeviceCount();
+            var cameras = new List<CameraInfo>();
 
-        return cameras;
+            for (uint i = 0; i < count; i++)
+            {
+                var info = GetCameraInfo(i);
+                if (info != null)
+                {
+                    cameras.Add(info);
+                }
+            }
+
+            return cameras;
+        }
     }
 
     /// <summary>
@@ -69,19 +82,22 @@ public static class CameraDiscovery
     /// </summary>
     public static CameraInfo? GetCameraInfo(uint index)
     {
-        var deviceIdPtr = AravisNative.arv_get_device_id(index);
-        if (deviceIdPtr == IntPtr.Zero)
-            return null;
-
-        return new CameraInfo
+        lock (s_lock)
         {
-            DeviceId = MarshalString(deviceIdPtr),
-            Model = MarshalString(AravisNative.arv_get_device_model(index)),
-            SerialNumber = MarshalString(AravisNative.arv_get_device_serial_nbr(index)),
-            Vendor = MarshalString(AravisNative.arv_get_device_vendor(index)),
-            Protocol = MarshalString(AravisNative.arv_get_device_protocol(index)),
-            Address = MarshalString(AravisNative.arv_get_device_address(index))
-        };
+            var deviceIdPtr = AravisNative.arv_get_device_id(index);
+            if (deviceIdPtr == IntPtr.Zero)
+                return null;
+
+            return new CameraInfo
+            {
+                DeviceId = MarshalString(deviceIdPtr),
+                Model = MarshalString(AravisNative.arv_get_device_model(index)),
+                SerialNumber = MarshalString(AravisNative.arv_get_device_serial_nbr(index)),
+                Vendor = MarshalString(AravisNative.arv_get_device_vendor(index)),
+                Protocol = MarshalString(AravisNative.arv_get_device_protocol(index)),
+                Address = MarshalString(AravisNative.arv_get_device_address(index))
+            };
+        }
     }
 
     private static string MarshalString(IntPtr ptr)

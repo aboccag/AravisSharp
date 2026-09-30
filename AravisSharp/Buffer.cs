@@ -66,7 +66,9 @@ public class Buffer : IDisposable
         get
         {
             CheckDisposed();
-            return AravisNative.arv_buffer_get_status(_handle);
+            var value = AravisNative.arv_buffer_get_status(_handle);
+            GC.KeepAlive(this);
+            return value;
         }
     }
 
@@ -78,7 +80,9 @@ public class Buffer : IDisposable
         get
         {
             CheckDisposed();
-            return AravisNative.arv_buffer_get_image_width(_handle);
+            var value = AravisNative.arv_buffer_get_image_width(_handle);
+            GC.KeepAlive(this);
+            return value;
         }
     }
 
@@ -90,7 +94,9 @@ public class Buffer : IDisposable
         get
         {
             CheckDisposed();
-            return AravisNative.arv_buffer_get_image_height(_handle);
+            var value = AravisNative.arv_buffer_get_image_height(_handle);
+            GC.KeepAlive(this);
+            return value;
         }
     }
 
@@ -102,7 +108,9 @@ public class Buffer : IDisposable
         get
         {
             CheckDisposed();
-            return AravisNative.arv_buffer_get_image_pixel_format(_handle);
+            var value = AravisNative.arv_buffer_get_image_pixel_format(_handle);
+            GC.KeepAlive(this);
+            return value;
         }
     }
 
@@ -114,7 +122,9 @@ public class Buffer : IDisposable
         get
         {
             CheckDisposed();
-            return AravisNative.arv_buffer_get_timestamp(_handle);
+            var value = AravisNative.arv_buffer_get_timestamp(_handle);
+            GC.KeepAlive(this);
+            return value;
         }
     }
 
@@ -126,7 +136,9 @@ public class Buffer : IDisposable
         get
         {
             CheckDisposed();
-            return AravisNative.arv_buffer_get_frame_id(_handle);
+            var value = AravisNative.arv_buffer_get_frame_id(_handle);
+            GC.KeepAlive(this);
+            return value;
         }
     }
 
@@ -138,7 +150,9 @@ public class Buffer : IDisposable
         get
         {
             CheckDisposed();
-            return AravisNative.arv_buffer_get_image_x(_handle);
+            var value = AravisNative.arv_buffer_get_image_x(_handle);
+            GC.KeepAlive(this);
+            return value;
         }
     }
 
@@ -150,7 +164,9 @@ public class Buffer : IDisposable
         get
         {
             CheckDisposed();
-            return AravisNative.arv_buffer_get_image_y(_handle);
+            var value = AravisNative.arv_buffer_get_image_y(_handle);
+            GC.KeepAlive(this);
+            return value;
         }
     }
 
@@ -161,6 +177,7 @@ public class Buffer : IDisposable
     {
         CheckDisposed();
         AravisNative.arv_buffer_get_image_padding(_handle, out int x, out int y);
+        GC.KeepAlive(this);
         return (x, y);
     }
 
@@ -172,7 +189,9 @@ public class Buffer : IDisposable
         get
         {
             CheckDisposed();
-            return AravisNative.arv_buffer_get_payload_type(_handle);
+            var value = AravisNative.arv_buffer_get_payload_type(_handle);
+            GC.KeepAlive(this);
+            return value;
         }
     }
 
@@ -184,7 +203,9 @@ public class Buffer : IDisposable
         get
         {
             CheckDisposed();
-            return AravisNative.arv_buffer_get_system_timestamp(_handle);
+            var value = AravisNative.arv_buffer_get_system_timestamp(_handle);
+            GC.KeepAlive(this);
+            return value;
         }
     }
 
@@ -195,17 +216,23 @@ public class Buffer : IDisposable
     {
         CheckDisposed();
         AravisNative.arv_buffer_get_image_region(_handle, out int x, out int y, out int width, out int height);
+        GC.KeepAlive(this);
         return (x, y, width, height);
     }
 
     /// <summary>
-    /// Gets the raw buffer data
+    /// Gets the raw buffer data.
+    /// The pointer refers to native memory owned by this Buffer: it is valid only while this
+    /// Buffer is alive and has been neither disposed nor pushed back to a stream. Keep a
+    /// reference to the Buffer (or call <see cref="GC.KeepAlive(object)"/> on it) until you are
+    /// done reading, or use <see cref="CopyData"/> / <see cref="CopyDataTo"/> instead.
     /// </summary>
     /// <returns>Pointer to buffer data and size</returns>
     public (IntPtr Data, int Size) GetData()
     {
         CheckDisposed();
         var dataPtr = AravisNative.arv_buffer_get_data(_handle, out UIntPtr sizePtr);
+        GC.KeepAlive(this);
         ulong nativeSize = sizePtr.ToUInt64();
         if (nativeSize > int.MaxValue)
         {
@@ -231,6 +258,8 @@ public class Buffer : IDisposable
 
         var buffer = new byte[size];
         Marshal.Copy(dataPtr, buffer, 0, size);
+        // dataPtr points into memory this Buffer owns: keep it alive until the copy is done.
+        GC.KeepAlive(this);
         return buffer;
     }
 
@@ -254,10 +283,14 @@ public class Buffer : IDisposable
 
         var source = new Span<byte>((void*)dataPtr, size);
         source.CopyTo(destination);
+        // source points into memory this Buffer owns: keep it alive until the copy is done.
+        GC.KeepAlive(this);
     }
 
     /// <summary>
-    /// Gets a read-only span of the buffer data (zero-copy access)
+    /// Gets a read-only span of the buffer data (zero-copy access).
+    /// The span points into native memory: it is valid only while this Buffer is alive
+    /// and has been neither disposed nor pushed back to a stream.
     /// </summary>
     /// <returns>Read-only span of the buffer data</returns>
     public unsafe ReadOnlySpan<byte> GetDataSpan()

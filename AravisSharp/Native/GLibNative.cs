@@ -88,50 +88,119 @@ public static class GLibNative
     public static extern IntPtr g_inet_address_mask_get_address(IntPtr mask);
 
     // --- GObject property access (libgobject-2.0) ---
-    // g_object_set / g_object_get are variadic C functions.
-    // We declare typed overloads for the signatures we need.
+    // g_object_set / g_object_get are variadic: declaring them with fixed arguments
+    // breaks on Apple arm64, where variadic arguments go on the stack. Use the
+    // non-variadic g_object_set_property / g_object_get_property with a GValue.
 
-    /// <summary>Sets a single integer property on a GObject.</summary>
-    [DllImport(GObjectLibraryName, CallingConvention = CallingConvention.Cdecl,
-        EntryPoint = "g_object_set")]
-    public static extern void g_object_set_int(IntPtr obj,
-        [MarshalAs(UnmanagedType.LPUTF8Str)] string propertyName,
-        int value, IntPtr terminator);
+    /// <summary>Fundamental GType of gint (G_TYPE_INT).</summary>
+    public static readonly IntPtr G_TYPE_INT = 6 << 2;
 
-    /// <summary>Sets a single unsigned integer property on a GObject.</summary>
-    [DllImport(GObjectLibraryName, CallingConvention = CallingConvention.Cdecl,
-        EntryPoint = "g_object_set")]
-    public static extern void g_object_set_uint(IntPtr obj,
-        [MarshalAs(UnmanagedType.LPUTF8Str)] string propertyName,
-        uint value, IntPtr terminator);
+    /// <summary>Fundamental GType of guint (G_TYPE_UINT).</summary>
+    public static readonly IntPtr G_TYPE_UINT = 7 << 2;
 
-    /// <summary>Sets a single boolean property on a GObject.</summary>
-    [DllImport(GObjectLibraryName, CallingConvention = CallingConvention.Cdecl,
-        EntryPoint = "g_object_set")]
-    public static extern void g_object_set_bool(IntPtr obj,
-        [MarshalAs(UnmanagedType.LPUTF8Str)] string propertyName,
-        [MarshalAs(UnmanagedType.Bool)] bool value, IntPtr terminator);
+    /// <summary>GValue layout: a GType followed by a two-slot 64-bit data union.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct GValue
+    {
+        public IntPtr GType;
+        public long Data0;
+        public long Data1;
+    }
 
-    /// <summary>Gets a single integer property from a GObject.</summary>
-    [DllImport(GObjectLibraryName, CallingConvention = CallingConvention.Cdecl,
-        EntryPoint = "g_object_get")]
-    public static extern void g_object_get_int(IntPtr obj,
-        [MarshalAs(UnmanagedType.LPUTF8Str)] string propertyName,
-        out int value, IntPtr terminator);
+    [DllImport(GObjectLibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr g_value_init(ref GValue value, IntPtr gtype);
 
-    /// <summary>Gets a single unsigned integer property from a GObject.</summary>
-    [DllImport(GObjectLibraryName, CallingConvention = CallingConvention.Cdecl,
-        EntryPoint = "g_object_get")]
-    public static extern void g_object_get_uint(IntPtr obj,
-        [MarshalAs(UnmanagedType.LPUTF8Str)] string propertyName,
-        out uint value, IntPtr terminator);
+    [DllImport(GObjectLibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void g_value_unset(ref GValue value);
 
-    /// <summary>Gets a single boolean property from a GObject.</summary>
-    [DllImport(GObjectLibraryName, CallingConvention = CallingConvention.Cdecl,
-        EntryPoint = "g_object_get")]
-    public static extern void g_object_get_bool(IntPtr obj,
-        [MarshalAs(UnmanagedType.LPUTF8Str)] string propertyName,
-        [MarshalAs(UnmanagedType.Bool)] out bool value, IntPtr terminator);
+    [DllImport(GObjectLibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void g_value_set_int(ref GValue value, int v);
+
+    [DllImport(GObjectLibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void g_value_set_uint(ref GValue value, uint v);
+
+    [DllImport(GObjectLibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void g_value_set_enum(ref GValue value, int v);
+
+    [DllImport(GObjectLibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int g_value_get_int(ref GValue value);
+
+    [DllImport(GObjectLibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern uint g_value_get_uint(ref GValue value);
+
+    [DllImport(GObjectLibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void g_object_set_property(IntPtr obj,
+        [MarshalAs(UnmanagedType.LPUTF8Str)] string propertyName, ref GValue value);
+
+    [DllImport(GObjectLibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void g_object_get_property(IntPtr obj,
+        [MarshalAs(UnmanagedType.LPUTF8Str)] string propertyName, ref GValue value);
+
+    /// <summary>Sets a gint property on a GObject.</summary>
+    public static void SetIntProperty(IntPtr obj, string propertyName, int v)
+    {
+        var value = new GValue();
+        g_value_init(ref value, G_TYPE_INT);
+        g_value_set_int(ref value, v);
+        g_object_set_property(obj, propertyName, ref value);
+        g_value_unset(ref value);
+    }
+
+    /// <summary>Sets a guint property on a GObject.</summary>
+    public static void SetUIntProperty(IntPtr obj, string propertyName, uint v)
+    {
+        var value = new GValue();
+        g_value_init(ref value, G_TYPE_UINT);
+        g_value_set_uint(ref value, v);
+        g_object_set_property(obj, propertyName, ref value);
+        g_value_unset(ref value);
+    }
+
+    /// <summary>Sets an enum property on a GObject; <paramref name="enumType"/> is the property's enum GType.</summary>
+    public static void SetEnumProperty(IntPtr obj, string propertyName, IntPtr enumType, int v)
+    {
+        var value = new GValue();
+        g_value_init(ref value, enumType);
+        g_value_set_enum(ref value, v);
+        g_object_set_property(obj, propertyName, ref value);
+        g_value_unset(ref value);
+    }
+
+    /// <summary>Gets a gint property from a GObject.</summary>
+    public static int GetIntProperty(IntPtr obj, string propertyName)
+    {
+        var value = new GValue();
+        g_value_init(ref value, G_TYPE_INT);
+        g_object_get_property(obj, propertyName, ref value);
+        var result = g_value_get_int(ref value);
+        g_value_unset(ref value);
+        return result;
+    }
+
+    /// <summary>Gets a guint property from a GObject.</summary>
+    public static uint GetUIntProperty(IntPtr obj, string propertyName)
+    {
+        var value = new GValue();
+        g_value_init(ref value, G_TYPE_UINT);
+        g_object_get_property(obj, propertyName, ref value);
+        var result = g_value_get_uint(ref value);
+        g_value_unset(ref value);
+        return result;
+    }
+
+    [DllImport(GObjectLibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int g_value_get_enum(ref GValue value);
+
+    /// <summary>Gets an enum property from a GObject; <paramref name="enumType"/> is the property's enum GType.</summary>
+    public static int GetEnumProperty(IntPtr obj, string propertyName, IntPtr enumType)
+    {
+        var value = new GValue();
+        g_value_init(ref value, enumType);
+        g_object_get_property(obj, propertyName, ref value);
+        var result = g_value_get_enum(ref value);
+        g_value_unset(ref value);
+        return result;
+    }
 
     // --- Helper methods ---
 

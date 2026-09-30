@@ -11,14 +11,28 @@ namespace AravisSharp.GenICam;
 /// </summary>
 public class NodeMap : IDisposable
 {
-    private IntPtr _deviceHandle;
+    // The genicam object belongs to the device: holding the Device keeps both alive.
+    private readonly Device _device;
     private bool _disposed;
     private IntPtr _genicam;
 
-    internal NodeMap(IntPtr deviceHandle)
+    internal NodeMap(Device device)
     {
-        _deviceHandle = deviceHandle;
-        _genicam = AravisNative.arv_device_get_genicam(deviceHandle);
+        _device = device;
+        _genicam = AravisNative.arv_device_get_genicam(device.Handle);
+    }
+
+    private IntPtr DeviceHandle => _device.Handle;
+
+    // The genicam object is owned by the device: check the device first, so a disposed
+    // Device throws ObjectDisposedException instead of handing out a dangling pointer.
+    private IntPtr Genicam
+    {
+        get
+        {
+            _ = _device.Handle;
+            return _genicam;
+        }
     }
 
     /// <summary>
@@ -26,9 +40,12 @@ public class NodeMap : IDisposable
     /// </summary>
     public FeatureDetails? GetFeatureDetails(string featureName)
     {
+        var deviceHandle = DeviceHandle;
         try
         {
-            return FeatureDetails.FromNode(_deviceHandle, featureName);
+            var details = FeatureDetails.FromNode(deviceHandle, featureName);
+            GC.KeepAlive(_device);
+            return details;
         }
         catch
         {
@@ -37,100 +54,100 @@ public class NodeMap : IDisposable
     }
 
     /// <summary>
-    /// Gets all features organized by category
+    /// Gets all features organized by category, walking the category tree from "Root".
+    /// Each category maps to the features directly under it; subcategories get their own entry.
     /// </summary>
     public Dictionary<string, List<FeatureDetails>> GetFeaturesByCategory()
     {
         var categories = new Dictionary<string, List<FeatureDetails>>();
-        
-        // Standard GenICam categories
-        var categoryNames = new[]
-        {
-            "Root",
-            "DeviceControl",
-            "ImageFormatControl",
-            "AcquisitionControl",
-            "AnalogControl",
-            "TransportLayerControl",
-            "DigitalIOControl",
-            "CounterAndTimerControl",
-            "LUTControl",
-            "AutoFunctionControl",
-            "UserSetControl",
-            "EventControl",
-            "FileAccessControl"
-        };
-
-        foreach (var categoryName in categoryNames)
-        {
-            var features = GetFeaturesInCategory(categoryName);
-            if (features.Count > 0)
-            {
-                categories[categoryName] = features;
-            }
-        }
-
+        CollectCategory("Root", categories, new HashSet<string>());
         return categories;
     }
 
+    private void CollectCategory(string categoryName, Dictionary<string, List<FeatureDetails>> categories, HashSet<string> visited)
+    {
+        if (!visited.Add(categoryName))
+            return;
+
+        var features = new List<FeatureDetails>();
+        foreach (var details in GetFeaturesInCategory(categoryName))
+        {
+            if (details.Type == FeatureType.Category)
+                CollectCategory(details.Name, categories, visited);
+            else
+                features.Add(details);
+        }
+
+        if (features.Count > 0)
+            categories[categoryName] = features;
+    }
+
     /// <summary>
-    /// Gets all features in a specific category
+    /// Gets the features directly in a specific category, subcategories included
     /// </summary>
     public List<FeatureDetails> GetFeaturesInCategory(string categoryName)
     {
         var features = new List<FeatureDetails>();
+        var genicam = Genicam;
         
         try
         {
-            if (_genicam == IntPtr.Zero) return features;
+            if (genicam == IntPtr.Zero) return features;
             
             var categoryNamePtr = Marshal.StringToCoTaskMemUTF8(categoryName);
             IntPtr categoryPtr;
             try
             {
-                categoryPtr = AravisNative.arv_gc_get_node(_genicam, categoryNamePtr);
+                categoryPtr = AravisNative.arv_gc_get_node(genicam, categoryNamePtr);
             }
             finally
             {
                 Marshal.FreeCoTaskMem(categoryNamePtr);
             }
             if (categoryPtr == IntPtr.Zero) return features;
+            if (!GLibNative.g_type_check_instance_is_a(categoryPtr, AravisNative.arv_gc_category_get_type())) return features;
             
             var featuresPtr = AravisNative.arv_gc_category_get_features(categoryPtr);
             if (featuresPtr == IntPtr.Zero) return features;
 
             // arv_gc_category_get_features returns a GSList of const char* (feature name strings),
             // NOT GObject/ArvGcFeatureNode pointers. Each data field is a UTF-8 feature name.
+            // Copy the names first: the list belongs to the category node.
+            var names = new List<string>();
             var current = featuresPtr;
             while (current != IntPtr.Zero)
             {
                 var nameStringPtr = Marshal.ReadIntPtr(current, 0); // data = const char*
-                if (nameStringPtr != IntPtr.Zero)
-                {
-                    var name = Marshal.PtrToStringUTF8(nameStringPtr);
-                    if (name != null)
-                    {
-                        var details = GetFeatureDetails(name);
-                        if (details != null && details.IsImplemented)
-                        {
-                            features.Add(details);
-                        }
-                    }
-                }
+                var name = nameStringPtr != IntPtr.Zero ? Marshal.PtrToStringUTF8(nameStringPtr) : null;
+                if (name != null)
+                    names.Add(name);
 
                 current = Marshal.ReadIntPtr(current, IntPtr.Size); // next field
+            }
+
+            foreach (var name in names)
+            {
+                var details = GetFeatureDetails(name);
+                if (details != null && details.IsImplemented)
+                {
+                    features.Add(details);
+                }
             }
         }
         catch
         {
             // Ignore errors
         }
+        finally
+        {
+            GC.KeepAlive(_device);
+        }
         
         return features;
     }
 
     /// <summary>
-    /// Gets all available features (comprehensive search)
+    /// Gets all available features, walking every category reachable from "Root"
     /// </summary>
     public List<FeatureDetails> GetAllFeatures()
     {
@@ -183,7 +200,7 @@ public class NodeMap : IDisposable
         IntPtr error = IntPtr.Zero;
         try
         {
-            IntPtr valuePtr = AravisNative.arv_device_get_string_feature_value(_deviceHandle, namePtr, out error);
+            IntPtr valuePtr = AravisNative.arv_device_get_string_feature_value(DeviceHandle, namePtr, out error);
             
             if (error != IntPtr.Zero)
                 return null;
@@ -194,6 +211,7 @@ public class NodeMap : IDisposable
         {
             GLibNative.ClearError(ref error);
             Marshal.FreeCoTaskMem(namePtr);
+            GC.KeepAlive(_device);
         }
     }
 
@@ -207,7 +225,7 @@ public class NodeMap : IDisposable
         IntPtr error = IntPtr.Zero;
         try
         {
-            AravisNative.arv_device_set_string_feature_value(_deviceHandle, namePtr, valuePtr, out error);
+            AravisNative.arv_device_set_string_feature_value(DeviceHandle, namePtr, valuePtr, out error);
             
             if (error != IntPtr.Zero)
                 throw new InvalidOperationException($"Failed to set feature {featureName}");
@@ -216,6 +234,7 @@ public class NodeMap : IDisposable
         {
             GLibNative.ClearError(ref error);
             Marshal.FreeCoTaskMem(namePtr);
+            GC.KeepAlive(_device);
             Marshal.FreeCoTaskMem(valuePtr);
         }
     }
@@ -229,7 +248,7 @@ public class NodeMap : IDisposable
         IntPtr error = IntPtr.Zero;
         try
         {
-            long value = AravisNative.arv_device_get_integer_feature_value(_deviceHandle, namePtr, out error);
+            long value = AravisNative.arv_device_get_integer_feature_value(DeviceHandle, namePtr, out error);
             
             if (error != IntPtr.Zero)
                 throw new InvalidOperationException($"Failed to get feature {featureName}");
@@ -240,6 +259,7 @@ public class NodeMap : IDisposable
         {
             GLibNative.ClearError(ref error);
             Marshal.FreeCoTaskMem(namePtr);
+            GC.KeepAlive(_device);
         }
     }
 
@@ -252,7 +272,7 @@ public class NodeMap : IDisposable
         IntPtr error = IntPtr.Zero;
         try
         {
-            AravisNative.arv_device_set_integer_feature_value(_deviceHandle, namePtr, value, out error);
+            AravisNative.arv_device_set_integer_feature_value(DeviceHandle, namePtr, value, out error);
             
             if (error != IntPtr.Zero)
                 throw new InvalidOperationException($"Failed to set feature {featureName}");
@@ -261,6 +281,7 @@ public class NodeMap : IDisposable
         {
             GLibNative.ClearError(ref error);
             Marshal.FreeCoTaskMem(namePtr);
+            GC.KeepAlive(_device);
         }
     }
 
@@ -273,7 +294,7 @@ public class NodeMap : IDisposable
         IntPtr error = IntPtr.Zero;
         try
         {
-            double value = AravisNative.arv_device_get_float_feature_value(_deviceHandle, namePtr, out error);
+            double value = AravisNative.arv_device_get_float_feature_value(DeviceHandle, namePtr, out error);
             
             if (error != IntPtr.Zero)
                 throw new InvalidOperationException($"Failed to get feature {featureName}");
@@ -284,6 +305,7 @@ public class NodeMap : IDisposable
         {
             GLibNative.ClearError(ref error);
             Marshal.FreeCoTaskMem(namePtr);
+            GC.KeepAlive(_device);
         }
     }
 
@@ -296,7 +318,7 @@ public class NodeMap : IDisposable
         IntPtr error = IntPtr.Zero;
         try
         {
-            AravisNative.arv_device_set_float_feature_value(_deviceHandle, namePtr, value, out error);
+            AravisNative.arv_device_set_float_feature_value(DeviceHandle, namePtr, value, out error);
             
             if (error != IntPtr.Zero)
                 throw new InvalidOperationException($"Failed to set feature {featureName}");
@@ -305,6 +327,7 @@ public class NodeMap : IDisposable
         {
             GLibNative.ClearError(ref error);
             Marshal.FreeCoTaskMem(namePtr);
+            GC.KeepAlive(_device);
         }
     }
 
@@ -317,7 +340,7 @@ public class NodeMap : IDisposable
         IntPtr error = IntPtr.Zero;
         try
         {
-            bool value = AravisNative.arv_device_get_boolean_feature_value(_deviceHandle, namePtr, out error);
+            bool value = AravisNative.arv_device_get_boolean_feature_value(DeviceHandle, namePtr, out error);
             
             if (error != IntPtr.Zero)
                 throw new InvalidOperationException($"Failed to get feature {featureName}");
@@ -328,6 +351,7 @@ public class NodeMap : IDisposable
         {
             GLibNative.ClearError(ref error);
             Marshal.FreeCoTaskMem(namePtr);
+            GC.KeepAlive(_device);
         }
     }
 
@@ -340,7 +364,7 @@ public class NodeMap : IDisposable
         IntPtr error = IntPtr.Zero;
         try
         {
-            AravisNative.arv_device_set_boolean_feature_value(_deviceHandle, namePtr, value, out error);
+            AravisNative.arv_device_set_boolean_feature_value(DeviceHandle, namePtr, value, out error);
             
             if (error != IntPtr.Zero)
                 throw new InvalidOperationException($"Failed to set feature {featureName}");
@@ -349,6 +373,7 @@ public class NodeMap : IDisposable
         {
             GLibNative.ClearError(ref error);
             Marshal.FreeCoTaskMem(namePtr);
+            GC.KeepAlive(_device);
         }
     }
 
@@ -361,7 +386,7 @@ public class NodeMap : IDisposable
         IntPtr error = IntPtr.Zero;
         try
         {
-            AravisNative.arv_device_execute_command(_deviceHandle, namePtr, out error);
+            AravisNative.arv_device_execute_command(DeviceHandle, namePtr, out error);
             
             if (error != IntPtr.Zero)
                 throw new InvalidOperationException($"Failed to execute command {commandName}");
@@ -370,17 +395,19 @@ public class NodeMap : IDisposable
         {
             GLibNative.ClearError(ref error);
             Marshal.FreeCoTaskMem(namePtr);
+            GC.KeepAlive(_device);
         }
     }
 
     /// <summary>
-    /// Gets the GenICam XML description (not implemented via device API)
+    /// Gets the GenICam XML description of the device, or null if it has none
     /// </summary>
     public string? GetGenicamXml()
     {
-        // This would require using the genicam object directly
-        // For now, return a placeholder
-        return null;
+        var xmlPtr = AravisNative.arv_device_get_genicam_xml(DeviceHandle, out UIntPtr size);
+        var xml = xmlPtr == IntPtr.Zero ? null : Marshal.PtrToStringUTF8(xmlPtr, checked((int)size)).TrimEnd('\0');
+        GC.KeepAlive(_device);
+        return xml;
     }
 
     public void Dispose()

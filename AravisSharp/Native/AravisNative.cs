@@ -67,6 +67,19 @@ public static class AravisNative
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void arv_disable_interface(IntPtr interfaceId);
 
+    // GigE Vision camera simulator (ArvGvFakeCamera): a fake camera served over GVCP/GVSP,
+    // so its streams are ArvGvStream, unlike those of the "Fake" interface.
+
+    /// <summary>Starts a simulator listening on <paramref name="interfaceName"/> (a name or an
+    /// IP address; null for 127.0.0.1). Release it with g_object_unref.</summary>
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr arv_gv_fake_camera_new(
+        [MarshalAs(UnmanagedType.LPUTF8Str)] string? interfaceName,
+        [MarshalAs(UnmanagedType.LPUTF8Str)] string? serialNumber);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern bool arv_gv_fake_camera_is_running(IntPtr gvFakeCamera);
+
     // Camera opening and closing
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr arv_camera_new(IntPtr deviceId, out IntPtr error);
@@ -325,17 +338,17 @@ public static class AravisNative
         IntPtr ip, IntPtr mask, IntPtr gateway, out IntPtr error);
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int arv_camera_gv_get_n_network_interfaces(IntPtr camera);
+    public static extern int arv_camera_gv_get_n_network_interfaces(IntPtr camera, out IntPtr error);
 
     // USB Vision specifics
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int arv_camera_uv_get_bandwidth(IntPtr camera, out IntPtr error);
+    public static extern uint arv_camera_uv_get_bandwidth(IntPtr camera, out IntPtr error);
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void arv_camera_uv_set_bandwidth(IntPtr camera, int bandwidth, out IntPtr error);
+    public static extern void arv_camera_uv_set_bandwidth(IntPtr camera, uint bandwidth, out IntPtr error);
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void arv_camera_uv_get_bandwidth_bounds(IntPtr camera, out int min, out int max, out IntPtr error);
+    public static extern void arv_camera_uv_get_bandwidth_bounds(IntPtr camera, out uint min, out uint max, out IntPtr error);
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     public static extern bool arv_camera_uv_is_bandwidth_control_available(IntPtr camera, out IntPtr error);
@@ -634,6 +647,41 @@ public static class AravisNative
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void arv_shutdown();
 
+    // === GTypes (for g_type_check_instance_is_a and GValue initialisation) ===
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr arv_gv_stream_get_type();
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr arv_gv_stream_socket_buffer_get_type();
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr arv_gv_stream_packet_resend_get_type();
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr arv_gc_category_get_type();
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr arv_gc_enumeration_get_type();
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr arv_gc_integer_get_type();
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr arv_gc_float_get_type();
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr arv_gc_boolean_get_type();
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr arv_gc_command_get_type();
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr arv_gc_string_get_type();
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr arv_gc_register_get_type();
+
     // NOTE: g_object_ref/unref and g_error_free/g_clear_error live in GLib/GObject,
     // NOT in the Aravis library. Use GLibNative for those functions.
 }
@@ -643,6 +691,7 @@ public static class AravisNative
 /// </summary>
 public enum ArvBufferStatus
 {
+    Unknown = -1,
     Success = 0,
     Cleared = 1,
     Timeout = 2,
@@ -650,7 +699,8 @@ public enum ArvBufferStatus
     Wrong_packet_id = 4,
     Size_mismatch = 5,
     Filling = 6,
-    Aborted = 7
+    Aborted = 7,
+    PayloadNotSupported = 8
 }
 
 /// <summary>
@@ -679,9 +729,8 @@ public static class ArvPixelFormat
 }
 
 /// <summary>
-/// GigE Vision IP configuration mode flags (can be combined with bitwise OR)
+/// GigE Vision IP configuration mode (ArvGvIpConfigurationMode, arvgvdevice.h)
 /// </summary>
-[Flags]
 public enum ArvGvIpConfigurationMode : int
 {
     None = 0,
@@ -690,5 +739,7 @@ public enum ArvGvIpConfigurationMode : int
     /// <summary>DHCP address assignment</summary>
     Dhcp = 2,
     /// <summary>Link-Local Address (169.254.x.x auto-configuration)</summary>
-    Lla = 4
+    Lla = 3,
+    /// <summary>Temporary IP forced by a FORCEIP command</summary>
+    ForceIp = 4
 }
