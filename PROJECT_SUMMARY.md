@@ -4,7 +4,7 @@
 
 AravisSharp provides C# bindings for the [Aravis](https://github.com/AravisProject/aravis) industrial camera library, currently pinned to the stable Aravis 0.8.36 / `libaravis-0.8` ABI. It supports USB3 Vision and GigE Vision cameras on Windows, Linux, and macOS through a cross-platform `DllImportResolver` and a single NuGet package that bundles the native runtimes.
 
-**Tested camera**: Basler acA720-520um (USB3 Vision, 724×542, up to 520 fps)
+**Tested cameras**: Basler acA1920-40gm (GigE Vision), Opto Engineering ITA24-GM-10C (GigE Vision) and Basler acA2040-90um (USB3 Vision, WinUSB) on Windows 11 x64 with the full test suite; Basler acA720-520um (USB3 Vision) during development on Linux and Windows. See the README's "Tested cameras".
 
 ---
 
@@ -162,15 +162,7 @@ The exact file list per platform is in `THIRD-PARTY-NOTICES.md`; CI derives it f
 
 **Framework**: xUnit, net8.0 and net10.0
 
-| Test File | Tests | Coverage |
-|-----------|-------|----------|
-| `AravisLibraryTests.cs` | 2 | Native library probe order (no native library needed) |
-| `AravisNativeTests.cs` | 11 | Device enumeration, camera info, buffer allocation |
-| `AravisNativeDiscoveryTests.cs` | 4 | Discovery, interface, and version bindings |
-| `CameraWrapperTests.cs` | 50 | High-level camera wrapper behavior |
-| `FakeCameraTests.cs` | 4 | Fake camera connect, configure, acquire |
-| `ImageAcquisitionTests.cs` | 10 | Frame acquisition, PNG export, stream statistics |
-| **Total** | **81** | |
+107 tests per target framework, in 9 files; the per-file breakdown is in [AravisSharp.Tests/README.md](AravisSharp.Tests/README.md). Against the fake camera, 93 run and 14 (real-hardware, GigE-only or USB3-only) are skipped.
 
 Tests marked `[NativeFact]` skip when `libaravis-0.8` is not installed. The suite runs against the Aravis fake camera — in CI, with no hardware. Real hardware is opt-in: it opens a real camera only when `ARAVIS_TEST_DEVICE_ID` names it, because the tests reconfigure and stream from the camera they open.
 
@@ -180,8 +172,8 @@ Tests marked `[NativeFact]` skip when `libaravis-0.8` is not installed. The suit
 
 | Platform | Build | Camera Tested | NuGet Runtime |
 |----------|-------|---------------|---------------|
-| Linux x64 | ✅ | Basler acA720-520um | ✅ `linux-x64` |
-| Windows x64 | ✅ | Basler acA720-520um | ✅ `win-x64` |
+| Linux x64 | ✅ | Basler acA720-520um; fake camera and GigE simulator in CI | ✅ `linux-x64` |
+| Windows x64 | ✅ | Basler acA1920-40gm, Opto ITA24-GM-10C (GigE); Basler acA2040-90um, acA720-520um (USB3) | ✅ `win-x64` |
 | Linux ARM64 | ✅ CI | Fake camera (CI package smoke) | ✅ `linux-arm64` |
 | macOS ARM64 | ✅ CI | Fake camera (CI package smoke) | ✅ `osx-arm64` |
 | macOS x64 | — | — | ❌ not built (use Homebrew Aravis) |

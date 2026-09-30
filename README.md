@@ -1,20 +1,35 @@
 # AravisSharp — Cross-Platform .NET Bindings for Aravis
 
+[![NuGet](https://img.shields.io/nuget/v/AravisSharp.svg)](https://www.nuget.org/packages/AravisSharp)
+
 **AravisSharp** is a C# binding for the [Aravis](https://github.com/AravisProject/aravis) industrial camera library, targeting the stable **Aravis 0.8.36 / libaravis-0.8** ABI and supporting **USB3 Vision** and **GigE Vision** cameras on Windows, Linux, and macOS.
 
 > Think of it as an open-source alternative to vendor SDKs like Basler Pylon — one library, any GenICam camera.
 
 ## Platform Support
 
-| Platform | Runtime ID | Status | Tested Camera |
-|----------|-----------|--------|---------------|
-| **Linux x64** | `linux-x64` | ✅ Full support | Basler acA720-520um |
-| **Linux ARM64** | `linux-arm64` | ✅ Bundled, CI smoke-tested | — |
-| **Windows x64** | `win-x64` | ✅ Full support | Basler acA720-520um |
-| **macOS ARM64** | `osx-arm64` | ✅ Bundled, CI smoke-tested | — |
-| **macOS x64** | `osx-x64` | ⚠️ Not built — use a Homebrew Aravis | — |
+| Platform | Runtime ID | Status |
+|----------|-----------|--------|
+| **Linux x64** | `linux-x64` | ✅ Bundled, tested with hardware |
+| **Linux ARM64** | `linux-arm64` | ✅ Bundled, CI smoke-tested |
+| **Windows x64** | `win-x64` | ✅ Bundled, tested with hardware |
+| **macOS ARM64** | `osx-arm64` | ✅ Bundled, CI smoke-tested |
+| **macOS x64** | `osx-x64` | ⚠️ Not built — use a Homebrew Aravis |
 
-On every bundled runtime, CI restores the packed `.nupkg` and acquires frames from the Aravis fake camera through it.
+On every bundled runtime, CI restores the packed `.nupkg` and acquires frames from the Aravis fake camera through it; on Linux it also runs the whole test suite against the fake camera and the Aravis GigE Vision simulator.
+
+### Tested cameras
+
+The test suite (`AravisSharp.Tests`, pointed at a camera with `ARAVIS_TEST_DEVICE_ID`) has been run against:
+
+| Camera | Interface | Platform | Result |
+|--------|-----------|----------|--------|
+| Basler acA1920-40gm | GigE Vision | Windows 11 x64 | All tests pass (0.8.36) |
+| Opto Engineering ITA24-GM-10C | GigE Vision | Windows 11 x64 | All tests pass (0.8.36) |
+| Basler acA2040-90um | USB3 Vision, WinUSB driver | Windows 11 x64 | All tests pass (0.8.36) |
+| Basler acA720-520um | USB3 Vision | Linux x64, Windows x64 | Used during development |
+
+Any GenICam-compliant GigE Vision or USB3 Vision camera that Aravis supports should work; reports for other models are welcome.
 
 ## Quick Start
 

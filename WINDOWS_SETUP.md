@@ -175,11 +175,11 @@ This was a bug in earlier versions where GLib functions were incorrectly mapped 
 
 `stream.GetGigEStatistics()` tells what happened. `ResentPackets` counts lost packets that a resend request recovered. `MissingPackets` only counts packets of frames that failed, and for each of them it counts every packet after the first gap, so it overstates the loss.
 
-**`ResentPackets` stays 0 while `MissingPackets` grows.** In AravisSharp 0.8.36, `ConfigureGigEDefaults()` set the initial packet timeout (how long a packet may be missing before the first resend request) to 1 s. Aravis closes an incomplete frame after 100 ms without packets (the frame retention), so no request was ever sent, and every lost packet cost a frame. Update, or call `stream.SetInitialPacketTimeout(1000)` after `ConfigureGigEDefaults()`. Measured on an acA1920-40gm at 41 fps with 4 buffers, 600 frames per run:
+**`ResentPackets` stays 0 while `MissingPackets` grows.** Before the published 0.8.36 (builds from source up to commit `a4f6489`), `ConfigureGigEDefaults()` set the initial packet timeout (how long a packet may be missing before the first resend request) to 1 s. Aravis closes an incomplete frame after 100 ms without packets (the frame retention), so no request was ever sent, and every lost packet cost a frame. Update, or call `stream.SetInitialPacketTimeout(1000)` after `ConfigureGigEDefaults()`. Measured on an acA1920-40gm at 41 fps with 4 buffers, 600 frames per run:
 
 | Stream settings | Frames OK | Resent |
 |---|---|---|
-| `ConfigureGigEDefaults(8)`, 0.8.36 (initial packet timeout 1 s) | 299 and 188 / 600 | 0 |
+| `ConfigureGigEDefaults(8)`, before the fix (initial packet timeout 1 s) | 299 and 188 / 600 | 0 |
 | `ConfigureGigEDefaults(8)`, fixed (1 ms) | 600 and 600 / 600 | 1207 and 863 |
 
 **Why packets get lost.** That camera sends about 97 MB/s (780 Mbit/s) in 1500-byte packets. On the test PC (a Realtek USB GbE adapter with the pylon and Sapera GigE Vision filter drivers bound), 0.1 to 3.5 % of packets were lost, and the rate varied between runs. The UDP socket buffer was not the cause: `netstat -s -p udp` reported 0 receive errors, even with a 64 KiB socket buffer. The adapter reported no discards either. The loss grows with the packet rate: with 1000-byte packets, 95 of 200 frames timed out, and with 576-byte packets, 183 of 200. What limits the receive path is the cost per packet (adapter, drivers, other cameras on the same link), not the socket buffer.
