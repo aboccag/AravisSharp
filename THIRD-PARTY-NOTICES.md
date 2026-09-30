@@ -28,25 +28,28 @@ first and the system search path when there are none.
 ## Exact versions and corresponding source
 
 Aravis is built from the `aravis/` git submodule, at the commit recorded in this repository
-for the package version. The other libraries come from the platform's package manager at
-build time: MSYS2 `mingw-w64-x86_64-*` packages on Windows, Homebrew bottles on macOS. Every
-`runtimes/{rid}/native/` folder contains `aravis-native-versions.txt`, which records the
-Aravis commit and the exact package versions bundled for that platform. The corresponding
-source for each is published by MSYS2 (<https://github.com/msys2/MINGW-packages>) and
-Homebrew (<https://github.com/Homebrew/homebrew-core>) for that version.
+for the package version. On Linux, libxml2 is built from the release tarball pinned, with
+its checksum, in `.github/scripts/build-libxml2-static.sh`. The other libraries come from the
+platform's package manager at build time: MSYS2 `mingw-w64-x86_64-*` packages on Windows,
+Homebrew bottles on macOS. Every `runtimes/{rid}/native/` folder contains
+`aravis-native-versions.txt`, which records the Aravis commit and the exact versions bundled
+for that platform. The corresponding source for each is published by MSYS2
+(<https://github.com/msys2/MINGW-packages>) and Homebrew
+(<https://github.com/Homebrew/homebrew-core>) for that version.
 
 ## Files per platform
 
-Linux ships Aravis only. GLib, libxml2 and libusb come from the distribution
-(`libglib2.0-0`, `libxml2`, `libusb-1.0-0`): bundling a second GLib into a process that may
-also load the system one — through GStreamer or GTK, for example — puts two GObject type
+Linux ships `libaravis-0.8.so.0` alone, with libxml2 linked into it statically and its
+symbols hidden: distributions disagree on libxml2's soname. GLib and libusb come from the
+distribution (`libglib2.0-0`, `libusb-1.0-0`): bundling a second GLib into a process that
+may also load the system one — through GStreamer or GTK, for example — puts two GObject type
 systems in the same process.
 
 | Platform | Files |
 |---|---|
 | `win-x64` | `libaravis-0.8-0.dll`, `libglib-2.0-0.dll`, `libgobject-2.0-0.dll`, `libgio-2.0-0.dll`, `libgmodule-2.0-0.dll`, `libusb-1.0.dll`, `libintl-8.dll`, `libiconv-2.dll`, `libxml2-16.dll`, `libffi-8.dll`, `libpcre2-8-0.dll`, `libwinpthread-1.dll`, `zlib1.dll` |
 | `osx-arm64` | `libaravis-0.8.0.dylib`, `libglib-2.0.0.dylib`, `libgobject-2.0.0.dylib`, `libgio-2.0.0.dylib`, `libgmodule-2.0.0.dylib`, `libusb-1.0.0.dylib`, `libintl.8.dylib`, `libxml2.16.dylib`, `libpcre2-8.0.dylib` |
-| `linux-x64`, `linux-arm64` | `libaravis-0.8.so.0` |
+| `linux-x64`, `linux-arm64` | `libaravis-0.8.so.0` (includes libxml2) |
 
 The CI refuses to pack a native file that is not listed in this table, so a new transitive
 dependency cannot ship without its license being reviewed first.

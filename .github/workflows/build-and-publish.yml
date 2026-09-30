@@ -31,8 +31,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: ubuntu-22.04,     rid: linux-x64   }
-          - { os: ubuntu-22.04-arm, rid: linux-arm64 }
           # - { os: macos-13,         rid: osx-x64     }  # disabled: macos-13 runners have hour-long queues
           - { os: macos-latest,     rid: osx-arm64   }
           - { os: windows-latest,   rid: win-x64     }
@@ -45,40 +43,7 @@ jobs:
 
       - name: Verify Aravis source version
         shell: bash
-        run: |
-          expected="$(sed -nE 's:.*<AravisNativeVersion>([^<]+)</AravisNativeVersion>.*:\1:p' AravisSharp/AravisSharp.csproj | head -n 1)"
-          actual="$(sed -nE "s|^project *\(.*[^_]version: *'([^']+)'.*|\1|p" aravis/meson.build | head -n 1)"
-          if [[ -z "$expected" || -z "$actual" ]]; then
-            echo "::error::Could not determine expected or actual Aravis version"
-            exit 1
-          fi
-          if [[ "$actual" != "$expected" ]]; then
-            echo "::error::Aravis submodule version $actual does not match AravisNativeVersion $expected"
-            exit 1
-          fi
-
-      # ── Linux ──────────────────────────────────────────────────────────────
-      - name: Install deps (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libglib2.0-dev libxml2-dev libusb-1.0-0-dev \
-            meson ninja-build pkg-config patchelf
-
-      - name: Build Aravis (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          meson setup _build aravis ${{ env.MESON_OPTS }} --prefix=$PWD/_install
-          ninja -C _build install
-
-      - name: Collect native libs (Linux)
-        if: runner.os == 'Linux'
-        run: .github/scripts/collect-native-linux.sh _native
-
-      - name: Verify native payload (Linux)
-        if: runner.os == 'Linux'
-        run: .github/scripts/verify-native-linux.sh _native
+        run: .github/scripts/check-aravis-version.sh
 
       # ── macOS ──────────────────────────────────────────────────────────────
       - name: Install deps (macOS)
@@ -156,6 +121,57 @@ jobs:
           path: _native/
           if-no-files-found: error
 
+  # Linux builds in an ubuntu:20.04 container on both architectures: Aravis selects GLib
+  # APIs at compile time, so the GLib it is built against (2.64 there) is the oldest it
+  # loads on. libxml2 is linked in statically, since its soname differs between distros.
+  build-native-linux:
+    name: Native (${{ matrix.rid }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-22.04,     rid: linux-x64   }
+          - { os: ubuntu-22.04-arm, rid: linux-arm64 }
+    runs-on: ${{ matrix.os }}
+    container: ubuntu:20.04
+    env:
+      DEBIAN_FRONTEND: noninteractive
+    steps:
+      # Before checkout: without git in the container, actions/checkout falls back to a
+      # tarball download that has no submodules.
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends             git ca-certificates curl xz-utils make gcc g++ binutils patchelf             python3-pip ninja-build pkg-config             libglib2.0-dev libusb-1.0-0-dev zlib1g-dev
+          # focal's meson is 0.53; Aravis requires >= 0.57
+          pip3 install meson==1.5.2
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Verify Aravis source version
+        run: .github/scripts/check-aravis-version.sh
+
+      - name: Build libxml2 (static) and Aravis
+        run: .github/scripts/build-native-linux.sh
+
+      - name: Collect native libs
+        run: .github/scripts/collect-native-linux.sh _native
+
+      - name: Verify native payload
+        run: .github/scripts/verify-native-linux.sh _native
+
+      - name: Record bundled versions
+        run: .github/scripts/record-native-versions.sh _native
+
+      - name: Upload native artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-${{ matrix.rid }}
+          path: _native/
+          if-no-files-found: error
+
   # ─────────────────────────────────────────────────────────────────────────
   # 2. Build .NET and run the whole suite against the fake camera (no hardware)
   # ─────────────────────────────────────────────────────────────────────────
@@ -198,7 +214,7 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────────
   pack:
     name: Pack NuGet
-    needs: [build-native, test-dotnet]
+    needs: [build-native, build-native-linux, test-dotnet]
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.ver.outputs.version }}
@@ -330,12 +346,12 @@ jobs:
           name: nuget-packages
           path: _packages/
 
-      # Linux uses the distribution's GLib, libxml2 and libusb; Aravis must come from the package.
+      # Linux uses the distribution's GLib and libusb; Aravis (with libxml2 in it) must come from the package.
       - name: Install runtime dependencies (Linux)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libglib2.0-0 libxml2 libusb-1.0-0
+          sudo apt-get install -y --no-install-recommends libglib2.0-0 libusb-1.0-0
           if ldconfig -p | grep libaravis >/dev/null; then
             echo "::error::a system Aravis is installed and would mask the packaged one"
             exit 1
@@ -360,6 +376,46 @@ jobs:
               -p:AravisSharpVersion=${{ needs.pack.outputs.version }}
           done
 
+  # The runners above are Ubuntu 22.04. Check the two ends of the supported range in bare
+  # images: the oldest (GLib 2.64, glibc 2.31) and the newest LTS, whose libxml2 soname
+  # (.so.16) differs from the older distributions' (.so.2).
+  package-smoke-distros:
+    name: Package smoke (${{ matrix.rid }}, ${{ matrix.image }})
+    needs: pack
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-22.04,     rid: linux-x64,   image: 'ubuntu:20.04' }
+          - { os: ubuntu-22.04,     rid: linux-x64,   image: 'ubuntu:26.04' }
+          - { os: ubuntu-22.04-arm, rid: linux-arm64, image: 'ubuntu:20.04' }
+          - { os: ubuntu-22.04-arm, rid: linux-arm64, image: 'ubuntu:26.04' }
+    runs-on: ${{ matrix.os }}
+    env:
+      NUGET_PACKAGES: ${{ github.workspace }}/_nuget-smoke
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: nuget-packages
+          path: _packages/
+
+      # Self-contained, so the image needs no .NET; net8.0 is supported on every image here.
+      - name: Publish the smoke app
+        run: |
+          dotnet publish .github/package-smoke -c Release -f net8.0 -r ${{ matrix.rid }}             --self-contained -p:AravisSharpVersion=${{ needs.pack.outputs.version }} -o _smoke
+
+      - name: Acquire frames in ${{ matrix.image }}
+        run: |
+          docker run --rm -v "$PWD/_smoke:/app:ro"             -v "$PWD/.github/package-smoke/run-in-container.sh:/run.sh:ro"             ${{ matrix.image }} bash /run.sh
+
   # ─────────────────────────────────────────────────────────────────────────
   # 5. Publish the package that passed the smoke test, on a release tag
   # ─────────────────────────────────────────────────────────────────────────
@@ -367,7 +423,7 @@ jobs:
   # secret exists.
   publish:
     name: Publish NuGet
-    needs: [pack, package-smoke]
+    needs: [pack, package-smoke, package-smoke-distros]
     if: startsWith(github.ref, 'refs/tags/v') && vars.NUGET_PUBLISH == 'true'
     runs-on: ubuntu-latest
     steps:

@@ -27,6 +27,19 @@ if grep -qE "$PWD/(_install|_build)" <<<"$deps"; then
 fi
 
 needed=$(readelf -d "$lib" | awk '/\(NEEDED\)/ { gsub(/[][]/, "", $NF); print $NF }' | tr '\n' ' ')
+
+# libxml2 must be linked in, not a dependency: its soname is .so.2 up to Ubuntu 24.04 and
+# .so.16 from 26.04, so depending on either breaks the other half of the distributions.
+if grep -q 'libxml2' <<<"$needed"; then
+    echo "::error::libaravis depends on a shared libxml2; it must be linked statically" >&2
+    bad=1
+fi
+# ...and its symbols hidden, so a system libxml2 loaded by another component cannot bind to ours.
+exported_xml=$(nm -D --defined-only "$lib" | awk '$3 ~ /^xml/' | wc -l)
+if [ "$exported_xml" -ne 0 ]; then
+    echo "::error::libaravis exports $exported_xml libxml2 symbols" >&2
+    bad=1
+fi
 glibc=$(objdump -T "$lib" | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -n 1)
 echo "NEEDED: $needed"
 echo "glibc floor: $glibc"

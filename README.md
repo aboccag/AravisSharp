@@ -29,7 +29,7 @@ sudo apt install -y libaravis-0.8-0
 **Option B — NuGet package** (bundles Aravis itself):
 ```bash
 dotnet add package AravisSharp
-sudo apt install -y libglib2.0-0 libxml2 libusb-1.0-0   # usually already present
+sudo apt install -y libglib2.0-0 libusb-1.0-0   # usually already present
 ```
 
 **Option C — Build Aravis 0.8.36 from source:**
@@ -51,7 +51,7 @@ The following shared libraries are required at runtime (most are pre-installed o
 | `libgobject-2.0.so.0` | `libglib2.0-0` |
 | `libgio-2.0.so.0` | `libglib2.0-0` |
 | `libgmodule-2.0.so.0` | `libglib2.0-0` |
-| `libxml2.so` | `libxml2` |
+| `libxml2.so` | `libxml2` (system Aravis only: the NuGet package links it in) |
 | `libusb-1.0.so.0` | `libusb-1.0-0` |
 | `libz.so` | `zlib1g` |
 
@@ -190,9 +190,9 @@ A single `AravisSharp` package carries the managed library and the native runtim
 |-----|---------|--------------------------|
 | `win-x64` | `libaravis-0.8-0.dll` + all transitive DLLs (GLib, libxml2, libusb, …) | — |
 | `osx-arm64` | `libaravis-0.8.0.dylib` + all non-system dylibs | — |
-| `linux-x64`, `linux-arm64` | `libaravis-0.8.so.0` | GLib, libxml2, libusb, zlib (distribution packages) |
+| `linux-x64`, `linux-arm64` | `libaravis-0.8.so.0`, with libxml2 linked in | GLib, libusb, zlib (distribution packages) |
 
-On **Linux**, only `libaravis` is bundled: a second GLib next to the system one (loaded by GStreamer or GTK, for example) would put two GObject type systems in one process. The Linux build needs glibc 2.29 or later.
+On **Linux**, only `libaravis` is bundled: a second GLib next to the system one (loaded by GStreamer or GTK, for example) would put two GObject type systems in one process. libxml2 is linked into it, with its symbols hidden, because distributions disagree on its soname (`libxml2.so.2` up to Ubuntu 24.04, `libxml2.so.16` from 26.04). The Linux build needs glibc 2.29 and GLib 2.64 or later: Ubuntu 20.04, Debian 11, JetPack 5 and newer; CI runs it on Ubuntu 20.04, 22.04 and 26.04.
 
 The bundled libraries keep their own licenses: see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). Each `runtimes/{rid}/native/aravis-native-versions.txt` records the exact versions shipped.
 

@@ -29,8 +29,10 @@ aravis_version=$(sed -nE "s|^project *\(.*[^_]version: *'([^']+)'.*|\1|p" aravis
                 echo "  $name: ${formula:-$path}"
             done < "$sources" ;;
         Linux)
+            libxml2=$(awk '/^Version:/ { print $2 }' _deps/lib/pkgconfig/libxml-2.0.pc)
+            echo "Linked in statically: libxml2 $libxml2 (see build-libxml2-static.sh)"
             echo "Not bundled; built against these distribution packages (minimum versions):"
-            dpkg-query -W -f '  ${Package} ${Version}\n' libglib2.0-0 libxml2 libusb-1.0-0 ;;
+            dpkg-query -W -f '  ${Package} ${Version}\n' libglib2.0-0 libusb-1.0-0 zlib1g ;;
     esac
 } > "$out"
 
