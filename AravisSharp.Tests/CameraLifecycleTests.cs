@@ -158,6 +158,7 @@ public class CameraLifecycleTests
     public void AcquireSingleFrame_ShouldReturnSuccessBufferOfPayloadSize()
     {
         using var camera = CameraTestHelpers.OpenTestCamera();
+        CameraTestHelpers.ConfigureForAcquisition(camera);
         var payload = camera.GetPayloadSize();
 
         using var buffer = camera.AcquireSingleFrame();
@@ -276,6 +277,7 @@ public class CameraLifecycleTests
             return;
         }
         camera.SetPixelFormat("Mono8");
+        CameraTestHelpers.ConfigureForAcquisition(camera);
 
         var path = Path.Combine(Path.GetTempPath(), $"aravis_test_{Guid.NewGuid():N}.pgm");
         try
