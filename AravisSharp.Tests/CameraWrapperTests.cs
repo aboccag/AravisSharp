@@ -343,13 +343,22 @@ public class CameraWrapperTests : IDisposable
         if (!Supports(feature != null, "an exposure time feature")) return;
         if (!CameraTestHelpers.TryDisableExposureAuto(_camera)) return;
 
-        // Arrange
+        // Arrange: a mid-range exposure can be seconds on a real camera, so restore it
+        var original = _camera.GetFloatFeature(feature!);
         var (min, max) = _camera.GetExposureTimeBounds();
         var target = min + (max - min) / 2;
 
         // Act
-        _camera.SetFloatFeature(feature!, target);
-        var actual = _camera.GetFloatFeature(feature!);
+        double actual;
+        try
+        {
+            _camera.SetFloatFeature(feature!, target);
+            actual = _camera.GetFloatFeature(feature!);
+        }
+        finally
+        {
+            _camera.SetFloatFeature(feature!, original);
+        }
 
         // Assert
         Assert.True(Math.Abs(actual - target) < 1.0); // Allow small tolerance
@@ -770,10 +779,20 @@ public class CameraWrapperTests : IDisposable
         {
             if (!CameraTestHelpers.TryDisableExposureAuto(_camera)) return;
 
+            var originalExp = _camera.GetExposureTime();
             var (minExp, maxExp) = _camera.GetExposureTimeBounds();
             var targetExp = minExp + (maxExp - minExp) / 2;
-            _camera.SetExposureTime(targetExp);
-            var actualExp = _camera.GetExposureTime();
+            double actualExp;
+            try
+            {
+                _camera.SetExposureTime(targetExp);
+                actualExp = _camera.GetExposureTime();
+            }
+            finally
+            {
+                // A mid-range exposure can be seconds on a real camera
+                _camera.SetExposureTime(originalExp);
+            }
             Assert.True(Math.Abs(actualExp - targetExp) < (maxExp - minExp) * 0.1); // Within 10%
         }
 

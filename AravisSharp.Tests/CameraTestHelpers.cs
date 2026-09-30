@@ -117,6 +117,27 @@ internal static class CameraTestHelpers
         return null;
     }
 
+    /// <summary>
+    /// Puts the test camera in a state where a frame arrives well within the acquisition
+    /// timeouts, whatever earlier tests or applications left: free-running (no trigger), a
+    /// short fixed exposure (a camera default or another test can leave seconds), and on
+    /// GigE a packet size negotiated for the link.
+    /// </summary>
+    public static void ConfigureForAcquisition(Camera camera)
+    {
+        if (camera.IsExposureTimeAvailable())
+        {
+            TryDisableExposureAuto(camera);
+
+            var (minExp, _) = camera.GetExposureTimeBounds();
+            camera.SetExposureTime(Math.Max(minExp, 10_000)); // 10 ms
+        }
+        camera.ClearTriggers();
+
+        if (camera.IsGigEVisionDevice())
+            camera.GvAutoPacketSize();
+    }
+
     public static bool TryDisableExposureAuto(Camera camera)
     {
         try

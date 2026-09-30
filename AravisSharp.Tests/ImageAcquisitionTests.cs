@@ -23,7 +23,7 @@ public class ImageAcquisitionTests : IDisposable
         _camera = CameraTestHelpers.OpenTestCamera();
         try
         {
-            ConfigureCameraForAcquisition(_camera);
+            CameraTestHelpers.ConfigureForAcquisition(_camera);
         }
         catch
         {
@@ -33,21 +33,6 @@ public class ImageAcquisitionTests : IDisposable
     }
 
     public void Dispose() => _camera.Dispose();
-
-    private static void ConfigureCameraForAcquisition(Camera camera)
-    {
-        // Set short exposure so tests don't time out (camera default may be seconds-long)
-        if (camera.IsExposureTimeAvailable())
-        {
-            CameraTestHelpers.TryDisableExposureAuto(camera);
-
-            var (minExp, _) = camera.GetExposureTimeBounds();
-            double targetExp = Math.Max(minExp, 10_000); // 10 ms minimum
-            camera.SetExposureTime(targetExp);
-        }
-        // Ensure free-running (no trigger)
-        camera.ClearTriggers();
-    }
 
     private static Stream CreateStreamWithBuffers(Camera camera, int numBuffers, out uint payloadSize)
     {
