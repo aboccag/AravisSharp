@@ -47,7 +47,7 @@ jobs:
     timeout-minutes: 60
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
 
@@ -127,7 +127,7 @@ jobs:
         run: .github/scripts/record-native-versions.sh _native
 
       - name: Upload native artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: native-${{ matrix.rid }}
           path: _native/
@@ -159,7 +159,7 @@ jobs:
           # focal's meson is 0.53; Aravis requires >= 0.57
           pip3 install meson==1.5.2
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
 
@@ -179,7 +179,7 @@ jobs:
         run: .github/scripts/record-native-versions.sh _native
 
       - name: Upload native artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: native-${{ matrix.rid }}
           path: _native/
@@ -193,11 +193,11 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
@@ -234,16 +234,16 @@ jobs:
     outputs:
       version: ${{ steps.ver.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
             10.0.x
 
       # Download all native artifacts
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: native-*
           path: _native/
@@ -339,7 +339,7 @@ jobs:
             -o _packages/
 
       - name: Upload NuGet artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: nuget-packages
           # The .snupkg must travel with the .nupkg: `dotnet nuget push` picks up the sibling symbols package.
@@ -373,15 +373,15 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
             10.0.x
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: nuget-packages
           path: _packages/
@@ -435,15 +435,15 @@ jobs:
     env:
       NUGET_PACKAGES: ${{ github.workspace }}/_nuget-smoke
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
             10.0.x
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: nuget-packages
           path: _packages/
@@ -478,12 +478,12 @@ jobs:
     steps:
       # No token left in .git/config: this job holds contents: write, and only the attach
       # step needs it.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
           persist-credentials: false
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: native-*
           path: _native/
@@ -520,11 +520,11 @@ jobs:
       id-token: write   # GitHub OIDC token for nuget.org
       contents: read
     steps:
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: nuget-packages
           path: _packages/
