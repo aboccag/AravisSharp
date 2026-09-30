@@ -90,7 +90,7 @@ AravisSharp/
 - `gobject-2.0` → `libgobject-2.0-0.dll` / `libgobject-2.0.so.0` / `libgobject-2.0.dylib`
 - `glib-2.0` → `libglib-2.0-0.dll` / `libglib-2.0.so.0` / `libglib-2.0.dylib`
 
-The resolver probes system paths first, then the app directory and `runtimes/{rid}/native/` (NuGet layout).
+The resolver probes the app directory and `runtimes/{rid}/native/` (NuGet layout) first, then the system search path.
 
 ### High-Level API
 

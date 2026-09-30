@@ -180,7 +180,7 @@ AravisSharp uses a `NativeLibrary.SetDllImportResolver` to map logical library n
 | `gobject-2.0` | `libgobject-2.0-0.dll` | `libgobject-2.0.so.0` | `libgobject-2.0.dylib` |
 | `glib-2.0` | `libglib-2.0-0.dll` | `libglib-2.0.so.0` | `libglib-2.0.dylib` |
 
-The resolver probes system paths first, then falls back to `runtimes/{rid}/native/` (NuGet layout).
+The resolver tries the copies shipped with the application first — its directory, then `runtimes/{rid}/native/` (NuGet layout) — and falls back to the system search path, so a system-wide Aravis never silently replaces the bundled one.
 
 ## NuGet Packages
 

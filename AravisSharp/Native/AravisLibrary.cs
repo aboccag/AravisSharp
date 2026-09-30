@@ -51,40 +51,47 @@ public static class AravisLibrary
         if (candidates is null)
             return IntPtr.Zero;
 
-        // 1. Try bare names (OS searches PATH / LD_LIBRARY_PATH / rpath)
-        foreach (var name in candidates)
-        {
-            if (NativeLibrary.TryLoad(name, out var handle))
-                return handle;
-        }
-
-        // 2. Probe common application and NuGet native-asset locations.
         var assemblyDir = Path.GetDirectoryName(typeof(AravisLibrary).Assembly.Location);
-        var probeRoots = new[]
-        {
-            AppContext.BaseDirectory,
-            assemblyDir
-        }.Where(path => !string.IsNullOrWhiteSpace(path)).Distinct();
+        var roots = new[] { AppContext.BaseDirectory, assemblyDir }
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Select(path => path!)
+            .Distinct();
 
-        foreach (var root in probeRoots)
+        foreach (var path in GetProbeOrder(candidates, roots, GetRuntimeIdentifier()))
         {
-            var rid = GetRuntimeIdentifier();
-            var runtimeNativeDir = Path.Combine(root!, "runtimes", rid, "native");
-            var directories = new[] { root!, runtimeNativeDir };
-
-            foreach (var directory in directories)
-            {
-                foreach (var name in candidates)
-                {
-                    var full = Path.Combine(directory, name);
-                    if (NativeLibrary.TryLoad(full, out var handle))
-                        return handle;
-                }
-            }
+            if (NativeLibrary.TryLoad(path, out var handle))
+                return handle;
         }
 
         // Fallback: let the default resolver try
         return IntPtr.Zero;
+    }
+
+    /// <summary>
+    /// Returns the paths to try, in order. Copies shipped with the application come first —
+    /// its directory, then the NuGet <c>runtimes/{rid}/native/</c> layout — and bare names,
+    /// which the OS resolves through PATH / LD_LIBRARY_PATH / the loader cache, come last.
+    /// </summary>
+    /// <remarks>
+    /// The package bundles the Aravis it was built and tested against. Trying the system
+    /// first let any system-wide libaravis-0.8 take its place silently: same soname, but an
+    /// older release lacks entry points the binding calls. Bare names remain the fallback for
+    /// platforms the package has no runtime for (osx-x64) and for apps that exclude the
+    /// runtimes to use a system install.
+    /// </remarks>
+    internal static IEnumerable<string> GetProbeOrder(IReadOnlyList<string> names, IEnumerable<string> roots, string rid)
+    {
+        foreach (var root in roots)
+        {
+            foreach (var directory in new[] { root, Path.Combine(root, "runtimes", rid, "native") })
+            {
+                foreach (var name in names)
+                    yield return Path.Combine(directory, name);
+            }
+        }
+
+        foreach (var name in names)
+            yield return name;
     }
 
     /// <summary>

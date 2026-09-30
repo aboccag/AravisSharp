@@ -5,9 +5,10 @@ They are not part of AravisSharp itself and remain under their own licenses. The
 texts are in the package's `licenses/` folder.
 
 All bundled libraries are dynamically linked shared libraries, loaded at run time. Each of
-them can be replaced by a compatible build, as the LGPL requires: put your own build in the
-application's `runtimes/{rid}/native/` folder, or install Aravis system-wide — the resolver
-tries system locations before the bundled copies.
+them can be replaced by a compatible build, as the LGPL requires: put your own build in place
+of the bundled file in the application's `runtimes/{rid}/native/` folder, or remove the
+bundled files and install Aravis system-wide — the resolver tries the application's copies
+first and the system search path when there are none.
 
 ## Components
 

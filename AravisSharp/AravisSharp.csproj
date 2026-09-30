@@ -47,6 +47,10 @@
     </ItemGroup>
 
     <ItemGroup>
+      <InternalsVisibleTo Include="AravisSharp.Tests" />
+    </ItemGroup>
+
+    <ItemGroup>
       <None Include="../README.md" Pack="true" PackagePath="\" />
       <!-- The native runtimes bundle third-party libraries; their notices and license texts ship with them. -->
       <None Include="../THIRD-PARTY-NOTICES.md" Pack="true" PackagePath="\" />

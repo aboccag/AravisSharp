@@ -82,7 +82,7 @@ AravisSharp/
 
 **GObject ownership**: Aravis objects are GObject reference-counted. `Camera`, `Stream`, and `Buffer` all implement `IDisposable` and call `g_object_unref` on dispose. Never store raw `IntPtr` handles beyond the lifetime of the owning wrapper.
 
-**Native library resolution**: `AravisLibrary.RegisterResolver()` must be called once before any P/Invoke. It registers a `NativeLibrary.SetDllImportResolver` that maps logical names (`aravis-0.8`, `gobject-2.0`, `glib-2.0`, `gio-2.0`) to platform-specific filenames, probing system paths first and then `runtimes/{rid}/native/` (NuGet layout).
+**Native library resolution**: `AravisLibrary.RegisterResolver()` must be called once before any P/Invoke. It registers a `NativeLibrary.SetDllImportResolver` that maps logical names (`aravis-0.8`, `gobject-2.0`, `glib-2.0`, `gio-2.0`) to platform-specific filenames, probing the app directory and `runtimes/{rid}/native/` (NuGet layout) first and the system search path last (`AravisLibrary.GetProbeOrder`). Bundled first is deliberate: a system libaravis-0.8 has the same soname, and an older one lacks entry points the binding calls.
 
 **GError pattern**: Every P/Invoke that can fail takes an `out IntPtr error` parameter. The wrappers check for non-zero error pointers, extract the message, and call `g_error_free` before throwing `AravisException`.
 
