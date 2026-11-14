@@ -78,6 +78,14 @@ are proposed again as recommendations:
    Recommendation: (a); (b) changes behaviour the issue does not cover and would need its
    own tests.
 
+## Decisions
+
+- **14.11.2026, gate 1, alex.** Spec and plan approved with the three recommendations.
+  Question 1: no performance budget; the XML documentation says the helper is for
+  diagnostics. Question 2: `DemosaicBayer8` returns `byte[]`, no `Span<byte>` overload.
+  Question 3: option (a), `SaveToJpeg` gains only the four Bayer 8 formats. Replaces: the
+  open questions above. Recorded here and on issue #6.
+
 ## Plan
 
 1. Port the unit tests of `DemosaicBayer8` from the old branch
