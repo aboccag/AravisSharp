@@ -52,6 +52,16 @@ passed to `arv_stream_timeout_pop_buffer`.
    the queue leaks and a waiter without timeout never returns. Recommendation: state
    exactly that, and that the behaviour on a GLib built without checks is undefined.
 
+## Decisions
+
+- **14.11.2026, gate 1, alex.** Spec and plan approved with both recommendations.
+  Question 1: option (b), all sixteen public members of `Camera` that take a feature
+  name get the null check, after checking what each does with `null` today; AC-1 extends
+  to them, each throwing `ArgumentNullException` with `ParamName` `feature` (or the
+  member's actual parameter name) before any native call. Question 2: the disposal rule
+  states the GLib 2.88 behaviour observed and calls the behaviour on a GLib built without
+  checks undefined. Replaces: the open questions above. Recorded here and on issue #12.
+
 ## Plan
 
 1. Red test for AC-1 (and for the other members if question 1 is settled as (b)) in a new
