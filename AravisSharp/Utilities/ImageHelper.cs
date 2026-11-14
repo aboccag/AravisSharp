@@ -49,8 +49,13 @@ public static class ImageHelper
     }
 
     /// <summary>
-    /// Saves a buffer to a PNG file (supports Mono8, RGB, RGBA)
+    /// Saves a buffer to a PNG file. Accepted pixel formats: Mono8, Mono10, Mono12, Mono14 and
+    /// Mono16 (scaled to 8 bits), RGB8, BGR8, RGBA8, BGRA8, and the 8-bit Bayer formats
+    /// BayerRG8, BayerGR8, BayerGB8 and BayerBG8, which are demosaiced bilinearly to RGB
+    /// (see <see cref="DemosaicBayer8"/>; a diagnostics path with no performance budget).
     /// </summary>
+    /// <exception cref="InvalidOperationException">The buffer status is not success, or it holds less than a whole image.</exception>
+    /// <exception cref="NotSupportedException">Any other pixel format.</exception>
     public static void SaveToPng(AravisSharp.Buffer buffer, string filename)
     {
         EnsureSuccess(buffer);
@@ -63,14 +68,19 @@ public static class ImageHelper
     }
 
     /// <summary>
-    /// Saves a buffer to a JPEG file
+    /// Saves a buffer to a JPEG file. Accepted pixel formats: Mono8, RGB8, and the 8-bit Bayer
+    /// formats BayerRG8, BayerGR8, BayerGB8 and BayerBG8, which are demosaiced bilinearly to
+    /// RGB (see <see cref="DemosaicBayer8"/>; a diagnostics path with no performance budget).
     /// </summary>
+    /// <exception cref="InvalidOperationException">The buffer status is not success, or it holds less than a whole image.</exception>
+    /// <exception cref="NotSupportedException">Any other pixel format.</exception>
     public static void SaveToJpeg(AravisSharp.Buffer buffer, string filename, int quality = 90)
     {
         EnsureSuccess(buffer);
         var pixelFormat = buffer.PixelFormat;
         if (pixelFormat != ArvPixelFormat.ARV_PIXEL_FORMAT_MONO_8 &&
-            pixelFormat != ArvPixelFormat.ARV_PIXEL_FORMAT_RGB_8_PACKED)
+            pixelFormat != ArvPixelFormat.ARV_PIXEL_FORMAT_RGB_8_PACKED &&
+            !IsBayerFormat(pixelFormat))
             throw new NotSupportedException($"JPEG saving not supported for pixel format: {GetPixelFormatName(pixelFormat)}");
 
         using var image = LoadImage(buffer);
@@ -87,7 +97,7 @@ public static class ImageHelper
 
     private static bool IsImageSharpFormat(uint pixelFormat)
     {
-        return IsMonoFormat(pixelFormat) || IsColorFormat(pixelFormat);
+        return IsMonoFormat(pixelFormat) || IsColorFormat(pixelFormat) || IsBayerFormat(pixelFormat);
     }
 
     /// <summary>
@@ -143,6 +153,10 @@ public static class ImageHelper
         else if (pixelFormat == ArvPixelFormat.ARV_PIXEL_FORMAT_BGRA_8_PACKED)
         {
             image = Image.LoadPixelData<Bgra32>(data, width, height);
+        }
+        else if (IsBayerFormat(pixelFormat))
+        {
+            image = Image.LoadPixelData<Rgb24>(DemosaicBayer8(data, width, height, pixelFormat), width, height);
         }
         else
         {
