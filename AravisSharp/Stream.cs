@@ -285,11 +285,17 @@ public class Stream : IDisposable
         if (timeoutMs == ulong.MaxValue)
             return WrapBuffer(AravisNative.arv_stream_pop_buffer(_handle));
 
-        // Convert milliseconds to microseconds. GLib adds the timeout to a signed
-        // 64-bit monotonic time, so clamp it well below overflow.
-        ulong timeoutUs = Math.Min(timeoutMs, (ulong)long.MaxValue / 2000) * 1000;
-        return WrapBuffer(AravisNative.arv_stream_timeout_pop_buffer(_handle, timeoutUs));
+        return WrapBuffer(AravisNative.arv_stream_timeout_pop_buffer(_handle, ToTimeoutMicroseconds(timeoutMs)));
     }
+
+    /// <summary>
+    /// Converts a <see cref="PopBuffer(ulong)"/> timeout from milliseconds to the
+    /// microseconds passed to <c>arv_stream_timeout_pop_buffer</c>. GLib adds the timeout
+    /// to a signed 64-bit monotonic time, so it is capped at <c>long.MaxValue / 2000</c> ms
+    /// (about 146,000 years), which keeps the result at or below <c>long.MaxValue / 2</c> µs.
+    /// </summary>
+    internal static ulong ToTimeoutMicroseconds(ulong timeoutMs) =>
+        Math.Min(timeoutMs, (ulong)long.MaxValue / 2000) * 1000;
 
     private Buffer? WrapBuffer(IntPtr bufferHandle)
     {
