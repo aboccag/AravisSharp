@@ -12,7 +12,8 @@ before any code. `NON VÉRIFIÉ` marks what was not checked.
 - `Camera.cs` has no `ArgumentNullException.ThrowIfNull` at all, and fifteen other public
   members take a feature name the same way (`ExecuteCommand`, the `Get*`/`Set*` feature
   accessors, the bounds and increment getters, `IsFeatureAvailable`,
-  `IsFeatureImplemented`). What each of them does with `null`: `NON VÉRIFIÉ`.
+  `IsFeatureImplemented`). What each of them does with `null`: checked, see
+  "Members covered".
 - `Stream.PopBuffer(ulong)` converts inline with
   `Math.Min(timeoutMs, (ulong)long.MaxValue / 2000) * 1000` (`AravisSharp/Stream.cs:290`).
   Its XML documentation does not mention the cap (`:277-281`). No test covers the
@@ -61,6 +62,33 @@ passed to `arv_stream_timeout_pop_buffer`.
   member's actual parameter name) before any native call. Question 2: the disposal rule
   states the GLib 2.88 behaviour observed and calls the behaviour on a GLib built without
   checks undefined. Replaces: the open questions above. Recorded here and on issue #12.
+
+## Members covered
+
+Checked on 14.11.2026 by the red run of `CameraArgumentTests` (net10.0, Fake camera,
+system GLib 2.88), before the fix. All sixteen take the name as parameter `feature`. With
+`null`, every one of them returned without an exception and GLib logged one critical,
+named below (criticals matched to members by run order).
+
+| Member | Critical logged with `null` |
+|---|---|
+| `ExecuteCommand` | `_get_feature: assertion 'feature != NULL' failed` |
+| `GetStringFeature` / `SetStringFeature` | same, `_get_feature` |
+| `GetIntegerFeature` / `SetIntegerFeature` | same, `_get_feature` |
+| `GetFloatFeature` / `SetFloatFeature` | same, `_get_feature` |
+| `GetBooleanFeature` / `SetBooleanFeature` | same, `_get_feature` |
+| `GetIntegerFeatureBounds` / `GetFloatFeatureBounds` | same, `_get_feature` |
+| `GetAvailableEnumerationValues` | same, `_get_feature` (returned an empty array) |
+| `GetIntegerFeatureIncrement` | `arv_camera_get_integer_increment: assertion 'feature != NULL' failed` |
+| `GetFloatFeatureIncrement` | `arv_camera_get_float_increment: assertion 'feature != NULL' failed` |
+| `IsFeatureAvailable` | `arv_device_is_feature_available: assertion 'feature != NULL' failed` |
+| `IsFeatureImplemented` | `arv_device_is_feature_implemented: assertion 'feature != NULL' failed` |
+
+After the fix each throws `ArgumentNullException` (`ParamName` `feature`) before
+`CheckDisposed` and before marshalling, and no critical is logged.
+`CameraArgumentCoverageTests` fails if a public `Camera` member gains a `string feature`
+parameter without being added to the theory. Not covered: the `value` argument of
+`SetStringFeature`, which is not a feature name.
 
 ## Plan
 

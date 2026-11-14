@@ -716,6 +716,7 @@ public class Camera : IDisposable
     /// <param name="feature">Command feature name</param>
     public void ExecuteCommand(string feature)
     {
+        ArgumentNullException.ThrowIfNull(feature);
         CheckDisposed();
         IntPtr error = IntPtr.Zero;
         IntPtr featurePtr = IntPtr.Zero;
@@ -925,6 +926,7 @@ public class Camera : IDisposable
     /// </summary>
     public string GetStringFeature(string feature)
     {
+        ArgumentNullException.ThrowIfNull(feature);
         CheckDisposed();
         IntPtr error = IntPtr.Zero;
         IntPtr featurePtr = IntPtr.Zero;
@@ -949,6 +951,7 @@ public class Camera : IDisposable
     /// </summary>
     public void SetStringFeature(string feature, string value)
     {
+        ArgumentNullException.ThrowIfNull(feature);
         CheckDisposed();
         IntPtr error = IntPtr.Zero;
         IntPtr featurePtr = IntPtr.Zero;
@@ -976,6 +979,7 @@ public class Camera : IDisposable
     /// </summary>
     public long GetIntegerFeature(string feature)
     {
+        ArgumentNullException.ThrowIfNull(feature);
         CheckDisposed();
         IntPtr error = IntPtr.Zero;
         IntPtr featurePtr = IntPtr.Zero;
@@ -1000,6 +1004,7 @@ public class Camera : IDisposable
     /// </summary>
     public void SetIntegerFeature(string feature, long value)
     {
+        ArgumentNullException.ThrowIfNull(feature);
         CheckDisposed();
         IntPtr error = IntPtr.Zero;
         IntPtr featurePtr = IntPtr.Zero;
@@ -1023,6 +1028,7 @@ public class Camera : IDisposable
     /// </summary>
     public double GetFloatFeature(string feature)
     {
+        ArgumentNullException.ThrowIfNull(feature);
         CheckDisposed();
         IntPtr error = IntPtr.Zero;
         IntPtr featurePtr = IntPtr.Zero;
@@ -1047,6 +1053,7 @@ public class Camera : IDisposable
     /// </summary>
     public void SetFloatFeature(string feature, double value)
     {
+        ArgumentNullException.ThrowIfNull(feature);
         CheckDisposed();
         IntPtr error = IntPtr.Zero;
         IntPtr featurePtr = IntPtr.Zero;
@@ -1070,6 +1077,7 @@ public class Camera : IDisposable
     /// </summary>
     public bool GetBooleanFeature(string feature)
     {
+        ArgumentNullException.ThrowIfNull(feature);
         CheckDisposed();
         IntPtr error = IntPtr.Zero;
         IntPtr featurePtr = IntPtr.Zero;
@@ -1094,6 +1102,7 @@ public class Camera : IDisposable
     /// </summary>
     public void SetBooleanFeature(string feature, bool value)
     {
+        ArgumentNullException.ThrowIfNull(feature);
         CheckDisposed();
         IntPtr error = IntPtr.Zero;
         IntPtr featurePtr = IntPtr.Zero;
@@ -1119,6 +1128,7 @@ public class Camera : IDisposable
     /// </summary>
     public (long Min, long Max) GetIntegerFeatureBounds(string feature)
     {
+        ArgumentNullException.ThrowIfNull(feature);
         CheckDisposed();
         IntPtr error = IntPtr.Zero;
         IntPtr featurePtr = IntPtr.Zero;
@@ -1143,6 +1153,7 @@ public class Camera : IDisposable
     /// </summary>
     public (double Min, double Max) GetFloatFeatureBounds(string feature)
     {
+        ArgumentNullException.ThrowIfNull(feature);
         CheckDisposed();
         IntPtr error = IntPtr.Zero;
         IntPtr featurePtr = IntPtr.Zero;
@@ -1169,6 +1180,7 @@ public class Camera : IDisposable
     /// </summary>
     public long GetIntegerFeatureIncrement(string feature)
     {
+        ArgumentNullException.ThrowIfNull(feature);
         CheckDisposed();
         IntPtr error = IntPtr.Zero;
         IntPtr featurePtr = IntPtr.Zero;
@@ -1193,6 +1205,7 @@ public class Camera : IDisposable
     /// </summary>
     public double GetFloatFeatureIncrement(string feature)
     {
+        ArgumentNullException.ThrowIfNull(feature);
         CheckDisposed();
         IntPtr error = IntPtr.Zero;
         IntPtr featurePtr = IntPtr.Zero;
@@ -1259,6 +1272,7 @@ public class Camera : IDisposable
     /// </summary>
     public bool IsFeatureAvailable(string feature)
     {
+        ArgumentNullException.ThrowIfNull(feature);
         CheckDisposed();
         IntPtr error = IntPtr.Zero;
         IntPtr featurePtr = IntPtr.Zero;
@@ -1793,6 +1807,7 @@ public class Camera : IDisposable
     /// </summary>
     public string[] GetAvailableEnumerationValues(string feature)
     {
+        ArgumentNullException.ThrowIfNull(feature);
         CheckDisposed();
         IntPtr error = IntPtr.Zero;
         IntPtr featurePtr = IntPtr.Zero;
@@ -1884,6 +1899,7 @@ public class Camera : IDisposable
     /// <summary>Checks if a feature is implemented by the camera (vs. just available).</summary>
     public bool IsFeatureImplemented(string feature)
     {
+        ArgumentNullException.ThrowIfNull(feature);
         CheckDisposed();
         IntPtr error = IntPtr.Zero;
         IntPtr featurePtr = IntPtr.Zero;
