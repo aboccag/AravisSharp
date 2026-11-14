@@ -6,18 +6,31 @@ namespace AravisSharp.Tests;
 /// Argument validation of the public <see cref="Camera"/> members that take a feature name:
 /// a null name is rejected in managed code, before any native call (issue #12).
 /// </summary>
-public class CameraArgumentTests : IDisposable
+public class CameraArgumentTests : IClassFixture<CameraArgumentTests.SharedCamera>
 {
-    private readonly Camera _camera;
-
-    public CameraArgumentTests()
+    /// <summary>
+    /// One camera for the whole class: a null name is rejected before any native call, so the
+    /// rows need no fresh camera. Opened lazily, so a class whose rows are all skipped (no native
+    /// Aravis) never opens one.
+    /// </summary>
+    public sealed class SharedCamera : IDisposable
     {
-        _camera = CameraTestHelpers.OpenTestCamera();
+        private readonly Lazy<Camera> _camera = new(CameraTestHelpers.OpenTestCamera);
+
+        public Camera Camera => _camera.Value;
+
+        public void Dispose()
+        {
+            if (_camera.IsValueCreated)
+                _camera.Value.Dispose();
+        }
     }
 
-    public void Dispose()
+    private readonly SharedCamera _shared;
+
+    public CameraArgumentTests(SharedCamera shared)
     {
-        _camera.Dispose();
+        _shared = shared;
     }
 
     // Every public Camera member that takes a feature name, called with a null name. The
@@ -55,7 +68,7 @@ public class CameraArgumentTests : IDisposable
     [MemberData(nameof(FeatureNameMembers))]
     public void NullFeatureName_ThrowsArgumentNullException(string member)
     {
-        var ex = Assert.Throws<ArgumentNullException>(() => NullFeatureCalls[member](_camera));
+        var ex = Assert.Throws<ArgumentNullException>(() => NullFeatureCalls[member](_shared.Camera));
         Assert.Equal("feature", ex.ParamName);
     }
 }
@@ -68,11 +81,12 @@ public class CameraArgumentCoverageTests
     [Fact]
     public void NullFeatureCalls_CoverEveryPublicCameraMemberTakingAFeatureName()
     {
+        // One entry per method, not per name: a second overload taking a feature name repeats
+        // its name here and no longer matches the dictionary, whose keys are unique.
         var members = typeof(Camera)
             .GetMethods(BindingFlags.Public | BindingFlags.Instance)
             .Where(m => m.GetParameters().Any(p => p.Name == "feature" && p.ParameterType == typeof(string)))
             .Select(m => m.Name)
-            .Distinct()
             .OrderBy(n => n, StringComparer.Ordinal);
 
         Assert.Equal(CameraArgumentTests.NullFeatureCalls.Keys.OrderBy(n => n, StringComparer.Ordinal), members);
