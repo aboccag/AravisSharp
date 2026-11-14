@@ -268,6 +268,12 @@ public class Stream : IDisposable
     /// Pops a buffer from the output queue, blocking until one is available.
     /// Use <see cref="PopBuffer(ulong)"/> or <see cref="TryPopBuffer"/> to avoid waiting forever.
     /// </summary>
+    /// <remarks>
+    /// Do not dispose the stream while another thread is blocked in a pop. Observed with
+    /// GLib 2.88: the output queue is not freed while a thread waits on it, GLib logs a
+    /// critical, the queue leaks, and a thread waiting without a timeout never returns.
+    /// With a GLib built without these checks the behaviour is undefined.
+    /// </remarks>
     public Buffer? PopBuffer()
     {
         CheckDisposed();
@@ -277,19 +283,35 @@ public class Stream : IDisposable
     /// <summary>
     /// Pops a buffer from the output queue with timeout
     /// </summary>
-    /// <param name="timeoutMs">Timeout in milliseconds (0 = non-blocking, ulong.MaxValue = infinite)</param>
+    /// <param name="timeoutMs">
+    /// Timeout in milliseconds (0 = non-blocking, ulong.MaxValue = infinite). Any other value
+    /// above 4,611,686,018,427,387 ms (<c>long.MaxValue / 2000</c>, about 146,000 years) is
+    /// capped to it.
+    /// </param>
     /// <returns>Buffer or null if timeout occurred</returns>
+    /// <remarks>
+    /// Do not dispose the stream while another thread is blocked in a pop. Observed with
+    /// GLib 2.88: the output queue is not freed while a thread waits on it, GLib logs a
+    /// critical, the queue leaks, and a thread waiting without a timeout never returns.
+    /// With a GLib built without these checks the behaviour is undefined.
+    /// </remarks>
     public Buffer? PopBuffer(ulong timeoutMs)
     {
         CheckDisposed();
         if (timeoutMs == ulong.MaxValue)
             return WrapBuffer(AravisNative.arv_stream_pop_buffer(_handle));
 
-        // Convert milliseconds to microseconds. GLib adds the timeout to a signed
-        // 64-bit monotonic time, so clamp it well below overflow.
-        ulong timeoutUs = Math.Min(timeoutMs, (ulong)long.MaxValue / 2000) * 1000;
-        return WrapBuffer(AravisNative.arv_stream_timeout_pop_buffer(_handle, timeoutUs));
+        return WrapBuffer(AravisNative.arv_stream_timeout_pop_buffer(_handle, ToTimeoutMicroseconds(timeoutMs)));
     }
+
+    /// <summary>
+    /// Converts a <see cref="PopBuffer(ulong)"/> timeout from milliseconds to the
+    /// microseconds passed to <c>arv_stream_timeout_pop_buffer</c>. GLib adds the timeout
+    /// to a signed 64-bit monotonic time, so it is capped at <c>long.MaxValue / 2000</c> ms
+    /// (about 146,000 years), which keeps the result at or below <c>long.MaxValue / 2</c> µs.
+    /// </summary>
+    internal static ulong ToTimeoutMicroseconds(ulong timeoutMs) =>
+        Math.Min(timeoutMs, (ulong)long.MaxValue / 2000) * 1000;
 
     private Buffer? WrapBuffer(IntPtr bufferHandle)
     {

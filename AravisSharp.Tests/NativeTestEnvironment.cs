@@ -23,6 +23,20 @@ internal class NativeFactAttribute : FactAttribute
     }
 }
 
+/// <summary>
+/// A theory that needs the native Aravis library. Skipped when it cannot be loaded.
+/// </summary>
+internal sealed class NativeTheoryAttribute : TheoryAttribute
+{
+    public NativeTheoryAttribute()
+    {
+        if (!NativeTestEnvironment.IsAravisAvailable)
+        {
+            Skip = NativeTestEnvironment.MissingAravisMessage;
+        }
+    }
+}
+
 // xunit v2 has no runtime skip: a test can only be skipped by its attribute, when the
 // test is discovered. The attributes below decide from ARAVIS_TEST_DEVICE_ID and from
 // discovery data (protocol) alone, and never open a device.
