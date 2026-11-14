@@ -26,14 +26,16 @@ dotnet test AravisSharp.Tests/ -f net10.0 --filter "FullyQualifiedName~AravisNat
 | `CameraLifecycleTests.cs` | 14 | GError to `AravisException`, dispose idempotence and `ObjectDisposedException`, buffer ownership after `PushBuffer`, `AcquireSingleFrame`, `Device` lifetime, GigE-only stream setters, PGM export |
 | `NodeMapTests.cs` | 8 | `NodeMap`: GenICam XML, category tree, feature details (Integer, Float, Enumeration, Command) |
 | `ImageAcquisitionTests.cs` | 10 | Frame acquisition: status, dimensions, data, PNG export, frame IDs, statistics |
+| `CameraArgumentTests.cs` | 17 | A null feature name throws `ArgumentNullException` before any native call, on each of the 16 `Camera` members that take one; a reflection check that the list is complete |
+| `StreamTimeoutTests.cs` | 15 | `PopBuffer(ulong)` timeout conversion from milliseconds to microseconds and its cap (pure, no native library needed) |
 | `GigEStreamTests.cs` | 5 | GigE stream settings (`ConfigureGigEDefaults`, resend timings) and acquisition, against the Aravis GigE Vision simulator on 127.0.0.1 |
-| **Total** | **107** | per target framework |
+| **Total** | **139** | per target framework |
 
-Against the fake camera, 93 run and 14 are skipped (see below).
+Against the fake camera, 125 run and 14 are skipped (see below).
 
 ## Native library
 
-Every test except the two probe-order tests and the pixel format constants needs `libaravis-0.8`. Those tests use `[NativeFact]` (or one of the attributes derived from it) and are skipped when the library cannot be loaded.
+Every test except the two probe-order tests, the pixel format constants, the timeout conversion tests and the reflection check of `CameraArgumentTests.cs` needs `libaravis-0.8`. Those tests use `[NativeFact]` (or one of the attributes derived from it) or `[NativeTheory]` and are skipped when the library cannot be loaded.
 
 `NativeLibraryFixture.cs` enables the Aravis `Fake` interface once, from a module initializer, before any test runs. The fake camera is therefore always discoverable when the native library is present, and the device-list tests assert that at least one device is listed.
 
@@ -62,7 +64,7 @@ xUnit v2 can only skip a test from its attribute, when the test is discovered. T
 
 | Attribute | Skipped when |
 |-----------|--------------|
-| `[NativeFact]` | `libaravis-0.8` cannot be loaded |
+| `[NativeFact]`, `[NativeTheory]` | `libaravis-0.8` cannot be loaded |
 | `[RealCameraFact("...")]` | the fake camera is used; it has no `AcquisitionFrameCount` or `ExposureAuto` (7 tests) |
 | `[GigECameraFact]` | the test camera is not GigE Vision (3 tests) |
 | `[Usb3CameraFact]` | the test camera is not USB3 Vision (4 tests) |
