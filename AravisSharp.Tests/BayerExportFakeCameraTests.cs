@@ -6,27 +6,37 @@ using AravisSharp.Utilities;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace AravisSharp.Tests;
 
 /// <summary>
-/// PNG and JPEG export of a BayerBG8 frame (issue #6, AC-5), on the test camera: the fake
-/// camera, or the device named by ARAVIS_TEST_DEVICE_ID. The class name contains
+/// PNG and JPEG export of a Bayer 8 frame (issue #6, AC-5), on the test camera: BayerBG8 on
+/// the fake camera, the first Bayer 8 format offered by the device named by
+/// ARAVIS_TEST_DEVICE_ID. The class name contains
 /// "FakeCameraTests" so that a <c>FullyQualifiedName~FakeCameraTests</c> filter runs it.
 /// The pixel format is restored on dispose.
 /// </summary>
 [Collection("CameraAcquisition")]
 public class BayerExportFakeCameraTests : IDisposable
 {
-    private const string BayerFormat = "BayerBG8";
+    private static readonly (string Name, uint Value)[] BayerFormats =
+    {
+        ("BayerRG8", ArvPixelFormat.ARV_PIXEL_FORMAT_BAYER_RG_8),
+        ("BayerGR8", ArvPixelFormat.ARV_PIXEL_FORMAT_BAYER_GR_8),
+        ("BayerGB8", ArvPixelFormat.ARV_PIXEL_FORMAT_BAYER_GB_8),
+        ("BayerBG8", ArvPixelFormat.ARV_PIXEL_FORMAT_BAYER_BG_8),
+    };
 
     private readonly Camera _camera;
     private readonly string _originalPixelFormat;
+    private readonly ITestOutputHelper _output;
 
     // Open and configure failures propagate: a camera that cannot be set up must fail the
     // test, not turn it into a silent pass.
-    public BayerExportFakeCameraTests()
+    public BayerExportFakeCameraTests(ITestOutputHelper output)
     {
+        _output = output;
         _camera = CameraTestHelpers.OpenTestCamera();
         try
         {
@@ -54,17 +64,27 @@ public class BayerExportFakeCameraTests : IDisposable
     }
 
     [NativeFact]
-    public void BayerBG8_SaveToPngAndJpeg_ShouldWriteColourImagesOfTheBufferSize()
+    public void Bayer8_SaveToPngAndJpeg_ShouldWriteColourImagesOfTheBufferSize()
     {
-        if (!_camera.GetAvailablePixelFormats().Contains(BayerFormat))
+        // The fake camera must offer BayerBG8 (arv-fake-camera.xml). A real colour camera
+        // often offers another Bayer 8 pattern (BayerRG8 on many Basler models): test the
+        // first one it offers.
+        var available = _camera.GetAvailablePixelFormats();
+        var candidates = CameraTestHelpers.UsesFakeCamera
+            ? BayerFormats.Where(f => f.Name == "BayerBG8")
+            : BayerFormats;
+        var format = candidates.FirstOrDefault(f => available.Contains(f.Name));
+        if (format.Name is null)
         {
-            // The fake camera offers BayerBG8 (arv-fake-camera.xml): missing there is a
-            // failure. A real camera without it (a mono camera) has nothing to test.
-            Assert.False(CameraTestHelpers.UsesFakeCamera, $"The fake camera does not offer {BayerFormat}.");
+            // Missing on the fake camera is a failure. A real camera without any Bayer 8
+            // format (a mono camera) has nothing to test; say so, xUnit 2 cannot skip here.
+            Assert.False(CameraTestHelpers.UsesFakeCamera, "The fake camera does not offer BayerBG8.");
+            _output.WriteLine("Not run: the camera offers no Bayer 8 pixel format.");
             return;
         }
 
-        _camera.SetPixelFormat(BayerFormat);
+        _output.WriteLine($"Testing {format.Name}.");
+        _camera.SetPixelFormat(format.Name);
         _camera.SetAcquisitionMode(ArvAcquisitionMode.Continuous);
         var payloadSize = _camera.GetPayloadSize();
         using var stream = _camera.CreateStream();
@@ -85,7 +105,7 @@ public class BayerExportFakeCameraTests : IDisposable
                 using (buffer)
                 {
                     Assert.Equal(ArvBufferStatus.Success, buffer.Status);
-                    Assert.Equal(ArvPixelFormat.ARV_PIXEL_FORMAT_BAYER_BG_8, buffer.PixelFormat);
+                    Assert.Equal(format.Value, buffer.PixelFormat);
                     width = buffer.Width;
                     height = buffer.Height;
 
