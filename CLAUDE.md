@@ -107,3 +107,44 @@ Jobs, in order:
 6. **publish** — pushes to NuGet.org on release tags, only when the `NUGET_PUBLISH` repository variable is `true`. Uses nuget.org Trusted Publishing (`NuGet/login@v1`, OIDC): no API key is stored; `NUGET_USER` is the nuget.org profile name and the policy on nuget.org names this repository and `build-and-publish.yml`. Runs in the `nuget-release` environment (required reviewer), which the nuget.org Trusted Publishing policy must also name.
 
 Windows builds use MSYS2/MinGW64. macOS builds use Homebrew, `install_name_tool` to rewrite dylib load paths and ad-hoc `codesign`. The scripts run off CI too (the Windows ones in an MSYS2 MINGW64 shell); `build-native-linux-local.sh` runs the Linux job's steps locally.
+
+## Profil de développement
+
+Lu par le module `dev-fix` de la skill AKAtech avant tout travail sur le code.
+
+- **Premier geste de tout cadrage** : `git fetch origin`, puis comparer la branche locale avec
+  `origin/main` et vérifier chaque prémisse sur le code récupéré. Une branche partie d'un `main`
+  local en retard ne peut pas être intégrée.
+- **Type de dépôt** : bibliothèque publiée sur NuGet, dépôt public GitHub. Le module `tracker`
+  (GitLab) ne s'applique pas ici.
+- **Décideur** : alex (propriétaire du dépôt).
+- **Langue** des commits et des docs : anglais.
+- **Zones** (scope des commits) : `interop`, `camera`, `stream`, `genicam`, `utilities`, `tests`,
+  `ci`, `build`, `docs`.
+  - **Critiques** (niveau complet d'office) : `interop` — déclarations P/Invoke de `Native/`,
+    propriété et durée de vie des objets natifs (handles, comptage de références GObject). Une
+    erreur y fait planter le processus de l'application qui consomme la bibliothèque.
+- **Tests** :
+  - suite : `dotnet test AravisSharp.Tests/` (net8.0 et net10.0), toute la suite, sur la caméra
+    Fake par défaut ; c'est aussi ce que lance la CI ;
+  - tests matériels : uniquement quand `ARAVIS_TEST_DEVICE_ID` nomme un périphérique ; toute
+    ouverture de caméra dans un test passe par `CameraTestHelpers` (voir « Real hardware is
+    opt-in » plus haut) ;
+  - rouges préexistants connus : aucun relevé sur la branche principale.
+- **Revue ECC du langage** : C# avec `ecc:csharp-reviewer` ; shell, PowerShell et YAML de CI avec
+  un agent généraliste Opus.
+- **Banc** : aucun banc dédié. Une caméra physique du poste sert de matériel de test, un occupant
+  à la fois : deux sessions ne lancent jamais les tests matériels en même temps.
+- **Tracker** : issues GitHub de `aboccag/AravisSharp`, par la commande `gh` ; références de
+  clôture : `Closes #NN`.
+- **Environnement de production** : aucun. La livraison est le paquet NuGet, publié sur les tags
+  de version quand la variable de dépôt `NUGET_PUBLISH` vaut `true`.
+- **Portes du décideur** en plus du module : publication NuGet, tag de version, toute issue ou
+  contribution chez un tiers (Aravis en amont).
+- **Confirmation avant commit, merge ou push** : oui pour le push de `main` (dépôt public) ; non
+  pour les commits et les merges locaux.
+- **Trailer de commit** : aucun.
+- **Interdits propres au projet** :
+  - ne jamais modifier `aravis/` (sous-module) ;
+  - aucun binaire natif ni image de capture dans git.
+- **Procédures ops** : aucune.
