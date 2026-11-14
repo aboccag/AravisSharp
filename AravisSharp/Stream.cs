@@ -268,6 +268,12 @@ public class Stream : IDisposable
     /// Pops a buffer from the output queue, blocking until one is available.
     /// Use <see cref="PopBuffer(ulong)"/> or <see cref="TryPopBuffer"/> to avoid waiting forever.
     /// </summary>
+    /// <remarks>
+    /// Do not dispose the stream while another thread is blocked in a pop. Observed with
+    /// GLib 2.88: the output queue is not freed while a thread waits on it, GLib logs a
+    /// critical, the queue leaks, and a thread waiting without a timeout never returns.
+    /// With a GLib built without these checks the behaviour is undefined.
+    /// </remarks>
     public Buffer? PopBuffer()
     {
         CheckDisposed();
@@ -277,8 +283,18 @@ public class Stream : IDisposable
     /// <summary>
     /// Pops a buffer from the output queue with timeout
     /// </summary>
-    /// <param name="timeoutMs">Timeout in milliseconds (0 = non-blocking, ulong.MaxValue = infinite)</param>
+    /// <param name="timeoutMs">
+    /// Timeout in milliseconds (0 = non-blocking, ulong.MaxValue = infinite). Any other value
+    /// above 4,611,686,018,427,387 ms (<c>long.MaxValue / 2000</c>, about 146,000 years) is
+    /// capped to it.
+    /// </param>
     /// <returns>Buffer or null if timeout occurred</returns>
+    /// <remarks>
+    /// Do not dispose the stream while another thread is blocked in a pop. Observed with
+    /// GLib 2.88: the output queue is not freed while a thread waits on it, GLib logs a
+    /// critical, the queue leaks, and a thread waiting without a timeout never returns.
+    /// With a GLib built without these checks the behaviour is undefined.
+    /// </remarks>
     public Buffer? PopBuffer(ulong timeoutMs)
     {
         CheckDisposed();
