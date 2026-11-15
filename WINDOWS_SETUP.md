@@ -28,7 +28,7 @@ The `AravisSharp` NuGet package carries the native DLLs under `runtimes/win-x64/
 | `libffi-8.dll` | Foreign function interface (GObject dep) |
 | `libiconv-2.dll` | Character encoding conversion |
 
-`libaravis-0.8-0.dll` is built by CI from the `aravis/` submodule with MSYS2 MinGW64 (64-bit, release); the other DLLs come from MSYS2 `mingw-w64-x86_64-*` packages. CI derives the set from the built DLL, so this table can lag behind: [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) is the authoritative list, and `aravis-native-versions.txt` in the same folder records the exact versions shipped.
+`libaravis-0.8-0.dll` is built by CI from the `aravis/` submodule with MSYS2 UCRT64 (64-bit, release); the other DLLs come from MSYS2 `mingw-w64-ucrt-x86_64-*` packages. They link against the Universal C Runtime, part of Windows 10 and later. CI derives the set from the built DLL, so this table can lag behind: [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) is the authoritative list, and `aravis-native-versions.txt` in the same folder records the exact versions shipped.
 
 ---
 
@@ -128,10 +128,10 @@ dotnet run --project AravisSharp.Examples -f net10.0
 
 ## 4. Building the Windows NuGet Package (Maintainers)
 
-The `win-x64` runtime is built by CI (`.github/workflows/build-and-publish.yml`, job **build-native**) from the `aravis/` submodule — not from MSYS2's own `mingw-w64-x86_64-aravis` package, whose version need not match 0.8.36. The same steps run locally in an MSYS2 **MINGW64** shell:
+The `win-x64` runtime is built by CI (`.github/workflows/build-and-publish.yml`, job **build-native**) from the `aravis/` submodule — not from MSYS2's own `mingw-w64-ucrt-x86_64-aravis` package, whose version need not match 0.8.36. The same steps run locally in an MSYS2 **UCRT64** shell:
 
-1. Install [MSYS2](https://www.msys2.org/) and, in the MINGW64 shell, the packages the workflow lists (`mingw-w64-x86_64-gcc`, `-glib2`, `-libxml2`, `-libusb`, `-meson`, `-ninja`, `-pkg-config`, `-binutils`).
-2. Build and install Aravis into `/mingw64` with `meson setup _build aravis <MESON_OPTS> --prefix=/mingw64` and `ninja -C _build install` (the options are in the workflow's `MESON_OPTS`).
+1. Install [MSYS2](https://www.msys2.org/) and, in the UCRT64 shell, the packages the workflow lists under `pacboy` (`mingw-w64-ucrt-x86_64-gcc`, `-glib2`, `-libxml2`, `-libusb`, `-meson`, `-ninja`, `-pkg-config`, `-binutils`).
+2. Build and install Aravis into `$MINGW_PREFIX` (`/ucrt64`) with `meson setup _build aravis <MESON_OPTS> --prefix="$MINGW_PREFIX"` and `ninja -C _build install` (the options are in the workflow's `MESON_OPTS`).
 3. Collect the payload: `.github/scripts/collect-native-windows.sh _native` — copies `libaravis-0.8-0.dll` and every MinGW DLL `ldd` finds behind it.
 4. Verify it: `.github/scripts/verify-native-windows.sh _native` — fails if a bundled DLL imports a MinGW DLL that is not bundled.
 5. Record versions: `.github/scripts/record-native-versions.sh _native`.

@@ -85,10 +85,10 @@ The packaged runtimes are built by CI (`.github/workflows/build-and-publish.yml`
 | Platform | Build | Collect payload | Verify payload |
 |----------|-------|-----------------|----------------|
 | Linux (x64, arm64) | `.github/scripts/build-native-linux.sh` (in an `ubuntu:20.04` container; builds libxml2 statically with `build-libxml2-static.sh`) | `collect-native-linux.sh` | `verify-native-linux.sh` |
-| Windows (x64) | `meson setup` + `ninja install` into `/mingw64`, in an MSYS2 **MINGW64** shell | `collect-native-windows.sh` (ldd) | `verify-native-windows.sh` |
+| Windows (x64) | `meson setup` + `ninja install` into `$MINGW_PREFIX`, in an MSYS2 **UCRT64** shell | `collect-native-windows.sh` (ldd) | `verify-native-windows.sh` |
 | macOS (arm64) | `meson setup` + `ninja install` against Homebrew GLib / libxml2 / libusb | `collect-native-macos.sh` (recursive otool walk, `install_name_tool`, ad-hoc `codesign`) | `verify-native-macos.sh` |
 
-`record-native-versions.sh` then writes `aravis-native-versions.txt`. The Meson options, package lists and exact commands are in the workflow; the Windows scripts must run in an MSYS2 MINGW64 shell. The collect scripts derive the dependency set from the built binary and the verify scripts fail closed if anything is neither bundled nor provided by the system — never replace them with a hand-written file list.
+`record-native-versions.sh` then writes `aravis-native-versions.txt`. The Meson options, package lists and exact commands are in the workflow; the Windows scripts must run in an MSYS2 UCRT64 shell (they read `MINGW_PREFIX`). The collect scripts derive the dependency set from the built binary and the verify scripts fail closed if anything is neither bundled nor provided by the system — never replace them with a hand-written file list.
 
 On a Linux machine, `./build-native-linux-local.sh` runs the Linux row end to end, with the workflow's Meson options, and places the result in `AravisSharp/runtimes/linux-<arch>/native/` for `dotnet pack`. With docker available it builds in `ubuntu:20.04` like CI; `--host` builds on the machine itself, and the result then needs that machine's GLib and glibc or newer.
 

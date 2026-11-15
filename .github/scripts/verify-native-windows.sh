@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # Fails when a bundled DLL imports a MinGW DLL that is not bundled next to it.
 # Such a payload loads on the build machine and on any machine with MSYS2 on PATH, and
-# nowhere else. Runs in the MSYS2 MINGW64 shell.
+# nowhere else. Runs in an MSYS2 MinGW-type shell (UCRT64 in CI).
 #
 # Fail-closed: a check that cannot read the imports must not report success.
 set -euo pipefail
 
 dir=${1:-_native}
-command -v objdump >/dev/null || { echo "::error::objdump is required (mingw-w64-x86_64-binutils)" >&2; exit 1; }
+prefix=${MINGW_PREFIX:?run in an MSYS2 MinGW-type shell (UCRT64 in CI): MINGW_PREFIX is not set}
+command -v objdump >/dev/null || { echo "::error::objdump is required (${MINGW_PACKAGE_PREFIX:-mingw-w64}-binutils)" >&2; exit 1; }
 
 missing=0
 for dll in "$dir"/*.dll; do
@@ -19,7 +20,7 @@ for dll in "$dir"/*.dll; do
     fi
     for import in $imports; do
         [ -e "$dir/$import" ] && continue
-        if [ -e "/mingw64/bin/$import" ]; then
+        if [ -e "$prefix/bin/$import" ]; then
             echo "::error::$(basename "$dll") imports $import, which is not bundled" >&2
             missing=1
         fi
