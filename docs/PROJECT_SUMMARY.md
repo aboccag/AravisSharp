@@ -14,12 +14,18 @@ AravisSharp provides C# bindings for the [Aravis](https://github.com/AravisProje
 AravisSharp/
 ├── AravisSharp.slnx                # Solution file
 ├── README.md                       # Main documentation
-├── QUICKSTART.md                   # Quick reference
-├── WINDOWS_SETUP.md                # Windows + WinUSB guide
-├── CROSS_PLATFORM_GUIDE.md         # NuGet packaging & distribution
-├── FEATURE_BROWSER_GUIDE.md        # GenICam feature browser guide
-├── PROJECT_SUMMARY.md              # This file
+├── CHANGELOG.md                    # Changes by version
 ├── THIRD-PARTY-NOTICES.md          # Licenses of the bundled native libraries
+├── .editorconfig                   # Code style
+├── docs/
+│   ├── QUICKSTART.md               # Quick reference
+│   ├── WINDOWS_SETUP.md            # Windows + WinUSB guide
+│   ├── CROSS_PLATFORM_GUIDE.md     # NuGet packaging & distribution
+│   ├── FEATURE_BROWSER_GUIDE.md    # GenICam feature browser guide
+│   ├── COMPREHENSIVE_API.md        # Camera API reference
+│   ├── USB_FIX.md                  # Linux USB troubleshooting
+│   ├── PROJECT_SUMMARY.md          # This file
+│   └── *-spec.md                   # Specs of the issues, one per issue
 │
 ├── aravis/                         # Aravis C source (git submodule, built by CI)
 ├── .github/
@@ -32,7 +38,7 @@ AravisSharp/
 ├── increase-usb-buffer.sh          # Raise the usbfs memory limit
 │
 ├── AravisSharp/                    # Library (the NuGet package)
-│   ├── AravisSharp.csproj          # net8.0/net10.0, multi-RID, unsafe enabled
+│   ├── AravisSharp.csproj          # net8.0/net10.0, XML docs, unsafe enabled
 │   │
 │   ├── Native/
 │   │   ├── AravisNative.cs         # Audited hand-crafted P/Invoke (aravis-0.8)

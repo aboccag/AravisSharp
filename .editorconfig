@@ -14,9 +14,6 @@ indent_size = 4
 [*.{yml,yaml}]
 indent_size = 2
 
-[*.sh]
-indent_size = 2
-
 [*.md]
 # Trailing double spaces are significant in Markdown.
 trim_trailing_whitespace = false

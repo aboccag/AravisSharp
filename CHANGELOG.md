@@ -13,16 +13,14 @@ Package versions mirror the native Aravis version they target (`0.8.36` targets
 ### Added
 - `ImageHelper.DemosaicBayer8`, and PNG and JPEG export of `BayerRG8`, `BayerGR8`,
   `BayerGB8` and `BayerBG8` buffers (bilinear demosaicing, a diagnostics path) (#6).
-- XML documentation file shipped in the package, next to the symbol package (`.snupkg`)
-  and Source Link metadata (#9).
+- XML documentation file shipped in the package (#9).
+- Symbol package (`.snupkg`) and Source Link metadata.
 - Third-party notices, license texts and `aravis-native-versions.txt` in every
   `runtimes/{rid}/native/` folder; the corresponding sources are attached to each release.
 - `CHANGELOG.md` and `.editorconfig`; the guides moved to `docs/` (#9).
 
 ### Changed
-- One all-in-one `AravisSharp` package bundles the native runtimes of linux-x64,
-  linux-arm64, win-x64 and osx-arm64; the Aravis bundled with the application is loaded
-  before a system one.
+- The Aravis bundled with the application is loaded before a system one.
 - Linux natives are built on Ubuntu 20.04 with libxml2 linked in statically; only
   `libaravis-0.8.so.0` ships, GLib and libusb come from the distribution.
 - win-x64 natives are built with MSYS2 UCRT64 and need the Universal C Runtime (Windows 10
