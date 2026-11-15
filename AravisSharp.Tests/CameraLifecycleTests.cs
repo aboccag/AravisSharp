@@ -102,7 +102,7 @@ public class CameraLifecycleTests
             for (int i = 0; i < 3; i++)
                 stream.PushBuffer(new AravisBuffer(payload));
 
-            AssertInputBuffers(3, stream);
+            AssertStreamOwnsBuffers(3, stream);
         }
         finally
         {
@@ -133,19 +133,24 @@ public class CameraLifecycleTests
         // Disposing it (twice) must not release the buffer the stream now owns.
         buffer.Dispose();
         buffer.Dispose();
-        AssertInputBuffers(1, stream);
+        AssertStreamOwnsBuffers(1, stream);
     }
 
     /// <summary>
-    /// The input count is a GLib queue length, minus the stream threads waiting on the queue.
-    /// On a real camera the receive thread may also have taken buffers to prepare transfers
-    /// (USB3 Vision: 1 pushed buffer reads -1), so only the fake camera gives an exact count.
+    /// Each count is a GLib queue length, minus the stream threads waiting on the queue.
+    /// The fake stream thread takes input buffers every frame period even when acquisition
+    /// is stopped, fills them and moves them to the output queue
+    /// (aravis/src/arvfakestream.c), with try_pop, so no thread waits on either queue: on
+    /// the fake camera the buffers the stream owns are exactly input + output, whenever the
+    /// count is read (issue #15). On a real camera the receive thread may also have taken
+    /// buffers to prepare transfers (USB3 Vision: 1 pushed buffer reads -1), so the input
+    /// count is only bounded there.
     /// </summary>
-    private static void AssertInputBuffers(int queued, AravisSharp.Stream stream)
+    private static void AssertStreamOwnsBuffers(int queued, AravisSharp.Stream stream)
     {
-        var input = stream.GetBufferCounts().InputBuffers;
+        var (input, output) = stream.GetBufferCounts();
         if (CameraTestHelpers.UsesFakeCamera)
-            Assert.Equal(queued, input);
+            Assert.Equal(queued, input + output);
         else
             Assert.True(input <= queued, $"{input} input buffers reported, {queued} pushed");
     }
@@ -258,7 +263,7 @@ public class CameraLifecycleTests
         Assert.Throws<InvalidOperationException>(() => stream.GetGigEStatistics());
 
         // The stream is still usable afterwards.
-        AssertInputBuffers(0, stream);
+        AssertStreamOwnsBuffers(0, stream);
         Assert.Equal(0, stream.GetBufferCounts().OutputBuffers);
     }
 
