@@ -67,7 +67,7 @@ case "$(uname -s)" in
     MINGW* | MSYS* | CYGWIN*)
         echo
         info "Windows: the package bundles libaravis and its DLLs (win-x64)"
-        info "USB3 Vision cameras need the WinUSB driver (Zadig): see WINDOWS_SETUP.md"
+        info "USB3 Vision cameras need the WinUSB driver (Zadig): see docs/WINDOWS_SETUP.md"
         finish ;;
     *)
         echo

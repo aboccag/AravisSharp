@@ -4,17 +4,13 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-        
-        <!-- Cross-platform support: Remove RuntimeIdentifier to enable multi-platform builds -->
-        <!-- Uncomment for platform-specific builds: -->
-        <!-- <RuntimeIdentifier>linux-x64</RuntimeIdentifier> -->
-        <!-- <RuntimeIdentifier>linux-arm64</RuntimeIdentifier> -->
-        <!-- <RuntimeIdentifier>win-x64</RuntimeIdentifier> -->
-        <!-- <RuntimeIdentifier>osx-x64</RuntimeIdentifier> -->
-        
-        <!-- Enable runtime-specific builds for NuGet package -->
-        <RuntimeIdentifiers>linux-x64;linux-arm64;win-x64;osx-arm64</RuntimeIdentifiers>
         <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+
+        <!-- XML documentation ships with the package (IntelliSense). Many public members, the
+             P/Invoke surface of Native/ above all, still lack XML comments (CS1591): suppressed
+             so the build output stays readable; remove once they are documented. -->
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <NoWarn>$(NoWarn);CS1591</NoWarn>
         
         <!-- Library package metadata -->
         <PackageId>AravisSharp</PackageId>

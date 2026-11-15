@@ -28,7 +28,7 @@ The `AravisSharp` NuGet package carries the native DLLs under `runtimes/win-x64/
 | `libffi-8.dll` | Foreign function interface (GObject dep) |
 | `libiconv-2.dll` | Character encoding conversion |
 
-`libaravis-0.8-0.dll` is built by CI from the `aravis/` submodule with MSYS2 UCRT64 (64-bit, release); the other DLLs come from MSYS2 `mingw-w64-ucrt-x86_64-*` packages. They link against the Universal C Runtime, part of Windows 10 and later. CI derives the set from the built DLL, so this table can lag behind: [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) is the authoritative list, and `aravis-native-versions.txt` in the same folder records the exact versions shipped.
+`libaravis-0.8-0.dll` is built by CI from the `aravis/` submodule with MSYS2 UCRT64 (64-bit, release); the other DLLs come from MSYS2 `mingw-w64-ucrt-x86_64-*` packages. They link against the Universal C Runtime, part of Windows 10 and later. CI derives the set from the built DLL, so this table can lag behind: [THIRD-PARTY-NOTICES.md](../THIRD-PARTY-NOTICES.md) is the authoritative list, and `aravis-native-versions.txt` in the same folder records the exact versions shipped.
 
 ---
 

@@ -77,6 +77,6 @@ var byCategory = nodeMap.GetFeaturesByCategory();
 
 ## See Also
 
-- [FEATURE_BROWSER_GUIDE.md](../../FEATURE_BROWSER_GUIDE.md) — full feature browser documentation
+- [FEATURE_BROWSER_GUIDE.md](../../docs/FEATURE_BROWSER_GUIDE.md) — full feature browser documentation
 - [Aravis API docs](https://aravisproject.github.io/docs/aravis-0.8/)
 - [GenICam standard](https://www.emva.org/standards-technology/genicam/)
