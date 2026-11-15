@@ -71,6 +71,13 @@ Other premises:
   run on Release builds and skipped on Debug builds. Question 2: option (a), the B4 test
   pins a double or wrong free, and a leak is stated as not covered. Replaces: the open
   questions above. Recorded here and on issue #13.
+- **15.11.2026, alex.** The premise that `NativeLibrary.Load(name, assembly, null)` goes
+  through the registered resolver is false: strace shows it does only the runtime's default
+  probing, so it would miss a bundled libgobject. For B5 and B6, `AravisLibrary.ResolveDllImport`
+  goes from `private` to `internal`, so the release probe loads libgobject exactly as the
+  library does. This is the only library change; it changes no behaviour. Replaces: the
+  second "Other premises" item above and the "no library change" of AC-6, for this one
+  member. Recorded here and on issue #13.
 
 ## Plan
 
