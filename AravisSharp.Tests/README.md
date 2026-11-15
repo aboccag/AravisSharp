@@ -31,13 +31,16 @@ dotnet test AravisSharp.Tests/ -f net10.0 --filter "FullyQualifiedName~AravisNat
 | `GigEStreamTests.cs` | 5 | GigE stream settings (`ConfigureGigEDefaults`, resend timings) and acquisition, against the Aravis GigE Vision simulator on 127.0.0.1 |
 | `BayerDemosaicTests.cs` | 32 | `ImageHelper.DemosaicBayer8` on synthetic mosaics: the four Bayer 8 patterns, measured samples kept, rounded bilinear means, border and one-pixel-wide or -high images, argument errors (pure, no native library needed) |
 | `BayerExportFakeCameraTests.cs` | 1 | `SaveToPng` and `SaveToJpeg` of a `BayerBG8` frame: colour files of the buffer size, PNG equal to the demosaiced buffer; restores the pixel format |
-| **Total** | **172** | per target framework |
+| `InteropPinTests.cs` | 10 | Pins of interop behaviours (issue #13): `PopBuffer()`, `PopBuffer(ulong.MaxValue)` and finite timeouts block until a buffer is pushed, `PopBuffer(0)` on an empty queue returns `null` at once (every wait bounded, a blocked worker released by a push), the native stream released exactly once by `Dispose()` called twice and by the finalizer of a stream never disposed (counted with `g_object_weak_ref` by `GObjectReleaseProbe.cs`, the test holding its own reference), 10 000 calls of each `dup_available` wrapper on the fake camera, 200 on a real device (a double or wrong free aborts the process; a leak is not seen), no `DllImport` of a variadic function, `GValue` layout and field types on 64-bit |
+| `MonoExportFakeCameraTests.cs` | 1 | `SaveToPng` of a `Mono16` frame: each sample scaled to 8 bits (`sample * 255 / 65535`); restores the pixel format. Exercised only on a camera that offers Mono16: the fake camera always does (missing there is a failure); on a real device without it the test writes "Not run" to its output and passes, as `BayerExportFakeCameraTests` does without a Bayer 8 format |
+| `StreamFinalizationDuringPopTests.cs` | 4 | A `Stream` the caller no longer references is not collected while its own `PopBuffer()` or `PopBuffer(ulong)` is blocked. Two parent tests each run one child scenario in a child test host with `DOTNET_TieredCompilation=0`; the two child tests run only there |
+| **Total** | **187** | per target framework |
 
-Against the fake camera, 158 run and 14 are skipped (see below).
+Against the fake camera, 169 run and 18 are skipped in Debug, 171 run and 16 are skipped in Release (see below).
 
 ## Native library
 
-Every test except the two probe-order tests, the pixel format constants, the timeout conversion tests, the demosaic tests of `BayerDemosaicTests.cs` and the reflection check of `CameraArgumentTests.cs` needs `libaravis-0.8`. Those tests use `[NativeFact]` (or one of the attributes derived from it) or `[NativeTheory]` and are skipped when the library cannot be loaded.
+Every test except the two probe-order tests, the pixel format constants, the timeout conversion tests, the demosaic tests of `BayerDemosaicTests.cs`, the reflection check of `CameraArgumentTests.cs` and the variadic-import and `GValue` layout checks of `InteropPinTests.cs` needs `libaravis-0.8`. Those tests use `[NativeFact]` (or one of the attributes derived from it) or `[NativeTheory]` and are skipped when the library cannot be loaded.
 
 `NativeLibraryFixture.cs` enables the Aravis `Fake` interface once, from a module initializer, before any test runs. The fake camera is therefore always discoverable when the native library is present, and the device-list tests assert that at least one device is listed.
 
@@ -71,6 +74,9 @@ xUnit v2 can only skip a test from its attribute, when the test is discovered. T
 | `[GigECameraFact]` | the test camera is not GigE Vision (3 tests) |
 | `[Usb3CameraFact]` | the test camera is not USB3 Vision (4 tests) |
 | `[NonGigECameraFact]` | the test camera is GigE Vision (1 test, which checks that GigE-only stream setters throw on other streams) |
+| `[OptimizedNativeFact]` (`OptimizedNativeFactAttribute.cs`) | `libaravis-0.8` cannot be loaded, or AravisSharp is built with the JIT optimizer disabled (Debug): the 2 parent tests of `StreamFinalizationDuringPopTests`, since a lifetime defect only exists in optimized code. CI runs them (`-c Release`) |
+| child-only fact (`StreamFinalizationDuringPopTests`) | always, except in the child test host its parent test starts (2 tests) |
+| `[SixtyFourBitFact]` (`SixtyFourBitFactAttribute.cs`) | the process is 32-bit (1 test, the `GValue` layout) |
 
 Against the fake camera, a missing optional feature is a failure: its features are known from `aravis/src/arv-fake-camera.xml`. On a real camera, a test that needs an optional feature the camera lacks (for example USB3 bandwidth control) returns without asserting anything, because xUnit v2 cannot skip it at run time.
 
