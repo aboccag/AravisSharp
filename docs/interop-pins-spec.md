@@ -64,6 +64,14 @@ Other premises:
    free, and the spec says the leak is not covered. (b) Measure the process's memory over
    many calls: noisy and slow. Recommendation: (a).
 
+## Decisions
+
+- **15.11.2026, gate 1, alex.** Spec and plan approved with both recommendations.
+  Question 1: option (a), B7 is pinned by the child test host ported from the old branch,
+  run on Release builds and skipped on Debug builds. Question 2: option (a), the B4 test
+  pins a double or wrong free, and a leak is stated as not covered. Replaces: the open
+  questions above. Recorded here and on issue #13.
+
 ## Plan
 
 1. Test helpers ported from the old branch, adapted to `main`: the `g_object_weak_ref`
