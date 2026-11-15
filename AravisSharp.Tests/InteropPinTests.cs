@@ -242,6 +242,82 @@ public class InteropPinTests
         }
     }
 
+    // === B5, B6: the native stream is released exactly once ===
+    // The test holds its own native reference on the ArvStream, so a second unref by the
+    // wrapper drops the test's reference instead of freeing memory twice: it shows as a
+    // release count of 1 before the test's own unref, never as a native crash.
+
+    [NativeFact]
+    public void Stream_DisposeTwice_ShouldReleaseTheNativeStreamOnce()
+    {
+        using var camera = CameraTestHelpers.OpenTestCamera();
+        var stream = camera.CreateStream();
+        IntPtr handle = GLibNative.g_object_ref(stream.Handle);
+        long id = GObjectReleaseProbe.Watch(handle);
+        int releasedBeforeOwnUnref;
+        try
+        {
+            stream.Dispose();
+            stream.Dispose();
+        }
+        finally
+        {
+            releasedBeforeOwnUnref = GObjectReleaseProbe.ReleaseCount(id);
+            // Never unref an object a faulty Dispose already released.
+            if (releasedBeforeOwnUnref == 0)
+                GLibNative.g_object_unref(handle);
+        }
+
+        Assert.True(releasedBeforeOwnUnref == 0,
+            "Dispose() twice released the native stream while the test still held a reference: it unreffed it twice");
+        Assert.True(GObjectReleaseProbe.ReleaseCount(id) == 1,
+            $"the native stream was released {GObjectReleaseProbe.ReleaseCount(id)} times after the test's own unref, expected once: " +
+            "Dispose() did not drop the wrapper's reference");
+    }
+
+    [NativeFact]
+    public void Stream_NeverDisposed_ShouldBeReleasedOnceByItsFinalizer()
+    {
+        using var camera = CameraTestHelpers.OpenTestCamera();
+        var (handle, id, wrapper) = CreateAndDropStream(camera);
+
+        // Bounded: the wrapper must become unreachable, then its finalizer must have run.
+        // A short weak reference is cleared when the object is found unreachable, before
+        // its finalizer runs; WaitForPendingFinalizers then waits for that finalizer.
+        for (int i = 0; i < 20 && wrapper.IsAlive; i++)
+        {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            Thread.Sleep(10);
+        }
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+
+        bool collected = !wrapper.IsAlive;
+        int releasedBeforeOwnUnref = GObjectReleaseProbe.ReleaseCount(id);
+        if (releasedBeforeOwnUnref == 0)
+            GLibNative.g_object_unref(handle);
+
+        Assert.True(collected, "the undisposed Stream was not collected after 20 collections: nothing was checked");
+        Assert.True(releasedBeforeOwnUnref == 0,
+            "the finalizer released the native stream while the test still held a reference: it unreffed it twice");
+        Assert.True(GObjectReleaseProbe.ReleaseCount(id) == 1,
+            $"the native stream was released {GObjectReleaseProbe.ReleaseCount(id)} times after the test's own unref, expected once: " +
+            "the finalizer did not drop the wrapper's reference");
+    }
+
+    // Not inlined, so that no stack slot of the caller keeps the stream reachable. Returns
+    // the test's own reference on the native stream, its probe id, and a short weak
+    // reference to the wrapper.
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private static (IntPtr Handle, long Id, WeakReference Wrapper) CreateAndDropStream(Camera camera)
+    {
+        var stream = camera.CreateStream();
+        IntPtr handle = GLibNative.g_object_ref(stream.Handle);
+        long id = GObjectReleaseProbe.Watch(handle);
+        return (handle, id, new WeakReference(stream));
+    }
+
     // === B8: no DllImport binds a variadic C function ===
 
     // Variadic GLib/GObject functions a binding is tempted to import. A fixed-argument

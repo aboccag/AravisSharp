@@ -31,12 +31,12 @@ dotnet test AravisSharp.Tests/ -f net10.0 --filter "FullyQualifiedName~AravisNat
 | `GigEStreamTests.cs` | 5 | GigE stream settings (`ConfigureGigEDefaults`, resend timings) and acquisition, against the Aravis GigE Vision simulator on 127.0.0.1 |
 | `BayerDemosaicTests.cs` | 32 | `ImageHelper.DemosaicBayer8` on synthetic mosaics: the four Bayer 8 patterns, measured samples kept, rounded bilinear means, border and one-pixel-wide or -high images, argument errors (pure, no native library needed) |
 | `BayerExportFakeCameraTests.cs` | 1 | `SaveToPng` and `SaveToJpeg` of a `BayerBG8` frame: colour files of the buffer size, PNG equal to the demosaiced buffer; restores the pixel format |
-| `InteropPinTests.cs` | 8 | Pins of interop behaviours (issue #13): `PopBuffer()`, `PopBuffer(ulong.MaxValue)` and finite timeouts block until a buffer is pushed, `PopBuffer(0)` on an empty queue returns `null` at once (every wait bounded, a blocked worker released by a push), 10 000 calls of each `dup_available` wrapper (a double or wrong free aborts the process; a leak is not seen), no `DllImport` of a variadic function, `GValue` layout and field types on 64-bit |
+| `InteropPinTests.cs` | 10 | Pins of interop behaviours (issue #13): `PopBuffer()`, `PopBuffer(ulong.MaxValue)` and finite timeouts block until a buffer is pushed, `PopBuffer(0)` on an empty queue returns `null` at once (every wait bounded, a blocked worker released by a push), the native stream released exactly once by `Dispose()` called twice and by the finalizer of a stream never disposed (counted with `g_object_weak_ref` by `GObjectReleaseProbe.cs`, the test holding its own reference), 10 000 calls of each `dup_available` wrapper (a double or wrong free aborts the process; a leak is not seen), no `DllImport` of a variadic function, `GValue` layout and field types on 64-bit |
 | `MonoExportFakeCameraTests.cs` | 1 | `SaveToPng` of a `Mono16` frame: each sample scaled to 8 bits (`sample * 255 / 65535`); restores the pixel format |
 | `StreamFinalizationDuringPopTests.cs` | 4 | A `Stream` the caller no longer references is not collected while its own `PopBuffer()` or `PopBuffer(ulong)` is blocked. Two parent tests each run one child scenario in a child test host with `DOTNET_TieredCompilation=0`; the two child tests run only there |
-| **Total** | **185** | per target framework |
+| **Total** | **187** | per target framework |
 
-Against the fake camera, 167 run and 18 are skipped in Debug, 169 run and 16 are skipped in Release (see below).
+Against the fake camera, 169 run and 18 are skipped in Debug, 171 run and 16 are skipped in Release (see below).
 
 ## Native library
 
