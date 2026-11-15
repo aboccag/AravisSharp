@@ -30,7 +30,7 @@ first and the system search path when there are none.
 Aravis is built from the `aravis/` git submodule, at the commit recorded in this repository
 for the package version. On Linux, libxml2 is built from the release tarball pinned, with
 its checksum, in `.github/scripts/build-libxml2-static.sh`. The other libraries come from the
-platform's package manager at build time: MSYS2 `mingw-w64-x86_64-*` packages on Windows,
+platform's package manager at build time: MSYS2 `mingw-w64-ucrt-x86_64-*` packages on Windows,
 Homebrew bottles on macOS. Every `runtimes/{rid}/native/` folder contains
 `aravis-native-versions.txt`, which records the Aravis commit, the exact versions bundled
 for that platform and where the source of each was obtained.

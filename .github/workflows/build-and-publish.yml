@@ -78,23 +78,27 @@ jobs:
         if: runner.os == 'macOS'
         run: .github/scripts/verify-native-macos.sh _native
 
-      # ── Windows (MSYS2 / MinGW64) ──────────────────────────────────────────
+      # ── Windows (MSYS2 / UCRT64) ───────────────────────────────────────────
+      # UCRT64 since 15.11.2026 (#16): MSYS2 no longer ships libusb for MINGW64. pacboy
+      # adds the environment's package prefix, and the scripts read MINGW_PREFIX, so a
+      # change of environment is the msystem line alone.
       - name: Set up MSYS2 (Windows)
         if: runner.os == 'Windows'
         uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e # v2.33.0
         with:
-          msystem: MINGW64
+          msystem: UCRT64
           update: true
           install: >-
             git
-            mingw-w64-x86_64-binutils
-            mingw-w64-x86_64-gcc
-            mingw-w64-x86_64-glib2
-            mingw-w64-x86_64-libxml2
-            mingw-w64-x86_64-libusb
-            mingw-w64-x86_64-meson
-            mingw-w64-x86_64-ninja
-            mingw-w64-x86_64-pkg-config
+          pacboy: >-
+            binutils:p
+            gcc:p
+            glib2:p
+            libxml2:p
+            libusb:p
+            meson:p
+            ninja:p
+            pkg-config:p
 
       - name: Build Aravis (Windows)
         if: runner.os == 'Windows'
@@ -103,7 +107,7 @@ jobs:
           CC: gcc
           CXX: g++
         run: |
-          meson setup _build aravis ${{ env.MESON_OPTS }} --prefix=/mingw64
+          meson setup _build aravis ${{ env.MESON_OPTS }} --prefix="$MINGW_PREFIX"
           ninja -C _build install
 
       - name: Collect native DLLs (Windows)

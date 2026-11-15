@@ -60,11 +60,12 @@ homebrew_sources() {
     echo "Aravis $aravis_version, built from aravis commit $aravis_commit"
     case "$(uname -s)" in
         MINGW*|MSYS*)
-            echo "Bundled MSYS2 mingw-w64-x86_64 packages:"
+            prefix=${MINGW_PREFIX:?run in an MSYS2 MinGW-type shell: MINGW_PREFIX is not set}
+            echo "Bundled MSYS2 ${MINGW_PACKAGE_PREFIX:?MINGW_PACKAGE_PREFIX is not set} packages:"
             for dll in "$dir"/*.dll; do
                 name=${dll##*/}
                 [ "$name" = libaravis-0.8-0.dll ] && continue
-                owner=$(pacman -Qo "/mingw64/bin/$name" | sed 's/.* is owned by //')
+                owner=$(pacman -Qo "$prefix/bin/$name" | sed 's/.* is owned by //')
                 echo "  $name: $owner"
                 echo "$owner" >> "$packages"
             done

@@ -148,7 +148,7 @@ The exact file list per platform is in `THIRD-PARTY-NOTICES.md`; CI derives it f
 | Script | Platform | Purpose |
 |--------|----------|---------|
 | `.github/scripts/build-native-linux.sh` | Linux (CI, `ubuntu:20.04` container) | Build libxml2 statically, then Aravis from the submodule |
-| `.github/scripts/collect-native-{linux,windows,macos}.sh` | CI (MSYS2 MINGW64 shell on Windows) | Derive the native payload from the built binary |
+| `.github/scripts/collect-native-{linux,windows,macos}.sh` | CI (MSYS2 UCRT64 shell on Windows) | Derive the native payload from the built binary |
 | `.github/scripts/verify-native-{linux,windows,macos}.sh` | CI | Fail if anything is neither bundled nor system-provided |
 | `.github/scripts/record-native-versions.sh` | CI | Write `aravis-native-versions.txt` |
 | `build-native-linux-local.sh` | Linux | Run the Linux CI scripts above locally, in an `ubuntu:20.04` container when docker is available (`--host` builds on the machine, against its newer GLib), into `AravisSharp/runtimes/linux-<arch>/native/` |
