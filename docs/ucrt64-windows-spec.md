@@ -58,6 +58,14 @@ Issue #16, level standard, type fix, zone ci. Written on 2026-11-15 against `mai
    `fix/16-ucrt64-windows` to `origin` for CI runs during this issue; `main` stays under the
    usual confirmation.
 
+## Decisions
+
+- **15.11.2026, gate 1, alex.** Spec and plan approved with the three recommendations.
+  Question 1: UCRT64. Question 2: the scripts read `MINGW_PREFIX` and the workflow lists the
+  packages through `pacboy`. Question 3: pushes of `fix/16-ucrt64-windows` to `origin` are
+  allowed for CI runs during this issue; `main` stays under the usual confirmation.
+  Replaces: the open questions above. Recorded here and on issue #16.
+
 ## Plan
 
 1. Workflow: `msystem` and the package list (questions 1 and 2), install prefix
