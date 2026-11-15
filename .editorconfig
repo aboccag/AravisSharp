@@ -1,0 +1,56 @@
+# EditorConfig — https://editorconfig.org
+# Derived from the conventions already used in the code base (4-space indent,
+# LF endings, Allman braces, file-scoped namespaces). IDE-style rules are set
+# to "suggestion" so they never turn into build warnings.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+indent_style = space
+indent_size = 4
+
+[*.{yml,yaml}]
+indent_size = 2
+
+[*.sh]
+indent_size = 2
+
+[*.md]
+# Trailing double spaces are significant in Markdown.
+trim_trailing_whitespace = false
+
+[*.{csproj,props,targets,slnx,xml,json}]
+indent_size = 4
+
+[*.cs]
+# Braces on their own line (Allman)
+csharp_new_line_before_open_brace = all
+csharp_new_line_before_else = true
+csharp_new_line_before_catch = true
+csharp_new_line_before_finally = true
+csharp_indent_case_contents = true
+csharp_indent_switch_labels = true
+
+# Namespaces and usings
+csharp_style_namespace_declarations = file_scoped:suggestion
+csharp_using_directive_placement = outside_namespace:suggestion
+dotnet_sort_system_directives_first = false
+
+# Language preferences
+csharp_style_var_for_built_in_types = true:suggestion
+csharp_style_var_when_type_is_apparent = true:suggestion
+dotnet_style_qualification_for_field = false:suggestion
+dotnet_style_qualification_for_property = false:suggestion
+dotnet_style_qualification_for_method = false:suggestion
+
+# Naming: private instance fields are _camelCase.
+# (P/Invoke declarations intentionally keep the native snake_case names.)
+dotnet_naming_rule.private_fields_underscore.symbols = private_fields
+dotnet_naming_rule.private_fields_underscore.style = underscore_camel_case
+dotnet_naming_rule.private_fields_underscore.severity = suggestion
+dotnet_naming_symbols.private_fields.applicable_kinds = field
+dotnet_naming_symbols.private_fields.applicable_accessibilities = private
+dotnet_naming_style.underscore_camel_case.required_prefix = _
+dotnet_naming_style.underscore_camel_case.capitalization = camel_case
