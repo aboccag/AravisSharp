@@ -115,11 +115,6 @@ jobs:
         shell: msys2 {0}
         run: .github/scripts/collect-native-windows.sh _native
 
-      - name: TEMP fail-closed proof for #16 (reverted next commit)
-        if: runner.os == 'Windows'
-        shell: msys2 {0}
-        run: rm _native/libintl-8.dll
-
       - name: Verify native payload (Windows)
         if: runner.os == 'Windows'
         shell: msys2 {0}
