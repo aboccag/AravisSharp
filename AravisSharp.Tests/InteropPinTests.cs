@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using AravisSharp.Native;
+using Xunit.Abstractions;
 
 namespace AravisSharp.Tests;
 
@@ -26,6 +27,13 @@ public class InteropPinTests
     private static readonly TimeSpan BlockedWindow = TimeSpan.FromMilliseconds(500);
     private static readonly TimeSpan StartBound = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan ReturnBound = TimeSpan.FromSeconds(10);
+
+    private readonly ITestOutputHelper _output;
+
+    public InteropPinTests(ITestOutputHelper output)
+    {
+        _output = output;
+    }
 
     // === B1, B2: a pop with no buffer queued blocks until one arrives ===
 
@@ -53,8 +61,13 @@ public class InteropPinTests
             try
             {
                 Assert.True(aboutToPop.Wait(StartBound), "the pop worker did not start");
-                // "Not yet started" is not "blocked": the window opens once the worker is
-                // about to call the pop.
+                // "About to pop" is not "blocked": wait until the worker waits on the output
+                // queue. A GLib async queue length is the items queued minus the threads
+                // waiting on it, so a negative output count means a thread is in the pop.
+                Assert.True(WaitUntilAThreadWaitsOnTheOutputQueue(stream, worker),
+                    $"no thread waited on the output queue within {StartBound.TotalSeconds} s: {call} " +
+                    $"{(worker.IsAlive ? "never blocked" : "returned")} (buffer: {(pop.Buffer is null ? "null" : "non-null")}, " +
+                    $"error: {pop.Error?.Message ?? "none"})");
                 bool returnedEarly = worker.Join(BlockedWindow);
                 Assert.False(returnedEarly,
                     $"{call} returned before any buffer was pushed (buffer: {(pop.Buffer is null ? "null" : "non-null")}, " +
@@ -71,16 +84,35 @@ public class InteropPinTests
             }
             finally
             {
-                // Release a worker still blocked (an assertion failed before the push).
+                // Release a worker still blocked (an assertion failed before the push). The
+                // acquisition stops either way: a worker still blocked only keeps the stream
+                // and the camera objects, not a running acquisition.
                 released = released || ReleaseWorker(stream, payload, worker);
-                if (released)
-                    camera.StopAcquisition();
+                camera.StopAcquisition();
             }
         }
         finally
         {
-            DisposeUnlessBlocked(camera, stream, worker);
+            DisposeUnlessBlocked(camera, stream, worker, _output);
         }
+    }
+
+    /// <summary>
+    /// Polls the stream's output queue length until it is negative (a thread waits on the
+    /// queue), the worker ends, or <see cref="StartBound"/> passes.
+    /// </summary>
+    private static bool WaitUntilAThreadWaitsOnTheOutputQueue(Stream stream, Thread worker)
+    {
+        var clock = Stopwatch.StartNew();
+        while (clock.Elapsed < StartBound)
+        {
+            if (stream.GetBufferCounts().OutputBuffers < 0)
+                return true;
+            if (!worker.IsAlive)
+                return false;
+            Thread.Sleep(5);
+        }
+        return false;
     }
 
     // === B3: PopBuffer(0) on an empty queue returns null at once ===
@@ -123,7 +155,7 @@ public class InteropPinTests
         }
         finally
         {
-            DisposeUnlessBlocked(camera, stream, worker);
+            DisposeUnlessBlocked(camera, stream, worker, _output);
         }
     }
 
@@ -186,12 +218,14 @@ public class InteropPinTests
     /// Disposes the stream and the camera, unless a worker is still blocked in a native pop
     /// on the stream: then both are leaked for the life of the test host, never disposed or
     /// finalized under the waiter. The worker is a background thread and cannot keep the
-    /// host alive.
+    /// host alive. The leak is written to the test output.
     /// </summary>
-    private static void DisposeUnlessBlocked(Camera camera, Stream? stream, Thread? worker)
+    private static void DisposeUnlessBlocked(Camera camera, Stream? stream, Thread? worker, ITestOutputHelper output)
     {
         if (worker is { IsAlive: true })
         {
+            output.WriteLine("Camera and stream leaked under a blocked pop: a worker is still blocked in a native pop " +
+                             "on the stream, so neither is disposed or finalized for the life of the test host.");
             if (stream != null)
                 GC.SuppressFinalize(stream);
             GC.SuppressFinalize(camera);
@@ -217,13 +251,15 @@ public class InteropPinTests
     // === B4: the arrays of arv_camera_dup_available_* are freed once, by g_free ===
 
     [NativeFact]
-    public void DupAvailableWrappers_10000Calls_ShouldSurviveAndReturnStableResults()
+    public void DupAvailableWrappers_ManyCalls_ShouldSurviveAndReturnStableResults()
     {
         // Pins the free of each (transfer container) array: a double free, or a g_free of an
         // element (the strings belong to the GenICam nodes), corrupts the heap and glibc
-        // aborts the process long before 10 000 calls. A missing g_free only leaks, which
-        // this test does not see (spec #13, decision on question 2).
-        const int Calls = 10_000;
+        // aborts the process at once (seen on the first call). A missing g_free only leaks,
+        // which this test does not see (spec #13, decision on question 2). 10 000 calls on
+        // the fake camera, whose features are in memory; 200 on a real device, where each
+        // call may read registers over the link.
+        int calls = CameraTestHelpers.UsesFakeCamera ? 10_000 : 200;
         using var camera = CameraTestHelpers.OpenTestCamera();
 
         var formats = camera.GetAvailablePixelFormats();
@@ -234,7 +270,7 @@ public class InteropPinTests
         Assert.NotEmpty(values);
         Assert.Equal(formats.Length, displayNames.Length);
 
-        for (int i = 1; i < Calls; i++)
+        for (int i = 1; i < calls; i++)
         {
             Assert.True(formats.SequenceEqual(camera.GetAvailablePixelFormats()), $"pixel formats changed at call {i}");
             Assert.True(displayNames.SequenceEqual(camera.GetAvailablePixelFormatDisplayNames()), $"display names changed at call {i}");
@@ -325,8 +361,10 @@ public class InteropPinTests
     // stack (GLibNative.cs, "GObject property access").
     private static readonly string[] VariadicEntryPoints =
     {
-        "g_object_set", "g_object_get", "g_object_new", "g_object_connect",
-        "g_strdup_printf", "g_error_new", "g_log",
+        "g_object_set", "g_object_get", "g_object_new", "g_object_connect", "g_object_disconnect",
+        "g_signal_emit", "g_signal_emit_by_name",
+        "g_strdup_printf", "g_strconcat", "g_strjoin", "g_build_filename", "g_build_path",
+        "g_error_new", "g_set_error", "g_log", "g_print", "g_printerr",
     };
 
     private static IEnumerable<(MethodInfo Method, string EntryPoint)> AllDllImports()

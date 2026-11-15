@@ -24,7 +24,9 @@ namespace AravisSharp.Tests;
 /// optimizations (Release, as in CI): on a Debug build the parent tests are reported as
 /// skipped (<see cref="OptimizedNativeFactAttribute"/>). The child holds its own native
 /// reference on the <c>ArvStream</c>, so the defect shows as a failed assertion, never as a
-/// use after free.
+/// use after free. The child does not inherit the parent's test platform or profiler
+/// variables. Still, do not run these tests under a coverage collector: instrumentation
+/// can change what the JIT keeps alive, and only the uninstrumented run is meaningful.
 /// </remarks>
 public class StreamFinalizationDuringPopTests
 {
@@ -62,7 +64,9 @@ public class StreamFinalizationDuringPopTests
         Directory.CreateDirectory(resultsDirectory);
         try
         {
-            var start = new ProcessStartInfo("dotnet")
+            // The dotnet host that runs this test host, so that the child uses the same SDK;
+            // "dotnet" from PATH when the runner does not say.
+            var start = new ProcessStartInfo(Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") ?? "dotnet")
             {
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
@@ -77,27 +81,31 @@ public class StreamFinalizationDuringPopTests
             start.ArgumentList.Add(resultsDirectory);
             start.ArgumentList.Add("--logger");
             start.ArgumentList.Add("trx;LogFileName=child.trx");
+            RemoveInheritedTestHostVariables(start.Environment);
             start.Environment[ChildEnvironmentVariable] = ChildMarker;
             start.Environment["DOTNET_TieredCompilation"] = "0";
 
             using var child = Process.Start(start)!;
             var stdout = child.StandardOutput.ReadToEndAsync();
             var stderr = child.StandardError.ReadToEndAsync();
+            bool finished;
             using (var timeout = new CancellationTokenSource(ChildBound))
             {
                 try
                 {
                     await child.WaitForExitAsync(timeout.Token);
+                    finished = true;
                 }
                 catch (OperationCanceledException)
                 {
                     child.Kill(entireProcessTree: true);
-                    await child.WaitForExitAsync();
-                    Assert.Fail($"the child test host did not finish within {ChildBound.TotalSeconds} s and was killed");
+                    finished = false;
+                    await BoundedAsync(child.WaitForExitAsync(), "waiting for the killed child to exit");
                 }
             }
-            _output.WriteLine(await stdout);
-            _output.WriteLine(await stderr);
+            _output.WriteLine(await BoundedAsync(stdout, "reading the child's standard output") ?? "");
+            _output.WriteLine(await BoundedAsync(stderr, "reading the child's standard error") ?? "");
+            Assert.True(finished, $"the child test host did not finish within {ChildBound.TotalSeconds} s and was killed; its output is above");
 
             string trx = Path.Combine(resultsDirectory, "child.trx");
             Assert.True(File.Exists(trx), $"the child test host wrote no TRX file (exit code {child.ExitCode})");
@@ -123,6 +131,53 @@ public class StreamFinalizationDuringPopTests
                 // A leftover temporary folder does not change the outcome.
             }
         }
+    }
+
+    // Bound of each wait after the child's own bound: the killed child's exit and the reads
+    // of its output, which a surviving grandchild holding the pipes could otherwise block.
+    private static readonly TimeSpan AfterChildBound = TimeSpan.FromSeconds(10);
+
+    private async Task<T?> BoundedAsync<T>(Task<T> task, string what)
+    {
+        try
+        {
+            return await task.WaitAsync(AfterChildBound);
+        }
+        catch (TimeoutException)
+        {
+            _output.WriteLine($"Gave up {what} after {AfterChildBound.TotalSeconds} s.");
+            return default;
+        }
+    }
+
+    private async Task BoundedAsync(Task task, string what)
+    {
+        try
+        {
+            await task.WaitAsync(AfterChildBound);
+        }
+        catch (TimeoutException)
+        {
+            _output.WriteLine($"Gave up {what} after {AfterChildBound.TotalSeconds} s.");
+        }
+    }
+
+    // Variables of the parent's test platform and of a coverage collector. Inherited, they
+    // would make the child connect to the parent's runner or load a profiler it was not
+    // meant to run under.
+    private static readonly string[] InheritedVariablePrefixes =
+    {
+        "VSTEST_", "TESTINGPLATFORM_", "COVERLET_", "CORECLR_ENABLE_PROFILING", "CORECLR_PROFILER",
+        "COR_ENABLE_PROFILING", "COR_PROFILER", "MicrosoftInstrumentationEngine_",
+    };
+
+    private static void RemoveInheritedTestHostVariables(IDictionary<string, string?> environment)
+    {
+        var inherited = environment.Keys
+            .Where(key => InheritedVariablePrefixes.Any(prefix => key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)))
+            .ToList();
+        foreach (var key in inherited)
+            environment.Remove(key);
     }
 
     // Only runs inside the child test host started above.
@@ -173,6 +228,22 @@ public class StreamFinalizationDuringPopTests
             worker.Start();
             Assert.True(created.Wait(TimeSpan.FromSeconds(10)), "the worker did not create its stream within 10 s");
             var weak = managedStream.Value!;
+
+            // Collecting before the worker is in the native pop would check nothing: wait until
+            // a thread waits on the output queue (a GLib async queue length is the items queued
+            // minus the waiting threads, so it turns negative).
+            var waitClock = Stopwatch.StartNew();
+            int output = 0;
+            while (waitClock.Elapsed < TimeSpan.FromSeconds(10) && worker.IsAlive)
+            {
+                AravisNative.arv_stream_get_n_buffers(nativeStream.Value, out _, out output);
+                if (output < 0)
+                    break;
+                Thread.Sleep(5);
+            }
+            Assert.True(output < 0,
+                $"no thread waited on the output queue within 10 s (output queue length {output}, worker " +
+                $"{(worker.IsAlive ? "alive" : "ended")}): {call} never blocked, so nothing would be checked");
 
             // The stream exists and only its pop references it: collect while the pop blocks.
             for (int i = 0; i < 10 && weak.IsAlive && worker.IsAlive; i++)
