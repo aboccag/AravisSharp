@@ -140,19 +140,35 @@ public class CameraLifecycleTests
     /// Each count is a GLib queue length, minus the stream threads waiting on the queue.
     /// The fake stream thread takes input buffers every frame period even when acquisition
     /// is stopped, fills them and moves them to the output queue
-    /// (aravis/src/arvfakestream.c), with try_pop, so no thread waits on either queue: on
-    /// the fake camera the buffers the stream owns are exactly input + output, whenever the
-    /// count is read (issue #15). On a real camera the receive thread may also have taken
-    /// buffers to prepare transfers (USB3 Vision: 1 pushed buffer reads -1), so the input
-    /// count is only bounded there.
+    /// (aravis/src/arvfakestream.c), with try_pop, so no thread waits on either queue. While
+    /// it fills a buffer, that buffer is in neither queue, and the two lengths are read one
+    /// after the other: on the fake camera input + output settles to the buffers the stream
+    /// owns within one fill, so the count is polled for a bounded time (issue #15). A lost or
+    /// doubly owned buffer never settles and still fails. On a real camera the receive thread
+    /// may also have taken buffers to prepare transfers (USB3 Vision: 1 pushed buffer reads
+    /// -1), so the input count is only bounded there.
     /// </summary>
     private static void AssertStreamOwnsBuffers(int queued, AravisSharp.Stream stream)
     {
-        var (input, output) = stream.GetBufferCounts();
-        if (CameraTestHelpers.UsesFakeCamera)
-            Assert.Equal(queued, input + output);
-        else
+        if (!CameraTestHelpers.UsesFakeCamera)
+        {
+            var input = stream.GetBufferCounts().InputBuffers;
             Assert.True(input <= queued, $"{input} input buffers reported, {queued} pushed");
+            return;
+        }
+
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        int total;
+        do
+        {
+            var (input, output) = stream.GetBufferCounts();
+            total = input + output;
+            if (total == queued)
+                return;
+            System.Threading.Thread.Sleep(5);
+        } while (clock.Elapsed < TimeSpan.FromSeconds(2));
+
+        Assert.Equal(queued, total);
     }
 
     #endregion
