@@ -39,7 +39,7 @@ public static class AravisLibrary
     /// <summary>
     /// The DllImport resolver callback.
     /// </summary>
-    private static IntPtr ResolveDllImport(string libraryName, Assembly assembly, DllImportSearchPath? searchPath)
+    internal static IntPtr ResolveDllImport(string libraryName, Assembly assembly, DllImportSearchPath? searchPath)
     {
         // Determine which set of candidate names to use
         string[]? candidates = null;
