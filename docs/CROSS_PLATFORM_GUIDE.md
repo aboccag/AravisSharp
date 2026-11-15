@@ -74,7 +74,7 @@ runtimes/
     └── aravis-native-versions.txt
 ```
 
-The Windows and macOS file sets are derived from the built binary by CI, not listed by hand; [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) is the authoritative list, and each `aravis-native-versions.txt` records the exact versions shipped.
+The Windows and macOS file sets are derived from the built binary by CI, not listed by hand; [THIRD-PARTY-NOTICES.md](../THIRD-PARTY-NOTICES.md) is the authoritative list, and each `aravis-native-versions.txt` records the exact versions shipped.
 
 ---
 

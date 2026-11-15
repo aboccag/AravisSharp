@@ -89,7 +89,7 @@ dotnet add package AravisSharp
 
 The NuGet package bundles **all** required native DLLs (`libaravis-0.8-0.dll`, GLib, GObject, libxml2, libusb, zlib, …) — no system-wide install necessary.
 
-**USB3 Vision cameras require the WinUSB driver** (one-time setup via [Zadig](https://zadig.akeo.ie/)), with or without a vendor SDK installed. A USB camera switched to WinUSB is no longer visible to the vendor SDK (pylon, …); other cameras are not affected. GigE cameras work without driver changes and alongside vendor SDKs. See [WINDOWS_SETUP.md](https://github.com/aboccag/AravisSharp/blob/main/WINDOWS_SETUP.md#using-aravissharp-alongside-a-vendor-sdk-pylon-spinnaker-) for step-by-step instructions and what can coexist.
+**USB3 Vision cameras require the WinUSB driver** (one-time setup via [Zadig](https://zadig.akeo.ie/)), with or without a vendor SDK installed. A USB camera switched to WinUSB is no longer visible to the vendor SDK (pylon, …); other cameras are not affected. GigE cameras work without driver changes and alongside vendor SDKs. See [WINDOWS_SETUP.md](https://github.com/aboccag/AravisSharp/blob/main/docs/WINDOWS_SETUP.md#using-aravissharp-alongside-a-vendor-sdk-pylon-spinnaker-) for step-by-step instructions and what can coexist.
 
 </details>
 
@@ -243,11 +243,12 @@ Use `v0.8.36.N` for managed binding fixes, bundled dependency updates, or native
 
 | Guide | Description |
 |-------|-------------|
-| [QUICKSTART.md](https://github.com/aboccag/AravisSharp/blob/main/QUICKSTART.md) | Install, connect, capture — quick reference |
-| [WINDOWS_SETUP.md](https://github.com/aboccag/AravisSharp/blob/main/WINDOWS_SETUP.md) | Windows installation + WinUSB driver setup |
-| [CROSS_PLATFORM_GUIDE.md](https://github.com/aboccag/AravisSharp/blob/main/CROSS_PLATFORM_GUIDE.md) | NuGet packaging, Docker, distribution strategies |
-| [FEATURE_BROWSER_GUIDE.md](https://github.com/aboccag/AravisSharp/blob/main/FEATURE_BROWSER_GUIDE.md) | GenICam feature introspection & interactive browser |
-| [PROJECT_SUMMARY.md](https://github.com/aboccag/AravisSharp/blob/main/PROJECT_SUMMARY.md) | Project architecture and status |
+| [QUICKSTART.md](https://github.com/aboccag/AravisSharp/blob/main/docs/QUICKSTART.md) | Install, connect, capture — quick reference |
+| [WINDOWS_SETUP.md](https://github.com/aboccag/AravisSharp/blob/main/docs/WINDOWS_SETUP.md) | Windows installation + WinUSB driver setup |
+| [CROSS_PLATFORM_GUIDE.md](https://github.com/aboccag/AravisSharp/blob/main/docs/CROSS_PLATFORM_GUIDE.md) | NuGet packaging, Docker, distribution strategies |
+| [FEATURE_BROWSER_GUIDE.md](https://github.com/aboccag/AravisSharp/blob/main/docs/FEATURE_BROWSER_GUIDE.md) | GenICam feature introspection & interactive browser |
+| [PROJECT_SUMMARY.md](https://github.com/aboccag/AravisSharp/blob/main/docs/PROJECT_SUMMARY.md) | Project architecture and status |
+| [CHANGELOG.md](https://github.com/aboccag/AravisSharp/blob/main/CHANGELOG.md) | Changes by version |
 
 ## Build Requirements
 

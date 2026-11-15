@@ -162,7 +162,7 @@ The exact file list per platform is in `THIRD-PARTY-NOTICES.md`; CI derives it f
 
 **Framework**: xUnit, net8.0 and net10.0
 
-107 tests per target framework, in 9 files; the per-file breakdown is in [AravisSharp.Tests/README.md](AravisSharp.Tests/README.md). Against the fake camera, 93 run and 14 (real-hardware, GigE-only or USB3-only) are skipped.
+107 tests per target framework, in 9 files; the per-file breakdown is in [AravisSharp.Tests/README.md](../AravisSharp.Tests/README.md). Against the fake camera, 93 run and 14 (real-hardware, GigE-only or USB3-only) are skipped.
 
 Tests marked `[NativeFact]` skip when `libaravis-0.8` is not installed. The suite runs against the Aravis fake camera — in CI, with no hardware. Real hardware is opt-in: it opens a real camera only when `ARAVIS_TEST_DEVICE_ID` names it, because the tests reconfigure and stream from the camera they open.
 
