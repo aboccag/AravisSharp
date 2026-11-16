@@ -56,6 +56,11 @@ Package versions mirror the native Aravis version they target (`0.8.36` targets
   code (#10).
 
 ### Fixed
+- The declarations of `arv_camera_gv_get_packet_size` and `arv_camera_gv_auto_packet_size`
+  return `uint`, as the `guint` of Aravis; `Camera.GvGetPacketSize` still returns `int`
+  (a checked conversion) and `Camera.GvAutoPacketSize` still returns nothing. A test now
+  compares every P/Invoke declaration of `AravisNative` and `GLibNative` with its C
+  prototype in the Aravis and GLib headers (#11).
 - Native signatures, ownership and object lifetimes in the binding; the `dup_*` arrays
   are freed once.
 - The `Camera` members that take a feature name throw `ArgumentNullException` on `null`
