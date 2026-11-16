@@ -63,11 +63,12 @@ public class Stream : IDisposable
     /// capped by <see cref="SetSocketBufferSize"/>; <see cref="ArvGvStreamSocketBuffer.Fixed"/>
     /// (Aravis' default) uses <see cref="SetSocketBufferSize"/> as is.
     /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="policy"/> is not a member of the enum: Aravis refused it and kept the previous policy.</exception>
     public void SetSocketBufferPolicy(ArvGvStreamSocketBuffer policy)
     {
         CheckDisposed();
         CheckGigE();
-        GLibNative.SetEnumProperty(_handle, "socket-buffer", AravisNative.arv_gv_stream_socket_buffer_get_type(), (int)policy);
+        GLibNative.SetEnumProperty(_handle, "socket-buffer", AravisNative.arv_gv_stream_socket_buffer_get_type(), (int)policy, nameof(policy));
         GC.KeepAlive(this);
     }
 
@@ -78,11 +79,12 @@ public class Stream : IDisposable
     /// system default with Fixed, one payload with Auto. Aravis applies it when the first
     /// frame arrives.
     /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="sizeBytes"/> is below -1, the property's minimum: Aravis refused it and kept the previous size.</exception>
     public void SetSocketBufferSize(int sizeBytes)
     {
         CheckDisposed();
         CheckGigE();
-        GLibNative.SetIntProperty(_handle, "socket-buffer-size", sizeBytes);
+        GLibNative.SetIntProperty(_handle, "socket-buffer-size", sizeBytes, nameof(sizeBytes));
         GC.KeepAlive(this);
     }
 
@@ -105,11 +107,12 @@ public class Stream : IDisposable
     /// reports packet resend support and <see cref="ArvGvStreamPacketResend.Never"/> otherwise;
     /// with Never, an incomplete frame is closed as soon as the next one starts.
     /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="policy"/> is not a member of the enum: Aravis refused it and kept the previous policy.</exception>
     public void SetPacketResend(ArvGvStreamPacketResend policy)
     {
         CheckDisposed();
         CheckGigE();
-        GLibNative.SetEnumProperty(_handle, "packet-resend", AravisNative.arv_gv_stream_packet_resend_get_type(), (int)policy);
+        GLibNative.SetEnumProperty(_handle, "packet-resend", AravisNative.arv_gv_stream_packet_resend_get_type(), (int)policy, nameof(policy));
         GC.KeepAlive(this);
     }
 
@@ -136,7 +139,7 @@ public class Stream : IDisposable
     {
         CheckDisposed();
         CheckGigE();
-        GLibNative.SetUIntProperty(_handle, "initial-packet-timeout", timeoutUs);
+        GLibNative.SetUIntProperty(_handle, "initial-packet-timeout", timeoutUs, nameof(timeoutUs));
         GC.KeepAlive(this);
     }
 
@@ -160,7 +163,7 @@ public class Stream : IDisposable
     {
         CheckDisposed();
         CheckGigE();
-        GLibNative.SetUIntProperty(_handle, "packet-timeout", timeoutUs);
+        GLibNative.SetUIntProperty(_handle, "packet-timeout", timeoutUs, nameof(timeoutUs));
         GC.KeepAlive(this);
     }
 
@@ -184,7 +187,7 @@ public class Stream : IDisposable
     {
         CheckDisposed();
         CheckGigE();
-        GLibNative.SetUIntProperty(_handle, "frame-retention", timeoutUs);
+        GLibNative.SetUIntProperty(_handle, "frame-retention", timeoutUs, nameof(timeoutUs));
         GC.KeepAlive(this);
     }
 
