@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using AravisSharp.Native;
 
 namespace AravisSharp;
@@ -43,6 +44,25 @@ public class Stream : IDisposable
 
     internal IntPtr Handle => _handle;
 
+    /// <summary>
+    /// True when this is a GigE Vision stream (an ArvGvStream), on which the GigE members
+    /// (<see cref="SetSocketBufferPolicy"/>, <see cref="SetSocketBufferSize"/>, the packet
+    /// resend and timing members, <see cref="ConfigureGigEDefaults"/> and
+    /// <see cref="GetGigEStatistics"/>) can be used. On any other stream (USB3 Vision, the
+    /// Aravis fake camera) they throw <see cref="NotSupportedException"/>.
+    /// </summary>
+    /// <exception cref="ObjectDisposedException">The stream has been disposed.</exception>
+    public bool IsGigEVision
+    {
+        get
+        {
+            CheckDisposed();
+            var result = GLibNative.g_type_check_instance_is_a(_handle, AravisNative.arv_gv_stream_get_type());
+            GC.KeepAlive(this);
+            return result;
+        }
+    }
+
     internal Stream(IntPtr handle)
     {
         _handle = handle;
@@ -64,6 +84,7 @@ public class Stream : IDisposable
     /// (Aravis' default) uses <see cref="SetSocketBufferSize"/> as is.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="policy"/> is not a member of the enum: Aravis refused it and kept the previous policy.</exception>
+    /// <exception cref="NotSupportedException">The stream is not a GigE Vision stream (see <see cref="IsGigEVision"/>).</exception>
     public void SetSocketBufferPolicy(ArvGvStreamSocketBuffer policy)
     {
         CheckDisposed();
@@ -78,8 +99,17 @@ public class Stream : IDisposable
     /// <see cref="ArvGvStreamSocketBuffer.Auto"/>. 0 or less means "not set": the operating
     /// system default with Fixed, one payload with Auto. Aravis applies it when the first
     /// frame arrives.
+    /// <para>
+    /// On Linux the kernel silently caps the receive buffer at <c>net.core.rmem_max</c>
+    /// (about 208 KiB by default): a larger size is reduced without an error, and Aravis only
+    /// reports it as a warning of its debug output, shown when that is enabled
+    /// (<c>ARV_DEBUG=interface</c>). Raise the cap
+    /// (<c>sysctl -w net.core.rmem_max=&lt;bytes&gt;</c>) for the requested size to take effect.
+    /// <see cref="GetSocketBufferSize"/> returns the requested size, not the granted one.
+    /// </para>
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="sizeBytes"/> is below -1, the property's minimum: Aravis refused it and kept the previous size.</exception>
+    /// <exception cref="NotSupportedException">The stream is not a GigE Vision stream (see <see cref="IsGigEVision"/>).</exception>
     public void SetSocketBufferSize(int sizeBytes)
     {
         CheckDisposed();
@@ -92,6 +122,7 @@ public class Stream : IDisposable
     /// Gets the socket buffer size setting (the socket-buffer-size property, not the size the
     /// operating system actually granted).
     /// </summary>
+    /// <exception cref="NotSupportedException">The stream is not a GigE Vision stream (see <see cref="IsGigEVision"/>).</exception>
     public int GetSocketBufferSize()
     {
         CheckDisposed();
@@ -108,6 +139,7 @@ public class Stream : IDisposable
     /// with Never, an incomplete frame is closed as soon as the next one starts.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="policy"/> is not a member of the enum: Aravis refused it and kept the previous policy.</exception>
+    /// <exception cref="NotSupportedException">The stream is not a GigE Vision stream (see <see cref="IsGigEVision"/>).</exception>
     public void SetPacketResend(ArvGvStreamPacketResend policy)
     {
         CheckDisposed();
@@ -117,6 +149,7 @@ public class Stream : IDisposable
     }
 
     /// <summary>Gets the packet resend policy of the GigE Vision stream.</summary>
+    /// <exception cref="NotSupportedException">The stream is not a GigE Vision stream (see <see cref="IsGigEVision"/>).</exception>
     public ArvGvStreamPacketResend GetPacketResend()
     {
         CheckDisposed();
@@ -135,6 +168,7 @@ public class Stream : IDisposable
     /// no packet arrived for it during the frame retention, so a longer initial timeout means
     /// no resend is ever requested.
     /// </summary>
+    /// <exception cref="NotSupportedException">The stream is not a GigE Vision stream (see <see cref="IsGigEVision"/>).</exception>
     public void SetInitialPacketTimeout(uint timeoutUs)
     {
         CheckDisposed();
@@ -144,6 +178,7 @@ public class Stream : IDisposable
     }
 
     /// <summary>Gets the initial packet timeout of the GigE Vision stream, in microseconds.</summary>
+    /// <exception cref="NotSupportedException">The stream is not a GigE Vision stream (see <see cref="IsGigEVision"/>).</exception>
     public uint GetInitialPacketTimeout()
     {
         CheckDisposed();
@@ -159,6 +194,7 @@ public class Stream : IDisposable
     /// gets roughly (frame retention - initial packet timeout) / packet timeout requests per
     /// missing packet before it times out.
     /// </summary>
+    /// <exception cref="NotSupportedException">The stream is not a GigE Vision stream (see <see cref="IsGigEVision"/>).</exception>
     public void SetPacketTimeout(uint timeoutUs)
     {
         CheckDisposed();
@@ -168,6 +204,7 @@ public class Stream : IDisposable
     }
 
     /// <summary>Gets the packet timeout of the GigE Vision stream, in microseconds.</summary>
+    /// <exception cref="NotSupportedException">The stream is not a GigE Vision stream (see <see cref="IsGigEVision"/>).</exception>
     public uint GetPacketTimeout()
     {
         CheckDisposed();
@@ -183,6 +220,7 @@ public class Stream : IDisposable
     /// Aravis' default is 100000 (100 ms). Frames are delivered in order, so a frame waiting for
     /// packets also holds back the complete frames behind it, and their buffers.
     /// </summary>
+    /// <exception cref="NotSupportedException">The stream is not a GigE Vision stream (see <see cref="IsGigEVision"/>).</exception>
     public void SetFrameRetention(uint timeoutUs)
     {
         CheckDisposed();
@@ -192,6 +230,7 @@ public class Stream : IDisposable
     }
 
     /// <summary>Gets the frame retention of the GigE Vision stream, in microseconds.</summary>
+    /// <exception cref="NotSupportedException">The stream is not a GigE Vision stream (see <see cref="IsGigEVision"/>).</exception>
     public uint GetFrameRetention()
     {
         CheckDisposed();
@@ -222,11 +261,19 @@ public class Stream : IDisposable
     /// NIC that drops packets) needs a lower frame rate or an inter-packet delay
     /// (<see cref="Camera.GvSetPacketDelay"/>); <see cref="GetGigEStatistics"/> shows both.
     /// </summary>
+    /// <remarks>
+    /// On Linux the kernel silently caps the socket buffer at <c>net.core.rmem_max</c> (about
+    /// 208 KiB by default), so the 4 MB default is reduced to that cap unless it is raised
+    /// (<c>sysctl -w net.core.rmem_max=&lt;bytes&gt;</c>); Aravis only reports it when its debug
+    /// output is enabled (<c>ARV_DEBUG=interface</c>). See <see cref="SetSocketBufferSize"/>.
+    /// </remarks>
     /// <param name="socketBufferSizeMB">Upper bound of the socket buffer in megabytes (default: 4);
     /// 0 sizes it to one payload without a cap.</param>
+    /// <exception cref="NotSupportedException">The stream is not a GigE Vision stream (see <see cref="IsGigEVision"/>).</exception>
     public void ConfigureGigEDefaults(int socketBufferSizeMB = 4)
     {
         CheckDisposed();
+        CheckGigE();
         if (socketBufferSizeMB < 0 || socketBufferSizeMB > int.MaxValue / (1024 * 1024))
             throw new ArgumentOutOfRangeException(nameof(socketBufferSizeMB), socketBufferSizeMB,
                 "The socket buffer cap must be between 0 and 2047 MB.");
@@ -354,6 +401,7 @@ public class Stream : IDisposable
     /// every packet after the first gap, including packets that did arrive, so it
     /// overstates the loss; it stays 0 while resends recover every loss.
     /// </summary>
+    /// <exception cref="NotSupportedException">The stream is not a GigE Vision stream (see <see cref="IsGigEVision"/>).</exception>
     public (ushort Port, ulong ResentPackets, ulong MissingPackets) GetGigEStatistics()
     {
         CheckDisposed();
@@ -372,10 +420,13 @@ public class Stream : IDisposable
         }
     }
 
-    private void CheckGigE()
+    // The one GigE guard of Stream: called after CheckDisposed and before any native call
+    // of a GigE member. Same message pattern as Camera.CheckGigE.
+    private void CheckGigE([CallerMemberName] string member = "")
     {
-        if (!GLibNative.g_type_check_instance_is_a(_handle, AravisNative.arv_gv_stream_get_type()))
-            throw new InvalidOperationException("This operation requires a GigE Vision stream.");
+        if (!IsGigEVision)
+            throw new NotSupportedException(
+                $"{member} requires a GigE Vision stream; check {nameof(Stream)}.{nameof(IsGigEVision)} first.");
     }
 
     public void Dispose()

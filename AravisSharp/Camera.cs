@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using AravisSharp.Native;
 
@@ -33,7 +34,7 @@ public class Camera : IDisposable
             
             if (error != IntPtr.Zero)
             {
-                throw new AravisException(GetErrorMessage(error));
+                throw AravisException.TakeGError(ref error);
             }
 
             if (_handle == IntPtr.Zero)
@@ -64,7 +65,7 @@ public class Camera : IDisposable
         try
         {
             var ptr = AravisNative.arv_camera_get_vendor_name(_handle, out error);
-            CheckError(error);
+            CheckError(ref error);
             return MarshalString(ptr);
         }
         finally
@@ -84,7 +85,7 @@ public class Camera : IDisposable
         try
         {
             var ptr = AravisNative.arv_camera_get_model_name(_handle, out error);
-            CheckError(error);
+            CheckError(ref error);
             return MarshalString(ptr);
         }
         finally
@@ -104,7 +105,7 @@ public class Camera : IDisposable
         try
         {
             var ptr = AravisNative.arv_camera_get_device_serial_number(_handle, out error);
-            CheckError(error);
+            CheckError(ref error);
             return MarshalString(ptr);
         }
         finally
@@ -124,7 +125,7 @@ public class Camera : IDisposable
         try
         {
             var ptr = AravisNative.arv_camera_get_device_id(_handle, out error);
-            CheckError(error);
+            CheckError(ref error);
             return MarshalString(ptr);
         }
         finally
@@ -144,7 +145,7 @@ public class Camera : IDisposable
         try
         {
             AravisNative.arv_camera_get_region(_handle, out int x, out int y, out int width, out int height, out error);
-            CheckError(error);
+            CheckError(ref error);
             return (x, y, width, height);
         }
         finally
@@ -164,7 +165,7 @@ public class Camera : IDisposable
         try
         {
             AravisNative.arv_camera_set_region(_handle, x, y, width, height, out error);
-            CheckError(error);
+            CheckError(ref error);
         }
         finally
         {
@@ -183,7 +184,7 @@ public class Camera : IDisposable
         try
         {
             AravisNative.arv_camera_get_width_bounds(_handle, out int min, out int max, out error);
-            CheckError(error);
+            CheckError(ref error);
             return (min, max);
         }
         finally
@@ -203,7 +204,7 @@ public class Camera : IDisposable
         try
         {
             AravisNative.arv_camera_get_height_bounds(_handle, out int min, out int max, out error);
-            CheckError(error);
+            CheckError(ref error);
             return (min, max);
         }
         finally
@@ -223,7 +224,7 @@ public class Camera : IDisposable
         try
         {
             var value = AravisNative.arv_camera_get_exposure_time(_handle, out error);
-            CheckError(error);
+            CheckError(ref error);
             return value;
         }
         finally
@@ -243,7 +244,7 @@ public class Camera : IDisposable
         try
         {
             AravisNative.arv_camera_set_exposure_time(_handle, exposureTimeUs, out error);
-            CheckError(error);
+            CheckError(ref error);
         }
         finally
         {
@@ -262,7 +263,7 @@ public class Camera : IDisposable
         try
         {
             AravisNative.arv_camera_get_exposure_time_bounds(_handle, out double min, out double max, out error);
-            CheckError(error);
+            CheckError(ref error);
             return (min, max);
         }
         finally
@@ -282,7 +283,7 @@ public class Camera : IDisposable
         try
         {
             var value = AravisNative.arv_camera_get_gain(_handle, out error);
-            CheckError(error);
+            CheckError(ref error);
             return value;
         }
         finally
@@ -302,7 +303,7 @@ public class Camera : IDisposable
         try
         {
             AravisNative.arv_camera_set_gain(_handle, gain, out error);
-            CheckError(error);
+            CheckError(ref error);
         }
         finally
         {
@@ -321,7 +322,7 @@ public class Camera : IDisposable
         try
         {
             AravisNative.arv_camera_get_gain_bounds(_handle, out double min, out double max, out error);
-            CheckError(error);
+            CheckError(ref error);
             return (min, max);
         }
         finally
@@ -341,7 +342,7 @@ public class Camera : IDisposable
         try
         {
             var value = AravisNative.arv_camera_get_frame_rate(_handle, out error);
-            CheckError(error);
+            CheckError(ref error);
             return value;
         }
         finally
@@ -361,7 +362,7 @@ public class Camera : IDisposable
         try
         {
             AravisNative.arv_camera_set_frame_rate(_handle, frameRate, out error);
-            CheckError(error);
+            CheckError(ref error);
         }
         finally
         {
@@ -380,7 +381,7 @@ public class Camera : IDisposable
         try
         {
             AravisNative.arv_camera_get_frame_rate_bounds(_handle, out double min, out double max, out error);
-            CheckError(error);
+            CheckError(ref error);
             return (min, max);
         }
         finally
@@ -400,7 +401,7 @@ public class Camera : IDisposable
         try
         {
             AravisNative.arv_camera_get_binning(_handle, out int dx, out int dy, out error);
-            CheckError(error);
+            CheckError(ref error);
             return (dx, dy);
         }
         finally
@@ -421,7 +422,7 @@ public class Camera : IDisposable
         try
         {
             AravisNative.arv_camera_set_binning(_handle, horizontal, vertical, out error);
-            CheckError(error);
+            CheckError(ref error);
         }
         finally
         {
@@ -440,7 +441,7 @@ public class Camera : IDisposable
         try
         {
             var ptr = AravisNative.arv_camera_get_pixel_format_as_string(_handle, out error);
-            CheckError(error);
+            CheckError(ref error);
             return MarshalString(ptr);
         }
         finally
@@ -462,7 +463,7 @@ public class Camera : IDisposable
         {
             formatPtr = Marshal.StringToCoTaskMemUTF8(format);
             AravisNative.arv_camera_set_pixel_format_from_string(_handle, formatPtr, out error);
-            CheckError(error);
+            CheckError(ref error);
         }
         finally
         {
@@ -483,7 +484,7 @@ public class Camera : IDisposable
         try
         {
             AravisNative.arv_camera_start_acquisition(_handle, out error);
-            CheckError(error);
+            CheckError(ref error);
         }
         finally
         {
@@ -502,7 +503,7 @@ public class Camera : IDisposable
         try
         {
             AravisNative.arv_camera_stop_acquisition(_handle, out error);
-            CheckError(error);
+            CheckError(ref error);
         }
         finally
         {
@@ -521,7 +522,7 @@ public class Camera : IDisposable
         try
         {
             AravisNative.arv_camera_abort_acquisition(_handle, out error);
-            CheckError(error);
+            CheckError(ref error);
         }
         finally
         {
@@ -547,7 +548,7 @@ public class Camera : IDisposable
         {
             sourcePtr = Marshal.StringToCoTaskMemUTF8(source);
             AravisNative.arv_camera_set_trigger(_handle, sourcePtr, out error);
-            CheckError(error);
+            CheckError(ref error);
         }
         finally
         {
@@ -572,7 +573,7 @@ public class Camera : IDisposable
         {
             sourcePtr = Marshal.StringToCoTaskMemUTF8(source);
             AravisNative.arv_camera_set_trigger_source(_handle, sourcePtr, out error);
-            CheckError(error);
+            CheckError(ref error);
         }
         finally
         {
@@ -595,7 +596,7 @@ public class Camera : IDisposable
         try
         {
             var ptr = AravisNative.arv_camera_get_trigger_source(_handle, out error);
-            CheckError(error);
+            CheckError(ref error);
             return MarshalString(ptr);
         }
         finally
@@ -615,7 +616,7 @@ public class Camera : IDisposable
         try
         {
             AravisNative.arv_camera_clear_triggers(_handle, out error);
-            CheckError(error);
+            CheckError(ref error);
         }
         finally
         {
@@ -635,7 +636,7 @@ public class Camera : IDisposable
         try
         {
             var result = AravisNative.arv_camera_is_software_trigger_supported(_handle, out error);
-            CheckError(error);
+            CheckError(ref error);
             return result;
         }
         finally
@@ -657,7 +658,7 @@ public class Camera : IDisposable
         try
         {
             var size = AravisNative.arv_camera_get_payload(_handle, out error);
-            CheckError(error);
+            CheckError(ref error);
             return size;
         }
         finally
@@ -677,7 +678,7 @@ public class Camera : IDisposable
         try
         {
             AravisNative.arv_camera_software_trigger(_handle, out error);
-            CheckError(error);
+            CheckError(ref error);
         }
         finally
         {
@@ -698,7 +699,7 @@ public class Camera : IDisposable
         try
         {
             AravisNative.arv_camera_get_sensor_size(_handle, out int width, out int height, out error);
-            CheckError(error);
+            CheckError(ref error);
             return (width, height);
         }
         finally
@@ -724,7 +725,7 @@ public class Camera : IDisposable
         {
             featurePtr = Marshal.StringToCoTaskMemUTF8(feature);
             AravisNative.arv_camera_execute_command(_handle, featurePtr, out error);
-            CheckError(error);
+            CheckError(ref error);
         }
         finally
         {
@@ -747,7 +748,7 @@ public class Camera : IDisposable
         try
         {
             var mode = AravisNative.arv_camera_get_acquisition_mode(_handle, out error);
-            CheckError(error);
+            CheckError(ref error);
             return (ArvAcquisitionMode)mode;
         }
         finally
@@ -767,7 +768,7 @@ public class Camera : IDisposable
         try
         {
             AravisNative.arv_camera_set_acquisition_mode(_handle, (int)mode, out error);
-            CheckError(error);
+            CheckError(ref error);
         }
         finally
         {
@@ -788,7 +789,7 @@ public class Camera : IDisposable
         try
         {
             var count = AravisNative.arv_camera_get_frame_count(_handle, out error);
-            CheckError(error);
+            CheckError(ref error);
             return count;
         }
         finally
@@ -808,7 +809,7 @@ public class Camera : IDisposable
         try
         {
             AravisNative.arv_camera_set_frame_count(_handle, count, out error);
-            CheckError(error);
+            CheckError(ref error);
         }
         finally
         {
@@ -827,7 +828,7 @@ public class Camera : IDisposable
         try
         {
             AravisNative.arv_camera_get_frame_count_bounds(_handle, out long min, out long max, out error);
-            CheckError(error);
+            CheckError(ref error);
             return (min, max);
         }
         finally
@@ -849,7 +850,7 @@ public class Camera : IDisposable
         try
         {
             var mode = AravisNative.arv_camera_get_exposure_time_auto(_handle, out error);
-            CheckError(error);
+            CheckError(ref error);
             return (ArvAuto)mode;
         }
         finally
@@ -869,7 +870,7 @@ public class Camera : IDisposable
         try
         {
             AravisNative.arv_camera_set_exposure_time_auto(_handle, (int)mode, out error);
-            CheckError(error);
+            CheckError(ref error);
         }
         finally
         {
@@ -890,7 +891,7 @@ public class Camera : IDisposable
         try
         {
             var mode = AravisNative.arv_camera_get_gain_auto(_handle, out error);
-            CheckError(error);
+            CheckError(ref error);
             return (ArvAuto)mode;
         }
         finally
@@ -910,7 +911,7 @@ public class Camera : IDisposable
         try
         {
             AravisNative.arv_camera_set_gain_auto(_handle, (int)mode, out error);
-            CheckError(error);
+            CheckError(ref error);
         }
         finally
         {
@@ -934,7 +935,7 @@ public class Camera : IDisposable
         {
             featurePtr = Marshal.StringToCoTaskMemUTF8(feature);
             var ptr = AravisNative.arv_camera_get_string(_handle, featurePtr, out error);
-            CheckError(error);
+            CheckError(ref error);
             return MarshalString(ptr);
         }
         finally
@@ -961,7 +962,7 @@ public class Camera : IDisposable
             featurePtr = Marshal.StringToCoTaskMemUTF8(feature);
             valuePtr = Marshal.StringToCoTaskMemUTF8(value);
             AravisNative.arv_camera_set_string(_handle, featurePtr, valuePtr, out error);
-            CheckError(error);
+            CheckError(ref error);
         }
         finally
         {
@@ -987,7 +988,7 @@ public class Camera : IDisposable
         {
             featurePtr = Marshal.StringToCoTaskMemUTF8(feature);
             var value = AravisNative.arv_camera_get_integer(_handle, featurePtr, out error);
-            CheckError(error);
+            CheckError(ref error);
             return value;
         }
         finally
@@ -1012,7 +1013,7 @@ public class Camera : IDisposable
         {
             featurePtr = Marshal.StringToCoTaskMemUTF8(feature);
             AravisNative.arv_camera_set_integer(_handle, featurePtr, value, out error);
-            CheckError(error);
+            CheckError(ref error);
         }
         finally
         {
@@ -1036,7 +1037,7 @@ public class Camera : IDisposable
         {
             featurePtr = Marshal.StringToCoTaskMemUTF8(feature);
             var value = AravisNative.arv_camera_get_float(_handle, featurePtr, out error);
-            CheckError(error);
+            CheckError(ref error);
             return value;
         }
         finally
@@ -1061,7 +1062,7 @@ public class Camera : IDisposable
         {
             featurePtr = Marshal.StringToCoTaskMemUTF8(feature);
             AravisNative.arv_camera_set_float(_handle, featurePtr, value, out error);
-            CheckError(error);
+            CheckError(ref error);
         }
         finally
         {
@@ -1085,7 +1086,7 @@ public class Camera : IDisposable
         {
             featurePtr = Marshal.StringToCoTaskMemUTF8(feature);
             var value = AravisNative.arv_camera_get_boolean(_handle, featurePtr, out error);
-            CheckError(error);
+            CheckError(ref error);
             return value;
         }
         finally
@@ -1110,7 +1111,7 @@ public class Camera : IDisposable
         {
             featurePtr = Marshal.StringToCoTaskMemUTF8(feature);
             AravisNative.arv_camera_set_boolean(_handle, featurePtr, value, out error);
-            CheckError(error);
+            CheckError(ref error);
         }
         finally
         {
@@ -1136,7 +1137,7 @@ public class Camera : IDisposable
         {
             featurePtr = Marshal.StringToCoTaskMemUTF8(feature);
             AravisNative.arv_camera_get_integer_bounds(_handle, featurePtr, out long min, out long max, out error);
-            CheckError(error);
+            CheckError(ref error);
             return (min, max);
         }
         finally
@@ -1161,7 +1162,7 @@ public class Camera : IDisposable
         {
             featurePtr = Marshal.StringToCoTaskMemUTF8(feature);
             AravisNative.arv_camera_get_float_bounds(_handle, featurePtr, out double min, out double max, out error);
-            CheckError(error);
+            CheckError(ref error);
             return (min, max);
         }
         finally
@@ -1188,7 +1189,7 @@ public class Camera : IDisposable
         {
             featurePtr = Marshal.StringToCoTaskMemUTF8(feature);
             var increment = AravisNative.arv_camera_get_integer_increment(_handle, featurePtr, out error);
-            CheckError(error);
+            CheckError(ref error);
             return increment;
         }
         finally
@@ -1213,7 +1214,7 @@ public class Camera : IDisposable
         {
             featurePtr = Marshal.StringToCoTaskMemUTF8(feature);
             var increment = AravisNative.arv_camera_get_float_increment(_handle, featurePtr, out error);
-            CheckError(error);
+            CheckError(ref error);
             return increment;
         }
         finally
@@ -1235,7 +1236,7 @@ public class Camera : IDisposable
         try
         {
             var increment = AravisNative.arv_camera_get_width_increment(_handle, out error);
-            CheckError(error);
+            CheckError(ref error);
             return increment;
         }
         finally
@@ -1255,7 +1256,7 @@ public class Camera : IDisposable
         try
         {
             var increment = AravisNative.arv_camera_get_height_increment(_handle, out error);
-            CheckError(error);
+            CheckError(ref error);
             return increment;
         }
         finally
@@ -1280,7 +1281,7 @@ public class Camera : IDisposable
         {
             featurePtr = Marshal.StringToCoTaskMemUTF8(feature);
             var available = AravisNative.arv_camera_is_feature_available(_handle, featurePtr, out error);
-            CheckError(error);
+            CheckError(ref error);
             return available;
         }
         finally
@@ -1302,7 +1303,7 @@ public class Camera : IDisposable
         try
         {
             var available = AravisNative.arv_camera_is_binning_available(_handle, out error);
-            CheckError(error);
+            CheckError(ref error);
             return available;
         }
         finally
@@ -1322,7 +1323,7 @@ public class Camera : IDisposable
         try
         {
             var available = AravisNative.arv_camera_is_exposure_time_available(_handle, out error);
-            CheckError(error);
+            CheckError(ref error);
             return available;
         }
         finally
@@ -1342,7 +1343,7 @@ public class Camera : IDisposable
         try
         {
             var available = AravisNative.arv_camera_is_exposure_auto_available(_handle, out error);
-            CheckError(error);
+            CheckError(ref error);
             return available;
         }
         finally
@@ -1362,7 +1363,7 @@ public class Camera : IDisposable
         try
         {
             var available = AravisNative.arv_camera_is_gain_available(_handle, out error);
-            CheckError(error);
+            CheckError(ref error);
             return available;
         }
         finally
@@ -1382,7 +1383,7 @@ public class Camera : IDisposable
         try
         {
             var available = AravisNative.arv_camera_is_gain_auto_available(_handle, out error);
-            CheckError(error);
+            CheckError(ref error);
             return available;
         }
         finally
@@ -1402,7 +1403,7 @@ public class Camera : IDisposable
         try
         {
             var available = AravisNative.arv_camera_is_frame_rate_available(_handle, out error);
-            CheckError(error);
+            CheckError(ref error);
             return available;
         }
         finally
@@ -1441,14 +1442,16 @@ public class Camera : IDisposable
     /// <summary>
     /// Automatically determines and sets the optimal packet size for GigE Vision cameras
     /// </summary>
+    /// <exception cref="NotSupportedException">The camera is not a GigE Vision camera (see <see cref="IsGigEVisionDevice"/>).</exception>
     public void GvAutoPacketSize()
     {
         CheckDisposed();
+        CheckGigE();
         IntPtr error = IntPtr.Zero;
         try
         {
             AravisNative.arv_camera_gv_auto_packet_size(_handle, out error);
-            CheckError(error);
+            CheckError(ref error);
         }
         finally
         {
@@ -1460,14 +1463,16 @@ public class Camera : IDisposable
     /// <summary>
     /// Gets the packet size for GigE Vision cameras (in bytes)
     /// </summary>
+    /// <exception cref="NotSupportedException">The camera is not a GigE Vision camera (see <see cref="IsGigEVisionDevice"/>).</exception>
     public int GvGetPacketSize()
     {
         CheckDisposed();
+        CheckGigE();
         IntPtr error = IntPtr.Zero;
         try
         {
             var size = AravisNative.arv_camera_gv_get_packet_size(_handle, out error);
-            CheckError(error);
+            CheckError(ref error);
             return size;
         }
         finally
@@ -1480,14 +1485,16 @@ public class Camera : IDisposable
     /// <summary>
     /// Sets the packet size for GigE Vision cameras (in bytes)
     /// </summary>
+    /// <exception cref="NotSupportedException">The camera is not a GigE Vision camera (see <see cref="IsGigEVisionDevice"/>).</exception>
     public void GvSetPacketSize(int size)
     {
         CheckDisposed();
+        CheckGigE();
         IntPtr error = IntPtr.Zero;
         try
         {
             AravisNative.arv_camera_gv_set_packet_size(_handle, size, out error);
-            CheckError(error);
+            CheckError(ref error);
         }
         finally
         {
@@ -1508,7 +1515,7 @@ public class Camera : IDisposable
         try
         {
             var bandwidth = AravisNative.arv_camera_uv_get_bandwidth(_handle, out error);
-            CheckError(error);
+            CheckError(ref error);
             return bandwidth;
         }
         finally
@@ -1529,7 +1536,7 @@ public class Camera : IDisposable
         try
         {
             AravisNative.arv_camera_uv_set_bandwidth(_handle, bandwidth, out error);
-            CheckError(error);
+            CheckError(ref error);
         }
         finally
         {
@@ -1548,7 +1555,7 @@ public class Camera : IDisposable
         try
         {
             AravisNative.arv_camera_uv_get_bandwidth_bounds(_handle, out uint min, out uint max, out error);
-            CheckError(error);
+            CheckError(ref error);
             return (min, max);
         }
         finally
@@ -1568,7 +1575,7 @@ public class Camera : IDisposable
         try
         {
             var available = AravisNative.arv_camera_uv_is_bandwidth_control_available(_handle, out error);
-            CheckError(error);
+            CheckError(ref error);
             return available;
         }
         finally
@@ -1583,14 +1590,16 @@ public class Camera : IDisposable
     /// <summary>
     /// Gets the current IP configuration mode of a GigE Vision camera
     /// </summary>
+    /// <exception cref="NotSupportedException">The camera is not a GigE Vision camera (see <see cref="IsGigEVisionDevice"/>).</exception>
     public ArvGvIpConfigurationMode GvGetIpConfigurationMode()
     {
         CheckDisposed();
+        CheckGigE();
         IntPtr error = IntPtr.Zero;
         try
         {
             var mode = AravisNative.arv_camera_gv_get_ip_configuration_mode(_handle, out error);
-            CheckError(error);
+            CheckError(ref error);
             return (ArvGvIpConfigurationMode)mode;
         }
         finally
@@ -1604,14 +1613,16 @@ public class Camera : IDisposable
     /// The change takes effect after a camera reboot.
     /// </summary>
     /// <param name="mode">Desired configuration mode (PersistentIp, Dhcp, Lla)</param>
+    /// <exception cref="NotSupportedException">The camera is not a GigE Vision camera (see <see cref="IsGigEVisionDevice"/>).</exception>
     public void GvSetIpConfigurationMode(ArvGvIpConfigurationMode mode)
     {
         CheckDisposed();
+        CheckGigE();
         IntPtr error = IntPtr.Zero;
         try
         {
             AravisNative.arv_camera_gv_set_ip_configuration_mode(_handle, (int)mode, out error);
-            CheckError(error);
+            CheckError(ref error);
         }
         finally
         {
@@ -1623,15 +1634,17 @@ public class Camera : IDisposable
     /// Gets the persistent (static) IP configuration stored in the camera.
     /// Returns dotted-decimal strings. Only meaningful when the camera is in PersistentIp mode.
     /// </summary>
+    /// <exception cref="NotSupportedException">The camera is not a GigE Vision camera (see <see cref="IsGigEVisionDevice"/>).</exception>
     public (string Ip, string Mask, string Gateway) GvGetPersistentIp()
     {
         CheckDisposed();
+        CheckGigE();
         IntPtr error = IntPtr.Zero;
         IntPtr ipObj = IntPtr.Zero, maskObj = IntPtr.Zero, gwObj = IntPtr.Zero;
         try
         {
             AravisNative.arv_camera_gv_get_persistent_ip(_handle, out ipObj, out maskObj, out gwObj, out error);
-            CheckError(error);
+            CheckError(ref error);
 
             string ip = GInetAddressToString(ipObj);
             string mask = GInetAddressMaskToDotted(maskObj);
@@ -1655,9 +1668,11 @@ public class Camera : IDisposable
     /// <param name="ip">IP address string, e.g. "192.168.1.100"</param>
     /// <param name="mask">Subnet mask string, e.g. "255.255.255.0"</param>
     /// <param name="gateway">Default gateway string, e.g. "192.168.1.1" (null/empty for none)</param>
+    /// <exception cref="NotSupportedException">The camera is not a GigE Vision camera (see <see cref="IsGigEVisionDevice"/>).</exception>
     public void GvSetPersistentIp(string ip, string mask, string? gateway)
     {
         CheckDisposed();
+        CheckGigE();
         IntPtr error = IntPtr.Zero;
         IntPtr ipPtr = IntPtr.Zero, maskPtr = IntPtr.Zero, gwPtr = IntPtr.Zero;
         try
@@ -1669,7 +1684,7 @@ public class Camera : IDisposable
                 gwPtr = Marshal.StringToCoTaskMemUTF8(gateway);
 
             AravisNative.arv_camera_gv_set_persistent_ip_from_string(_handle, ipPtr, maskPtr, gwPtr, out error);
-            CheckError(error);
+            CheckError(ref error);
         }
         finally
         {
@@ -1710,14 +1725,16 @@ public class Camera : IDisposable
     /// <summary>
     /// Gets the number of network interfaces available on a GigE Vision camera
     /// </summary>
+    /// <exception cref="NotSupportedException">The camera is not a GigE Vision camera (see <see cref="IsGigEVisionDevice"/>).</exception>
     public int GvGetNetworkInterfaceCount()
     {
         CheckDisposed();
+        CheckGigE();
         IntPtr error = IntPtr.Zero;
         try
         {
             var count = AravisNative.arv_camera_gv_get_n_network_interfaces(_handle, out error);
-            CheckError(error);
+            CheckError(ref error);
             return count;
         }
         finally
@@ -1746,7 +1763,7 @@ public class Camera : IDisposable
             // A failed stop acquisition still returns the popped buffer alongside the error.
             if (error != IntPtr.Zero && bufferHandle != IntPtr.Zero)
                 GLibNative.g_object_unref(bufferHandle);
-            CheckError(error);
+            CheckError(ref error);
             if (bufferHandle == IntPtr.Zero)
                 throw new AravisException("arv_camera_acquisition returned null buffer");
             return new Buffer(bufferHandle, true);
@@ -1771,7 +1788,7 @@ public class Camera : IDisposable
         {
             var ptr = AravisNative.arv_camera_dup_available_pixel_formats_as_strings(_handle, out uint count, out error);
             var values = MarshalStringArray(ptr, count);
-            CheckError(error);
+            CheckError(ref error);
             return values;
         }
         finally
@@ -1792,7 +1809,7 @@ public class Camera : IDisposable
         {
             var ptr = AravisNative.arv_camera_dup_available_pixel_formats_as_display_names(_handle, out uint count, out error);
             var values = MarshalStringArray(ptr, count);
-            CheckError(error);
+            CheckError(ref error);
             return values;
         }
         finally
@@ -1816,7 +1833,7 @@ public class Camera : IDisposable
             featurePtr = Marshal.StringToCoTaskMemUTF8(feature);
             var ptr = AravisNative.arv_camera_dup_available_enumerations_as_strings(_handle, featurePtr, out uint count, out error);
             var values = MarshalStringArray(ptr, count);
-            CheckError(error);
+            CheckError(ref error);
             return values;
         }
         finally
@@ -1836,7 +1853,7 @@ public class Camera : IDisposable
         try
         {
             var v = AravisNative.arv_camera_get_exposure_time_increment(_handle, out error);
-            CheckError(error);
+            CheckError(ref error);
             return v;
         }
         finally { if (error != IntPtr.Zero) GLibNative.g_error_free(error); }
@@ -1850,7 +1867,7 @@ public class Camera : IDisposable
         try
         {
             var v = AravisNative.arv_camera_get_gain_increment(_handle, out error);
-            CheckError(error);
+            CheckError(ref error);
             return v;
         }
         finally { if (error != IntPtr.Zero) GLibNative.g_error_free(error); }
@@ -1864,7 +1881,7 @@ public class Camera : IDisposable
         try
         {
             var v = AravisNative.arv_camera_get_frame_rate_enable(_handle, out error);
-            CheckError(error);
+            CheckError(ref error);
             return v;
         }
         finally { if (error != IntPtr.Zero) GLibNative.g_error_free(error); }
@@ -1878,7 +1895,7 @@ public class Camera : IDisposable
         try
         {
             AravisNative.arv_camera_set_frame_rate_enable(_handle, enable, out error);
-            CheckError(error);
+            CheckError(ref error);
         }
         finally { if (error != IntPtr.Zero) GLibNative.g_error_free(error); }
     }
@@ -1891,7 +1908,7 @@ public class Camera : IDisposable
         try
         {
             AravisNative.arv_camera_set_exposure_mode(_handle, mode, out error);
-            CheckError(error);
+            CheckError(ref error);
         }
         finally { if (error != IntPtr.Zero) GLibNative.g_error_free(error); }
     }
@@ -1907,7 +1924,7 @@ public class Camera : IDisposable
         {
             featurePtr = Marshal.StringToCoTaskMemUTF8(feature);
             var v = AravisNative.arv_camera_is_feature_implemented(_handle, featurePtr, out error);
-            CheckError(error);
+            CheckError(ref error);
             return v;
         }
         finally
@@ -1925,7 +1942,7 @@ public class Camera : IDisposable
         try
         {
             var v = AravisNative.arv_camera_is_region_offset_available(_handle, out error);
-            CheckError(error);
+            CheckError(ref error);
             return v;
         }
         finally { if (error != IntPtr.Zero) GLibNative.g_error_free(error); }
@@ -1941,7 +1958,7 @@ public class Camera : IDisposable
         try
         {
             AravisNative.arv_camera_get_x_offset_bounds(_handle, out int min, out int max, out error);
-            CheckError(error);
+            CheckError(ref error);
             return (min, max);
         }
         finally { if (error != IntPtr.Zero) GLibNative.g_error_free(error); }
@@ -1955,7 +1972,7 @@ public class Camera : IDisposable
         try
         {
             var v = AravisNative.arv_camera_get_x_offset_increment(_handle, out error);
-            CheckError(error);
+            CheckError(ref error);
             return v;
         }
         finally { if (error != IntPtr.Zero) GLibNative.g_error_free(error); }
@@ -1969,7 +1986,7 @@ public class Camera : IDisposable
         try
         {
             AravisNative.arv_camera_get_y_offset_bounds(_handle, out int min, out int max, out error);
-            CheckError(error);
+            CheckError(ref error);
             return (min, max);
         }
         finally { if (error != IntPtr.Zero) GLibNative.g_error_free(error); }
@@ -1983,7 +2000,7 @@ public class Camera : IDisposable
         try
         {
             var v = AravisNative.arv_camera_get_y_offset_increment(_handle, out error);
-            CheckError(error);
+            CheckError(ref error);
             return v;
         }
         finally { if (error != IntPtr.Zero) GLibNative.g_error_free(error); }
@@ -1999,7 +2016,7 @@ public class Camera : IDisposable
         try
         {
             AravisNative.arv_camera_get_x_binning_bounds(_handle, out int min, out int max, out error);
-            CheckError(error);
+            CheckError(ref error);
             return (min, max);
         }
         finally { if (error != IntPtr.Zero) GLibNative.g_error_free(error); }
@@ -2013,7 +2030,7 @@ public class Camera : IDisposable
         try
         {
             var v = AravisNative.arv_camera_get_x_binning_increment(_handle, out error);
-            CheckError(error);
+            CheckError(ref error);
             return v;
         }
         finally { if (error != IntPtr.Zero) GLibNative.g_error_free(error); }
@@ -2027,7 +2044,7 @@ public class Camera : IDisposable
         try
         {
             AravisNative.arv_camera_get_y_binning_bounds(_handle, out int min, out int max, out error);
-            CheckError(error);
+            CheckError(ref error);
             return (min, max);
         }
         finally { if (error != IntPtr.Zero) GLibNative.g_error_free(error); }
@@ -2041,7 +2058,7 @@ public class Camera : IDisposable
         try
         {
             var v = AravisNative.arv_camera_get_y_binning_increment(_handle, out error);
-            CheckError(error);
+            CheckError(ref error);
             return v;
         }
         finally { if (error != IntPtr.Zero) GLibNative.g_error_free(error); }
@@ -2050,41 +2067,47 @@ public class Camera : IDisposable
     // === GigE Vision — extended ===
 
     /// <summary>Gets the inter-packet delay in nanoseconds for GigE Vision cameras.</summary>
+    /// <exception cref="NotSupportedException">The camera is not a GigE Vision camera (see <see cref="IsGigEVisionDevice"/>).</exception>
     public long GvGetPacketDelay()
     {
         CheckDisposed();
+        CheckGigE();
         IntPtr error = IntPtr.Zero;
         try
         {
             var v = AravisNative.arv_camera_gv_get_packet_delay(_handle, out error);
-            CheckError(error);
+            CheckError(ref error);
             return v;
         }
         finally { if (error != IntPtr.Zero) GLibNative.g_error_free(error); }
     }
 
     /// <summary>Sets the inter-packet delay in nanoseconds for GigE Vision cameras.</summary>
+    /// <exception cref="NotSupportedException">The camera is not a GigE Vision camera (see <see cref="IsGigEVisionDevice"/>).</exception>
     public void GvSetPacketDelay(long delayNs)
     {
         CheckDisposed();
+        CheckGigE();
         IntPtr error = IntPtr.Zero;
         try
         {
             AravisNative.arv_camera_gv_set_packet_delay(_handle, delayNs, out error);
-            CheckError(error);
+            CheckError(ref error);
         }
         finally { if (error != IntPtr.Zero) GLibNative.g_error_free(error); }
     }
 
     /// <summary>Gets the number of stream channels for GigE Vision cameras.</summary>
+    /// <exception cref="NotSupportedException">The camera is not a GigE Vision camera (see <see cref="IsGigEVisionDevice"/>).</exception>
     public int GvGetStreamChannelCount()
     {
         CheckDisposed();
+        CheckGigE();
         IntPtr error = IntPtr.Zero;
         try
         {
             var v = AravisNative.arv_camera_gv_get_n_stream_channels(_handle, out error);
-            CheckError(error);
+            CheckError(ref error);
             return v;
         }
         finally { if (error != IntPtr.Zero) GLibNative.g_error_free(error); }
@@ -2102,7 +2125,7 @@ public class Camera : IDisposable
         try
         {
             var streamHandle = AravisNative.arv_camera_create_stream(_handle, IntPtr.Zero, IntPtr.Zero, out error);
-            CheckError(error);
+            CheckError(ref error);
             
             if (streamHandle == IntPtr.Zero)
             {
@@ -2144,24 +2167,27 @@ public class Camera : IDisposable
         }
     }
 
-    private void CheckError(IntPtr error)
+    // The one GigE guard of Camera: called after CheckDisposed and before any native call
+    // of a Gv* member. Without it Aravis fails its g_return_val_if_fail on a non-GigE camera:
+    // GLib logs a CRITICAL and the member returns 0 or does nothing. Same message pattern as
+    // Stream.CheckGigE.
+    private void CheckGigE([CallerMemberName] string member = "")
+    {
+        if (!IsGigEVisionDevice())
+            throw new NotSupportedException(
+                $"{member} requires a GigE Vision camera; check {nameof(Camera)}.{nameof(IsGigEVisionDevice)}() first.");
+    }
+
+    private void CheckError(ref IntPtr error)
     {
         // Called right after each native call: keeps this Camera (and its handle) from
         // being finalized while the call is still running.
         GC.KeepAlive(this);
         if (error != IntPtr.Zero)
         {
-            throw new AravisException(GetErrorMessage(error));
+            // Frees the GError and zeroes error: the callers' finally blocks then skip it.
+            throw AravisException.TakeGError(ref error);
         }
-    }
-
-    private static string GetErrorMessage(IntPtr error)
-    {
-        if (error == IntPtr.Zero)
-            return "Unknown error";
-
-        var gerror = Marshal.PtrToStructure<GError>(error);
-        return Marshal.PtrToStringUTF8(gerror.Message) ?? "Unknown error";
     }
 
 

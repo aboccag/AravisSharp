@@ -24,19 +24,21 @@ dotnet test AravisSharp.Tests/ -f net10.0 --filter "FullyQualifiedName~AravisNat
 | `FakeCameraTests.cs` | 4 | Fake interface discovery, metadata, parameters, one acquired frame |
 | `CameraWrapperTests.cs` | 50 | High-level `Camera` API: features, bounds, auto modes, device type, GigE and USB3 specifics |
 | `CameraLifecycleTests.cs` | 14 | GError to `AravisException`, dispose idempotence and `ObjectDisposedException`, buffer ownership after `PushBuffer`, `AcquireSingleFrame`, `Device` lifetime, GigE-only stream setters, PGM export |
-| `NodeMapTests.cs` | 8 | `NodeMap`: GenICam XML, category tree, feature details (Integer, Float, Enumeration, Command) |
+| `NodeMapTests.cs` | 11 | `NodeMap`: GenICam XML, category tree, feature details (Integer, Float, Enumeration, Command); `GetNode` is null for a missing node, and carries the value of a string node (#10) |
 | `ImageAcquisitionTests.cs` | 10 | Frame acquisition: status, dimensions, data, PNG export, frame IDs, statistics |
 | `CameraArgumentTests.cs` | 17 | A null feature name throws `ArgumentNullException` before any native call, on each of the 16 `Camera` members that take one; a reflection check that the list is complete |
 | `StreamTimeoutTests.cs` | 15 | `PopBuffer(ulong)` timeout conversion from milliseconds to microseconds and its cap (pure, no native library needed) |
-| `GigEStreamTests.cs` | 5 | GigE stream settings (`ConfigureGigEDefaults`, resend timings) and acquisition, against the Aravis GigE Vision simulator on 127.0.0.1 |
+| `GigEStreamTests.cs` | 7 | GigE stream settings (`ConfigureGigEDefaults`, resend timings), `Stream.IsGigEVision` and the GigE guard letting the GigE members through, and acquisition, against the Aravis GigE Vision simulator on 127.0.0.1 |
+| `GigEGuardTests.cs` | 7 | The GigE members of `Camera` (the eleven `Gv*`) and `Stream` throw `NotSupportedException` naming the member on a non-GigE camera or stream; `Stream.IsGigEVision` is false there; reflection checks that the tables list every public `Gv*` member of `Camera` and classify every public member of `Stream` as GigE or not (#10) |
+| `ErrorInfoTests.cs` | 18 | `AravisException.Domain` and `Code` from real GErrors of the test camera (`Camera`, its constructor, `Device`, `GenICamNode`, the inner exception of `NodeMap`), null without a GError; `TakeGError` on a GError built with `g_error_new_literal`; the narrowed catch blocks of `NodeMap` and `FeatureDetails`, and a scan of the `GenICam/` sources for an unfiltered `catch` (#10) |
 | `BayerDemosaicTests.cs` | 32 | `ImageHelper.DemosaicBayer8` on synthetic mosaics: the four Bayer 8 patterns, measured samples kept, rounded bilinear means, border and one-pixel-wide or -high images, argument errors (pure, no native library needed) |
 | `BayerExportFakeCameraTests.cs` | 1 | `SaveToPng` and `SaveToJpeg` of a `BayerBG8` frame: colour files of the buffer size, PNG equal to the demosaiced buffer; restores the pixel format |
 | `InteropPinTests.cs` | 10 | Pins of interop behaviours (issue #13): `PopBuffer()`, `PopBuffer(ulong.MaxValue)` and finite timeouts block until a buffer is pushed, `PopBuffer(0)` on an empty queue returns `null` at once (every wait bounded, a blocked worker released by a push), the native stream released exactly once by `Dispose()` called twice and by the finalizer of a stream never disposed (counted with `g_object_weak_ref` by `GObjectReleaseProbe.cs`, the test holding its own reference), 10 000 calls of each `dup_available` wrapper on the fake camera, 200 on a real device (a double or wrong free aborts the process; a leak is not seen), no `DllImport` of a variadic function, `GValue` layout and field types on 64-bit |
 | `MonoExportFakeCameraTests.cs` | 1 | `SaveToPng` of a `Mono16` frame: each sample scaled to 8 bits (`sample * 255 / 65535`); restores the pixel format. Exercised only on a camera that offers Mono16: the fake camera always does (missing there is a failure); on a real device without it the test writes "Not run" to its output and passes, as `BayerExportFakeCameraTests` does without a Bayer 8 format |
 | `StreamFinalizationDuringPopTests.cs` | 4 | A `Stream` the caller no longer references is not collected while its own `PopBuffer()` or `PopBuffer(ulong)` is blocked. Two parent tests each run one child scenario in a child test host with `DOTNET_TieredCompilation=0`; the two child tests run only there |
-| **Total** | **187** | per target framework |
+| **Total** | **280** | per target framework |
 
-Against the fake camera, 169 run and 18 are skipped in Debug, 171 run and 16 are skipped in Release (see below).
+Against the fake camera, 248 run and 18 are skipped in Debug, 250 run and 16 are skipped in Release (see below).
 
 ## Native library
 

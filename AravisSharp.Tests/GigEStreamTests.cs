@@ -150,6 +150,48 @@ public class GigEStreamTests : IClassFixture<GvFakeCameraFixture>
     }
 
     [NativeFact]
+    public void GigEGuard_OnGigEStreamAndCamera_ShouldLetTheGigEMembersThrough()
+    {
+        // #10 AC-1 and AC-2, the GigE side of the guard: IsGigEVision is true on an
+        // ArvGvStream, and the guarded members of Camera reach Aravis.
+        using var camera = _fixture.OpenCamera();
+        Assert.True(camera.IsGigEVisionDevice());
+        using var stream = camera.CreateStream();
+
+        Assert.True(stream.IsGigEVision);
+        Assert.True(camera.GvGetStreamChannelCount() >= 1);
+        var packetSize = camera.GvGetPacketSize();
+        Assert.True(packetSize > 0);
+        var packetDelay = camera.GvGetPacketDelay();
+
+        // The guard must let each call through; what the simulator does with it is not
+        // under test, so an AravisException from Aravis is accepted, a
+        // NotSupportedException from the guard is not.
+        ReachesAravis(() => camera.GvGetIpConfigurationMode());
+        ReachesAravis(() => camera.GvGetPersistentIp());
+        ReachesAravis(() => camera.GvGetNetworkInterfaceCount());
+        ReachesAravis(() => camera.GvAutoPacketSize());
+        // Written back with the values read above, so the simulator keeps its settings.
+        ReachesAravis(() => camera.GvSetPacketSize(packetSize));
+        ReachesAravis(() => camera.GvSetPacketDelay(packetDelay));
+
+        // The stream binds its UDP socket when it is created.
+        Assert.NotEqual(0, stream.GetGigEStatistics().Port);
+    }
+
+    private static void ReachesAravis(Action call)
+    {
+        try
+        {
+            call();
+        }
+        catch (AravisException)
+        {
+            // Aravis answered: the guard let the call through.
+        }
+    }
+
+    [NativeFact]
     public void GigEStream_WithDefaults_ShouldAcquireFrames()
     {
         using var camera = _fixture.OpenCamera();

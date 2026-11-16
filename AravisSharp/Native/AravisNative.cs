@@ -448,6 +448,13 @@ public static class AravisNative
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr arv_device_get_genicam(IntPtr device);
 
+    /// <summary>
+    /// <c>ArvGcNode *arv_device_get_feature (ArvDevice *, const char *)</c>: the node of the
+    /// feature, or NULL when the device has no such node. Transfer none: never unref it.
+    /// </summary>
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr arv_device_get_feature(IntPtr device, IntPtr feature);
+
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void arv_device_get_integer_feature_bounds(IntPtr device, IntPtr feature, out long min, out long max, out IntPtr error);
 

@@ -18,6 +18,11 @@ Package versions mirror the native Aravis version they target (`0.8.36` targets
 - Third-party notices, license texts and `aravis-native-versions.txt` in every
   `runtimes/{rid}/native/` folder; the corresponding sources are attached to each release.
 - `CHANGELOG.md` and `.editorconfig`; the guides moved to `docs/` (#9).
+- `AravisException.Domain` and `AravisException.Code`: the domain (the string of its
+  GQuark, such as `arv-device-error-quark`) and code of the native `GError`; both are
+  `null` on an exception that does not come from a `GError` (#10).
+- `Stream.IsGigEVision`: true on a GigE Vision stream, the one on which the GigE members of
+  `Stream` can be used (#10).
 
 ### Changed
 - The Aravis bundled with the application is loaded before a system one.
@@ -38,6 +43,17 @@ Package versions mirror the native Aravis version they target (`0.8.36` targets
   where v0.8.36's variadic calls converted between int and uint or only logged a GLib
   warning, they throw `ArgumentException` on an unknown property or a type mismatch and
   `ArgumentOutOfRangeException` on a refused value (#14).
+- The GigE members of `Stream` throw `NotSupportedException` on a stream that is not GigE
+  Vision (see `Stream.IsGigEVision`), instead of the unreleased `InvalidOperationException`
+  (#10).
+- `NodeMap.GetFeatureDetails`, `NodeMap.GetFeaturesInCategory` and
+  `FeatureDetails.FromNode` no longer swallow every exception: they absorb an Aravis error,
+  and a missing entry point of an older system libaravis where they read optional feature
+  metadata; anything else, such as `ObjectDisposedException` on a disposed `Device`,
+  propagates. `NodeMap.GetNode` no longer catches anything (#10).
+- The `NodeMap` feature accessors keep throwing `InvalidOperationException`, now with the
+  native error message and an `AravisException` inner exception carrying its domain and
+  code (#10).
 
 ### Fixed
 - Native signatures, ownership and object lifetimes in the binding; the `dup_*` arrays
@@ -52,6 +68,15 @@ Package versions mirror the native Aravis version they target (`0.8.36` targets
   write: a value Aravis refuses (outside the property's range, not an enum member) throws
   `ArgumentOutOfRangeException` from the GigE setters of `Stream`, naming the setter's
   parameter (#14).
+- The eleven `Gv*` members of `Camera` throw `NotSupportedException` on a camera that is
+  not GigE Vision (see `Camera.IsGigEVisionDevice`). They used to call Aravis anyway, which
+  logged a GLib CRITICAL and returned 0 or did nothing (#10).
+- The XML documentation of `Stream.SetSocketBufferSize` and `Stream.ConfigureGigEDefaults`
+  states that Linux silently caps the socket buffer at `net.core.rmem_max` (#10).
+- `NodeMap.GetNode` returns `null` for a node the device does not have, checked through
+  `arv_device_get_feature`. It used to return a `FeatureInfo` for any name, because a
+  failed string read returns `null` rather than throwing; an existing node that is not a
+  string (such as `Width`) still gives a `FeatureInfo` with a `null` `Value` (#10).
 
 ## [0.8.36] - 2026-08-21
 

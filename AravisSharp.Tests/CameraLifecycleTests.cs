@@ -258,25 +258,24 @@ public class CameraLifecycleTests
     #region Stream GigE settings
 
     [NonGigECameraFact]
-    public void Stream_GigESetters_OnNonGigEStream_ShouldThrowInvalidOperationException()
+    public void Stream_GigESetters_OnNonGigEStream_ShouldThrowNotSupportedException()
     {
         using var camera = CameraTestHelpers.OpenTestCamera();
         Assert.False(camera.IsGigEVisionDevice());
         using var stream = camera.CreateStream();
 
-        Assert.Throws<InvalidOperationException>(() => stream.SetSocketBufferPolicy(ArvGvStreamSocketBuffer.Auto));
-        Assert.Throws<InvalidOperationException>(() => stream.SetSocketBufferSize(1024 * 1024));
-        Assert.Throws<InvalidOperationException>(() => stream.GetSocketBufferSize());
-        Assert.Throws<InvalidOperationException>(() => stream.SetPacketResend(ArvGvStreamPacketResend.Always));
-        Assert.Throws<InvalidOperationException>(() => stream.SetInitialPacketTimeout(1_000_000));
-        Assert.Throws<InvalidOperationException>(() => stream.SetPacketTimeout(40_000));
-        Assert.Throws<InvalidOperationException>(() => stream.SetFrameRetention(100_000));
-        Assert.Throws<InvalidOperationException>(() => stream.GetPacketResend());
-        Assert.Throws<InvalidOperationException>(() => stream.GetInitialPacketTimeout());
-        Assert.Throws<InvalidOperationException>(() => stream.GetPacketTimeout());
-        Assert.Throws<InvalidOperationException>(() => stream.GetFrameRetention());
-        Assert.Throws<InvalidOperationException>(() => stream.ConfigureGigEDefaults());
-        Assert.Throws<InvalidOperationException>(() => stream.GetGigEStatistics());
+        // GigEGuardTests.StreamGigEMembers lists all thirteen; a reflection test there keeps
+        // it complete.
+        Assert.All(GigEGuardTests.StreamGigEMembers, m =>
+        {
+            var ex = Assert.Throws<NotSupportedException>(() => m.Call(stream));
+            Assert.Contains(m.Name, ex.Message);
+            Assert.Contains("requires a GigE Vision stream", ex.Message);
+        });
+
+        // The guard runs before the argument check: an invalid cap on a non-GigE stream is
+        // still NotSupportedException, not ArgumentOutOfRangeException.
+        Assert.Throws<NotSupportedException>(() => stream.ConfigureGigEDefaults(-1));
 
         // The stream is still usable afterwards.
         AssertStreamOwnsBuffers(0, stream);

@@ -35,6 +35,15 @@ public class NodeMap : IDisposable
         }
     }
 
+    // The feature accessors below report failures as InvalidOperationException (their
+    // existing contract); the native GError travels along as the AravisException inner
+    // exception, so its message, domain and code are not lost.
+    private static InvalidOperationException Failure(string message, ref IntPtr error)
+    {
+        var inner = AravisException.TakeGError(ref error);
+        return new InvalidOperationException($"{message}: {inner.Message}", inner);
+    }
+
     /// <summary>
     /// Gets detailed information about a feature
     /// </summary>
@@ -47,8 +56,10 @@ public class NodeMap : IDisposable
             GC.KeepAlive(_device);
             return details;
         }
-        catch
+        catch (Exception ex) when (FeatureDetails.IsOptionalMetadataFailure(ex))
         {
+            // No details for this feature; anything else (a disposed device, out of memory,
+            // a marshalling error) propagates.
             return null;
         }
     }
@@ -134,9 +145,10 @@ public class NodeMap : IDisposable
                 }
             }
         }
-        catch
+        catch (Exception ex) when (FeatureDetails.IsOptionalMetadataFailure(ex))
         {
-            // Ignore errors
+            // An Aravis error or a missing metadata entry point while walking the category:
+            // return what was collected so far. Anything else propagates.
         }
         finally
         {
@@ -170,24 +182,41 @@ public class NodeMap : IDisposable
     }
 
     /// <summary>
-    /// Gets a feature node by name (legacy compatibility)
+    /// Gets a feature node by name (legacy compatibility).
     /// </summary>
+    /// <returns>
+    /// <c>null</c> when the device has no node of that name. Otherwise a
+    /// <see cref="FeatureInfo"/> whose <see cref="FeatureInfo.Value"/> is the string value of
+    /// the feature, or <c>null</c> when it cannot be read as a string (an integer feature
+    /// such as <c>Width</c>, for example).
+    /// </returns>
+    /// <exception cref="ObjectDisposedException">The device has been disposed.</exception>
     public FeatureInfo? GetNode(string nodeName)
     {
+        if (!HasNode(nodeName))
+            return null;
+
+        return new FeatureInfo
+        {
+            Name = nodeName,
+            Value = GetStringFeature(nodeName),
+            IsAvailable = true,
+            IsImplemented = true
+        };
+    }
+
+    private bool HasNode(string nodeName)
+    {
+        IntPtr namePtr = Marshal.StringToCoTaskMemUTF8(nodeName);
         try
         {
-            var value = GetStringFeature(nodeName);
-            return new FeatureInfo
-            {
-                Name = nodeName,
-                Value = value,
-                IsAvailable = true,
-                IsImplemented = true
-            };
+            // Transfer none: the node belongs to the device's ArvGc, never unref it.
+            return AravisNative.arv_device_get_feature(DeviceHandle, namePtr) != IntPtr.Zero;
         }
-        catch
+        finally
         {
-            return null;
+            Marshal.FreeCoTaskMem(namePtr);
+            GC.KeepAlive(_device);
         }
     }
 
@@ -228,7 +257,7 @@ public class NodeMap : IDisposable
             AravisNative.arv_device_set_string_feature_value(DeviceHandle, namePtr, valuePtr, out error);
             
             if (error != IntPtr.Zero)
-                throw new InvalidOperationException($"Failed to set feature {featureName}");
+                throw Failure($"Failed to set feature {featureName}", ref error);
         }
         finally
         {
@@ -251,7 +280,7 @@ public class NodeMap : IDisposable
             long value = AravisNative.arv_device_get_integer_feature_value(DeviceHandle, namePtr, out error);
             
             if (error != IntPtr.Zero)
-                throw new InvalidOperationException($"Failed to get feature {featureName}");
+                throw Failure($"Failed to get feature {featureName}", ref error);
 
             return value;
         }
@@ -275,7 +304,7 @@ public class NodeMap : IDisposable
             AravisNative.arv_device_set_integer_feature_value(DeviceHandle, namePtr, value, out error);
             
             if (error != IntPtr.Zero)
-                throw new InvalidOperationException($"Failed to set feature {featureName}");
+                throw Failure($"Failed to set feature {featureName}", ref error);
         }
         finally
         {
@@ -297,7 +326,7 @@ public class NodeMap : IDisposable
             double value = AravisNative.arv_device_get_float_feature_value(DeviceHandle, namePtr, out error);
             
             if (error != IntPtr.Zero)
-                throw new InvalidOperationException($"Failed to get feature {featureName}");
+                throw Failure($"Failed to get feature {featureName}", ref error);
 
             return value;
         }
@@ -321,7 +350,7 @@ public class NodeMap : IDisposable
             AravisNative.arv_device_set_float_feature_value(DeviceHandle, namePtr, value, out error);
             
             if (error != IntPtr.Zero)
-                throw new InvalidOperationException($"Failed to set feature {featureName}");
+                throw Failure($"Failed to set feature {featureName}", ref error);
         }
         finally
         {
@@ -343,7 +372,7 @@ public class NodeMap : IDisposable
             bool value = AravisNative.arv_device_get_boolean_feature_value(DeviceHandle, namePtr, out error);
             
             if (error != IntPtr.Zero)
-                throw new InvalidOperationException($"Failed to get feature {featureName}");
+                throw Failure($"Failed to get feature {featureName}", ref error);
 
             return value;
         }
@@ -367,7 +396,7 @@ public class NodeMap : IDisposable
             AravisNative.arv_device_set_boolean_feature_value(DeviceHandle, namePtr, value, out error);
             
             if (error != IntPtr.Zero)
-                throw new InvalidOperationException($"Failed to set feature {featureName}");
+                throw Failure($"Failed to set feature {featureName}", ref error);
         }
         finally
         {
@@ -389,7 +418,7 @@ public class NodeMap : IDisposable
             AravisNative.arv_device_execute_command(DeviceHandle, namePtr, out error);
             
             if (error != IntPtr.Zero)
-                throw new InvalidOperationException($"Failed to execute command {commandName}");
+                throw Failure($"Failed to execute command {commandName}", ref error);
         }
         finally
         {

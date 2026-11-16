@@ -104,9 +104,11 @@ public class FeatureDetails
                 Marshal.FreeCoTaskMem(nameHGlobal);
             }
         }
-        catch
+        catch (Exception ex) when (IsOptionalMetadataFailure(ex))
         {
-            // Ignore errors for individual features
+            // An Aravis error on this feature, or an older system libaravis without one of
+            // the metadata entry points: return what was read so far. Anything else (a
+            // disposed object, out of memory, a marshalling error) propagates.
         }
         
         return details;
@@ -188,8 +190,13 @@ public class FeatureDetails
                 details.IntIncrement = inc;
             GLibNative.ClearError(ref error);
         }
-        catch
+        catch (Exception ex) when (IsOptionalMetadataFailure(ex))
         {
+            // Constraints are optional metadata: leave them unset.
+        }
+        finally
+        {
+            // Frees a pending GError whatever happened above.
             GLibNative.ClearError(ref error);
         }
     }
@@ -212,8 +219,13 @@ public class FeatureDetails
                 details.FloatIncrement = inc;
             GLibNative.ClearError(ref error);
         }
-        catch
+        catch (Exception ex) when (IsOptionalMetadataFailure(ex))
         {
+            // Constraints are optional metadata: leave them unset.
+        }
+        finally
+        {
+            // Frees a pending GError whatever happened above.
             GLibNative.ClearError(ref error);
         }
     }
@@ -221,10 +233,14 @@ public class FeatureDetails
     private static void ReadEnumerationChoices(IntPtr device, IntPtr namePtr, FeatureDetails details)
     {
         IntPtr error = IntPtr.Zero;
+        // Transfer container: the arrays are ours to g_free, their strings belong to the node.
+        // Declared out here so the finally frees them whatever throws in between.
+        IntPtr choicesPtr = IntPtr.Zero;
+        IntPtr displayNamesPtr = IntPtr.Zero;
         try
         {
             uint count = 0;
-            var choicesPtr = AravisNative.arv_device_dup_available_enumeration_feature_values_as_strings(device, namePtr, out count, out error);
+            choicesPtr = AravisNative.arv_device_dup_available_enumeration_feature_values_as_strings(device, namePtr, out count, out error);
             if (choicesPtr != IntPtr.Zero && count > 0 && error == IntPtr.Zero)
             {
                 for (uint i = 0; i < count; i++)
@@ -239,11 +255,9 @@ public class FeatureDetails
                 }
             }
             GLibNative.ClearError(ref error);
-            if (choicesPtr != IntPtr.Zero)
-                GLibNative.g_free(choicesPtr);
-            
+
             // Try to get display names
-            var displayNamesPtr = AravisNative.arv_device_dup_available_enumeration_feature_values_as_display_names(device, namePtr, out count, out error);
+            displayNamesPtr = AravisNative.arv_device_dup_available_enumeration_feature_values_as_display_names(device, namePtr, out count, out error);
             if (displayNamesPtr != IntPtr.Zero && error == IntPtr.Zero)
             {
                 for (uint i = 0; i < count; i++)
@@ -257,15 +271,29 @@ public class FeatureDetails
                     }
                 }
             }
+        }
+        catch (Exception ex) when (IsOptionalMetadataFailure(ex))
+        {
+            // Constraints are optional metadata: leave them unset.
+        }
+        finally
+        {
+            // Frees a pending GError and both arrays whatever happened above.
             GLibNative.ClearError(ref error);
+            if (choicesPtr != IntPtr.Zero)
+                GLibNative.g_free(choicesPtr);
             if (displayNamesPtr != IntPtr.Zero)
                 GLibNative.g_free(displayNamesPtr);
         }
-        catch
-        {
-            GLibNative.ClearError(ref error);
-        }
     }
+    
+    /// <summary>
+    /// The failures that reading optional feature metadata absorbs: an Aravis error, and a
+    /// missing entry point in an older system libaravis-0.8 (the resolver still loads one
+    /// when none is bundled). Every other exception propagates.
+    /// </summary>
+    internal static bool IsOptionalMetadataFailure(Exception ex) =>
+        ex is AravisException or EntryPointNotFoundException;
     
     private static FeatureAccessMode ParseAccessMode(int arvAccessMode)
     {

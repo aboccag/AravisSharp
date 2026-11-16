@@ -105,11 +105,7 @@ public class GenICamNode : IDisposable
         {
             AravisNative.arv_gc_feature_node_set_value_from_string(_nodeHandle, valuePtr, out error);
             if (error != IntPtr.Zero)
-            {
-                var gerror = Marshal.PtrToStructure<GError>(error);
-                var message = Marshal.PtrToStringUTF8(gerror.Message) ?? "Unknown error";
-                throw new AravisException(message);
-            }
+                throw AravisException.TakeGError(ref error);
         }
         finally
         {
