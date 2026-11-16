@@ -69,6 +69,30 @@ against `main` at `58e9012`, before any code. `NON VÉRIFIÉ` marks what was not
   in CI when headers are missing and skips elsewhere. (2) Only the two P/Invoke
   declarations change (`uint` returns); `GvGetPacketSize` stays `int` with a checked
   conversion and `GvAutoPacketSize` stays `void`. No question left open, so no council.
+- **2026-11-16, review of #11:** four reviews of the branch tightened AC-2 and AC-1.
+  - *Pointee check (AC-2).* "Any pointer is one family" let `out uint` pass for a
+    `guint64 *`. When the managed parameter is by-ref, a pointer or an array and its element
+    is a primitive, an enum, `bool`, `IntPtr`/`UIntPtr` or `CLong`/`CULong`, one `*` is
+    stripped from the C type and the pointee's family must match the element's (an `out
+    bool` is 4 bytes unless `MarshalAs` `U1`/`I1`). `IntPtr` by value, struct elements
+    (`ref GValue`) and `out IntPtr` for `T **` stay plain pointers. Every by-ref scalar of
+    the library matches; narrowing `out ulong` of `arv_stream_get_statistics` to `out uint`
+    is caught.
+  - *Exported only (AC-1).* Aravis builds with `-fvisibility=hidden`: an `arv_*` declaration
+    must match a prototype preceded by `ARV_API` (or `ARV_API G_DECLARE_*`, or the generated
+    `get_type` of a public enum), else it fails.
+  - *Completeness (AC-1).* The check reads every DllImport and LibraryImport of the assembly,
+    nested types included, instead of a list of classes; a test pins that set to
+    `AravisNative` and `GLibNative`, at least 200 and 30 declarations with distinct names.
+  - *Strings (AC-2).* A returned `string`/`StringBuilder` or an `out`/`ref` string is a
+    mismatch unless an allow-list entry says who owns the memory; none exists.
+  - Also: the reader leaves out what it cannot read (unbalanced parentheses, a parenthesised
+    argument that is not a function pointer) and reports a name with two different
+    prototypes; C# `char` matches nothing; CI is `GITHUB_ACTIONS=true` or `CI=true`;
+    `pkg-config` is read without deadlock, with a timeout, its error kept.
+  - **Not checked:** the GLib version floor (an import newer than GLib 2.64 passes if the
+    build machine's headers have it), and the signatures of the delegates passed as
+    callbacks.
 
 ## Plan
 
