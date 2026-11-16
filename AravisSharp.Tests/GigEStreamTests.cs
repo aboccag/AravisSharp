@@ -115,14 +115,21 @@ public class GigEStreamTests : IClassFixture<GvFakeCameraFixture>
         Assert.Equal(-1, stream.GetSocketBufferSize());
         stream.SetSocketBufferSize(1 << 20);
         Assert.Equal(1 << 20, stream.GetSocketBufferSize());
-        Assert.Throws<ArgumentOutOfRangeException>(() => stream.SetSocketBufferSize(-2));
+        var ex = Assert.Throws<ArgumentOutOfRangeException>(() => stream.SetSocketBufferSize(-2));
+        Assert.Equal("sizeBytes", ex.ParamName);
         Assert.Equal(1 << 20, stream.GetSocketBufferSize());
 
         stream.SetPacketResend(ArvGvStreamPacketResend.Never);
-        Assert.Throws<ArgumentOutOfRangeException>(() => stream.SetPacketResend((ArvGvStreamPacketResend)99));
+        ex = Assert.Throws<ArgumentOutOfRangeException>(() => stream.SetPacketResend((ArvGvStreamPacketResend)99));
+        Assert.Equal("policy", ex.ParamName);
         Assert.Equal(ArvGvStreamPacketResend.Never, stream.GetPacketResend());
 
-        Assert.Throws<ArgumentOutOfRangeException>(() => stream.SetSocketBufferPolicy((ArvGvStreamSocketBuffer)99));
+        // No public getter for the socket buffer policy: read it as Stream would.
+        var socketBufferType = AravisNative.arv_gv_stream_socket_buffer_get_type();
+        stream.SetSocketBufferPolicy(ArvGvStreamSocketBuffer.Auto);
+        ex = Assert.Throws<ArgumentOutOfRangeException>(() => stream.SetSocketBufferPolicy((ArvGvStreamSocketBuffer)99));
+        Assert.Equal("policy", ex.ParamName);
+        Assert.Equal((int)ArvGvStreamSocketBuffer.Auto, GLibNative.GetEnumProperty(stream.Handle, "socket-buffer", socketBufferType));
     }
 
     [NativeFact]

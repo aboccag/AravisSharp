@@ -239,14 +239,16 @@ public static class GLibNative
     /// Read-back after a write (#14, AC-3): GLib only logs a warning and keeps the old value
     /// when a value fails the property's validation (out of range, not an enum member) or the
     /// property is read-only or construct-only. Access flags are not checked (spec, known
-    /// gap): a write-only property cannot be read back. Every ArvGvStream property that
+    /// gap): on a write-only property the read-back logs a GLib "not readable" message and
+    /// this throws even if the write was applied. Every ArvGvStream property that
     /// <see cref="AravisSharp.Stream"/> sets is read-write (aravis/src/arvgvstream.c).
+    /// <paramref name="paramName"/> is the caller's parameter that held the value.
     /// </summary>
-    private static void ThrowIfNotApplied<T>(IntPtr obj, string propertyName, T written, T readBack)
+    private static void ThrowIfNotApplied<T>(IntPtr obj, string propertyName, T written, T readBack, string paramName)
         where T : struct, IEquatable<T>
     {
         if (!written.Equals(readBack))
-            throw new ArgumentOutOfRangeException("value", written,
+            throw new ArgumentOutOfRangeException(paramName, written,
                 $"Property '{propertyName}' of {GetTypeName(obj)} read back {readBack} after writing {written}: " +
                 "the object refused the value (out of range, read-only or construct-only), or the property " +
                 "is write-only and cannot be read back, in which case the write may have been applied.");
@@ -255,8 +257,8 @@ public static class GLibNative
     /// <summary>Sets a gint property on a GObject, then reads it back.</summary>
     /// <exception cref="ArgumentNullException"><paramref name="obj"/> is zero or <paramref name="propertyName"/> is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="obj"/> is not a GObject, or it has no such property, or the property is not a gint.</exception>
-    /// <exception cref="ArgumentOutOfRangeException">The value read back differs from <paramref name="value"/>: the object refused it (outside the property's range, read-only or construct-only property), or the property is write-only, in which case the write may have been applied.</exception>
-    internal static void SetIntProperty(IntPtr obj, string propertyName, int value)
+    /// <exception cref="ArgumentOutOfRangeException">The value read back differs from <paramref name="value"/>: the object refused it (outside the property's range, read-only or construct-only property), or the property is write-only: the read-back then logs a GLib "not readable" message and this exception is thrown even if the write was applied.</exception>
+    internal static void SetIntProperty(IntPtr obj, string propertyName, int value, string paramName)
     {
         CheckPropertyType(obj, propertyName, G_TYPE_INT, write: true);
         var gvalue = new GValue();
@@ -271,14 +273,14 @@ public static class GLibNative
             g_value_unset(ref gvalue);
         }
 
-        ThrowIfNotApplied(obj, propertyName, value, GetIntProperty(obj, propertyName));
+        ThrowIfNotApplied(obj, propertyName, value, GetIntProperty(obj, propertyName), paramName);
     }
 
     /// <summary>Sets a guint property on a GObject, then reads it back.</summary>
     /// <exception cref="ArgumentNullException"><paramref name="obj"/> is zero or <paramref name="propertyName"/> is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="obj"/> is not a GObject, or it has no such property, or the property is not a guint.</exception>
-    /// <exception cref="ArgumentOutOfRangeException">The value read back differs from <paramref name="value"/>: the object refused it (outside the property's range, read-only or construct-only property), or the property is write-only, in which case the write may have been applied.</exception>
-    internal static void SetUIntProperty(IntPtr obj, string propertyName, uint value)
+    /// <exception cref="ArgumentOutOfRangeException">The value read back differs from <paramref name="value"/>: the object refused it (outside the property's range, read-only or construct-only property), or the property is write-only: the read-back then logs a GLib "not readable" message and this exception is thrown even if the write was applied.</exception>
+    internal static void SetUIntProperty(IntPtr obj, string propertyName, uint value, string paramName)
     {
         CheckPropertyType(obj, propertyName, G_TYPE_UINT, write: true);
         var gvalue = new GValue();
@@ -293,7 +295,7 @@ public static class GLibNative
             g_value_unset(ref gvalue);
         }
 
-        ThrowIfNotApplied(obj, propertyName, value, GetUIntProperty(obj, propertyName));
+        ThrowIfNotApplied(obj, propertyName, value, GetUIntProperty(obj, propertyName), paramName);
     }
 
     /// <summary>
@@ -302,11 +304,12 @@ public static class GLibNative
     /// </summary>
     /// <exception cref="ArgumentNullException"><paramref name="obj"/> is zero or <paramref name="propertyName"/> is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="enumType"/> is not an enum GType, or <paramref name="obj"/> is not a GObject, or it has no such property, or the property is not of <paramref name="enumType"/>.</exception>
-    /// <exception cref="ArgumentOutOfRangeException">The value read back differs from <paramref name="value"/>: the object refused it (not a member of the enum, read-only or construct-only property), or the property is write-only, in which case the write may have been applied.</exception>
-    internal static void SetEnumProperty(IntPtr obj, string propertyName, IntPtr enumType, int value)
+    /// <exception cref="ArgumentOutOfRangeException">The value read back differs from <paramref name="value"/>: the object refused it (not a member of the enum, read-only or construct-only property), or the property is write-only: the read-back then logs a GLib "not readable" message and this exception is thrown even if the write was applied.</exception>
+    internal static void SetEnumProperty(IntPtr obj, string propertyName, IntPtr enumType, int value, string paramName)
     {
-        CheckPropertyType(obj, propertyName, enumType, write: true);
+        // The enum type first: g_value_type_compatible logs a critical on an invalid GType.
         CheckEnumType(enumType);
+        CheckPropertyType(obj, propertyName, enumType, write: true);
         var gvalue = new GValue();
         g_value_init(ref gvalue, enumType);
         try
@@ -319,14 +322,14 @@ public static class GLibNative
             g_value_unset(ref gvalue);
         }
 
-        ThrowIfNotApplied(obj, propertyName, value, GetEnumProperty(obj, propertyName, enumType));
+        ThrowIfNotApplied(obj, propertyName, value, GetEnumProperty(obj, propertyName, enumType), paramName);
     }
 
     /// <summary>Sets a gboolean property on a GObject, then reads it back.</summary>
     /// <exception cref="ArgumentNullException"><paramref name="obj"/> is zero or <paramref name="propertyName"/> is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="obj"/> is not a GObject, or it has no such property, or the property is not a gboolean.</exception>
-    /// <exception cref="ArgumentOutOfRangeException">The value read back differs from <paramref name="value"/>: the object refused it (read-only or construct-only property), or the property is write-only, in which case the write may have been applied.</exception>
-    internal static void SetBoolProperty(IntPtr obj, string propertyName, bool value)
+    /// <exception cref="ArgumentOutOfRangeException">The value read back differs from <paramref name="value"/>: the object refused it (read-only or construct-only property), or the property is write-only: the read-back then logs a GLib "not readable" message and this exception is thrown even if the write was applied.</exception>
+    internal static void SetBoolProperty(IntPtr obj, string propertyName, bool value, string paramName)
     {
         CheckPropertyType(obj, propertyName, GTypeBoolean, write: true);
         var gvalue = new GValue();
@@ -341,7 +344,7 @@ public static class GLibNative
             g_value_unset(ref gvalue);
         }
 
-        ThrowIfNotApplied(obj, propertyName, value, GetBoolProperty(obj, propertyName));
+        ThrowIfNotApplied(obj, propertyName, value, GetBoolProperty(obj, propertyName), paramName);
     }
 
     /// <summary>Gets a gint property from a GObject.</summary>
@@ -390,8 +393,9 @@ public static class GLibNative
     /// <exception cref="ArgumentException"><paramref name="enumType"/> is not an enum GType, or <paramref name="obj"/> is not a GObject, or it has no such property, or the property is not of <paramref name="enumType"/>.</exception>
     internal static int GetEnumProperty(IntPtr obj, string propertyName, IntPtr enumType)
     {
-        CheckPropertyType(obj, propertyName, enumType, write: false);
+        // The enum type first: g_value_type_compatible logs a critical on an invalid GType.
         CheckEnumType(enumType);
+        CheckPropertyType(obj, propertyName, enumType, write: false);
         var gvalue = new GValue();
         g_value_init(ref gvalue, enumType);
         try
@@ -429,11 +433,15 @@ public static class GLibNative
     // which break on Apple arm64. They now forward to the checked helpers so that assemblies
     // built against v0.8.36 still bind; the terminator argument is ignored. Like the variadic
     // call they replace, the int shims also accept an enum property (v0.8.36's Stream set
-    // "socket-buffer" and "packet-resend" through g_object_set_int).
+    // "socket-buffer" and "packet-resend" through g_object_set_int). They are strict where
+    // v0.8.36 was not: its variadic calls converted between int and uint, and only logged a
+    // GLib warning on an unknown property or a refused value; the shims throw instead.
 
     private const string LegacyPropertyShimMessage =
-        "Kept for binary compatibility with v0.8.36 only. Use the GigE methods of AravisSharp.Stream " +
-        "(SetSocketBufferPolicy, SetSocketBufferSize, SetPacketResend, SetInitialPacketTimeout, SetPacketTimeout, SetFrameRetention).";
+        "Kept for binary compatibility with v0.8.36 only, and stricter than v0.8.36: throws ArgumentException " +
+        "on an unknown property or a type mismatch and ArgumentOutOfRangeException on a refused value. Use the " +
+        "GigE methods of AravisSharp.Stream (SetSocketBufferPolicy, SetSocketBufferSize, SetPacketResend, " +
+        "SetInitialPacketTimeout, SetPacketTimeout, SetFrameRetention).";
 
     /// <summary>Returns the property's enum GType if it is an enum property, else zero.</summary>
     private static IntPtr LegacyEnumType(IntPtr obj, string propertyName)
@@ -442,28 +450,51 @@ public static class GLibNative
         return g_type_fundamental(valueType) == GTypeEnum ? valueType : IntPtr.Zero;
     }
 
-    /// <summary>Sets a gint or enum property; same checks and exceptions as the internal property helpers.</summary>
+    /// <summary>
+    /// Sets a gint or enum property; same checks and exceptions as the internal property
+    /// helpers. Stricter than v0.8.36, which converted between int and uint or only logged a
+    /// GLib warning: this throws <see cref="ArgumentException"/> on an unknown property or a
+    /// type mismatch and <see cref="ArgumentOutOfRangeException"/> (ParamName "value") when
+    /// the value read back differs.
+    /// </summary>
     [Obsolete(LegacyPropertyShimMessage)]
     public static void g_object_set_int(IntPtr obj, string propertyName, int value, IntPtr terminator)
     {
         var enumType = LegacyEnumType(obj, propertyName);
         if (enumType != IntPtr.Zero)
-            SetEnumProperty(obj, propertyName, enumType, value);
+            SetEnumProperty(obj, propertyName, enumType, value, nameof(value));
         else
-            SetIntProperty(obj, propertyName, value);
+            SetIntProperty(obj, propertyName, value, nameof(value));
     }
 
-    /// <summary>Sets a guint property; same checks and exceptions as the internal property helpers.</summary>
+    /// <summary>
+    /// Sets a guint property; same checks and exceptions as the internal property
+    /// helpers. Stricter than v0.8.36, which converted between int and uint or only logged a
+    /// GLib warning: this throws <see cref="ArgumentException"/> on an unknown property or a
+    /// type mismatch and <see cref="ArgumentOutOfRangeException"/> (ParamName "value") when
+    /// the value read back differs.
+    /// </summary>
     [Obsolete(LegacyPropertyShimMessage)]
     public static void g_object_set_uint(IntPtr obj, string propertyName, uint value, IntPtr terminator)
-        => SetUIntProperty(obj, propertyName, value);
+        => SetUIntProperty(obj, propertyName, value, nameof(value));
 
-    /// <summary>Sets a gboolean property; same checks and exceptions as the internal property helpers.</summary>
+    /// <summary>
+    /// Sets a gboolean property; same checks and exceptions as the internal property
+    /// helpers. Stricter than v0.8.36, which converted between int and uint or only logged a
+    /// GLib warning: this throws <see cref="ArgumentException"/> on an unknown property or a
+    /// type mismatch and <see cref="ArgumentOutOfRangeException"/> (ParamName "value") when
+    /// the value read back differs.
+    /// </summary>
     [Obsolete(LegacyPropertyShimMessage)]
     public static void g_object_set_bool(IntPtr obj, string propertyName, bool value, IntPtr terminator)
-        => SetBoolProperty(obj, propertyName, value);
+        => SetBoolProperty(obj, propertyName, value, nameof(value));
 
-    /// <summary>Gets a gint or enum property; same checks and exceptions as the internal property helpers.</summary>
+    /// <summary>
+    /// Gets a gint or enum property; same checks and exceptions as the internal property
+    /// helpers. Stricter than v0.8.36, which converted between int and uint or only logged a
+    /// GLib warning: this throws <see cref="ArgumentException"/> on an unknown property or a
+    /// type mismatch.
+    /// </summary>
     [Obsolete(LegacyPropertyShimMessage)]
     public static void g_object_get_int(IntPtr obj, string propertyName, out int value, IntPtr terminator)
     {
@@ -473,12 +504,22 @@ public static class GLibNative
             : GetIntProperty(obj, propertyName);
     }
 
-    /// <summary>Gets a guint property; same checks and exceptions as the internal property helpers.</summary>
+    /// <summary>
+    /// Gets a guint property; same checks and exceptions as the internal property
+    /// helpers. Stricter than v0.8.36, which converted between int and uint or only logged a
+    /// GLib warning: this throws <see cref="ArgumentException"/> on an unknown property or a
+    /// type mismatch.
+    /// </summary>
     [Obsolete(LegacyPropertyShimMessage)]
     public static void g_object_get_uint(IntPtr obj, string propertyName, out uint value, IntPtr terminator)
         => value = GetUIntProperty(obj, propertyName);
 
-    /// <summary>Gets a gboolean property; same checks and exceptions as the internal property helpers.</summary>
+    /// <summary>
+    /// Gets a gboolean property; same checks and exceptions as the internal property
+    /// helpers. Stricter than v0.8.36, which converted between int and uint or only logged a
+    /// GLib warning: this throws <see cref="ArgumentException"/> on an unknown property or a
+    /// type mismatch.
+    /// </summary>
     [Obsolete(LegacyPropertyShimMessage)]
     public static void g_object_get_bool(IntPtr obj, string propertyName, out bool value, IntPtr terminator)
         => value = GetBoolProperty(obj, propertyName);

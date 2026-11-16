@@ -30,6 +30,15 @@ internal static class GioTestNative
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     private delegate IntPtr InetSocketAddressNewFromStringFn([MarshalAs(UnmanagedType.LPUTF8Str)] string address, uint port);
 
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate IntPtr StringArgumentFn([MarshalAs(UnmanagedType.LPUTF8Str)] string text);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate IntPtr PointerArgumentFn(IntPtr pointer);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate IntPtr FindPropertyFn(IntPtr objectClass, [MarshalAs(UnmanagedType.LPUTF8Str)] string propertyName);
+
     private static IntPtr Load(string logicalName)
     {
         var handle = AravisLibrary.ResolveDllImport(logicalName, typeof(GLibNative).Assembly, null);
@@ -39,14 +48,26 @@ internal static class GioTestNative
     }
 
     private static readonly Lazy<IntPtr> Gio = new(() => Load(GLibNative.GioLibraryName));
+    private static readonly Lazy<IntPtr> GObject = new(() => Load(GLibNative.GObjectLibraryName));
 
     private static T Bind<T>(string name) where T : Delegate =>
         Marshal.GetDelegateForFunctionPointer<T>(NativeLibrary.GetExport(Gio.Value, name));
+
+    private static T BindGObject<T>(string name) where T : Delegate =>
+        Marshal.GetDelegateForFunctionPointer<T>(NativeLibrary.GetExport(GObject.Value, name));
 
     private static readonly Lazy<NoArgumentFn> SocketClientNew = new(() => Bind<NoArgumentFn>("g_socket_client_new"));
     private static readonly Lazy<SocketNewFn> SocketNew = new(() => Bind<SocketNewFn>("g_socket_new"));
     private static readonly Lazy<InetSocketAddressNewFromStringFn> InetSocketAddressNewFromString =
         new(() => Bind<InetSocketAddressNewFromStringFn>("g_inet_socket_address_new_from_string"));
+    private static readonly Lazy<StringArgumentFn> InetAddressNewFromString =
+        new(() => Bind<StringArgumentFn>("g_inet_address_new_from_string"));
+    private static readonly Lazy<StringArgumentFn> TypeFromName = new(() => BindGObject<StringArgumentFn>("g_type_from_name"));
+    private static readonly Lazy<PointerArgumentFn> TypeClassPeek = new(() => BindGObject<PointerArgumentFn>("g_type_class_peek"));
+    private static readonly Lazy<PointerArgumentFn> TypeClassRef = new(() => BindGObject<PointerArgumentFn>("g_type_class_ref"));
+    private static readonly Lazy<PointerArgumentFn> TypeClassUnref = new(() => BindGObject<PointerArgumentFn>("g_type_class_unref"));
+    private static readonly Lazy<FindPropertyFn> ObjectClassFindProperty =
+        new(() => BindGObject<FindPropertyFn>("g_object_class_find_property"));
     private static readonly Lazy<NoArgumentFn> SocketFamilyGetType = new(() => Bind<NoArgumentFn>("g_socket_family_get_type"));
     private static readonly Lazy<NoArgumentFn> SocketTypeGetType = new(() => Bind<NoArgumentFn>("g_socket_type_get_type"));
 
@@ -68,6 +89,44 @@ internal static class GioTestNative
     public static IntPtr g_inet_socket_address_new_from_string(string address, uint port) =>
         InetSocketAddressNewFromString.Value(address, port);
 
+    /// <summary>
+    /// <c>GInetAddress *g_inet_address_new_from_string (const gchar *string)</c>; null if the
+    /// string cannot be parsed. Release with g_object_unref. Its "is-loopback" property is a
+    /// read-only gboolean, so GLib refuses any write.
+    /// </summary>
+    public static IntPtr g_inet_address_new_from_string(string address) => InetAddressNewFromString.Value(address);
+
+    /// <summary>
+    /// The GParamSpec of the property <paramref name="propertyName"/> of a live GObject's
+    /// class (<c>g_object_class_find_property</c> on <c>g_type_class_peek</c> of its type),
+    /// or zero. Owned by the class: do not unref. A GParamSpec is a GTypeInstance but no
+    /// GObject.
+    /// </summary>
+    public static IntPtr FindPropertySpec(IntPtr obj, string propertyName)
+    {
+        var typeName = GLibNative.GetTypeName(obj) ?? throw new ArgumentException("No type name.", nameof(obj));
+        var objectClass = TypeClassPeek.Value(TypeFromName.Value(typeName));
+        return objectClass == IntPtr.Zero ? IntPtr.Zero : ObjectClassFindProperty.Value(objectClass, propertyName);
+    }
+
+    /// <summary>
+    /// Calls <c>g_object_class_find_property</c> on the class of the GSocketFamily enum, which
+    /// is no GObject class: its <c>g_return_val_if_fail (G_IS_OBJECT_CLASS (class))</c> logs a
+    /// GLib-GObject critical, in every GLib version, and returns null.
+    /// </summary>
+    public static IntPtr FindPropertyOnANonObjectClass()
+    {
+        var enumClass = TypeClassRef.Value(g_socket_family_get_type());
+        try
+        {
+            return ObjectClassFindProperty.Value(enumClass, "family");
+        }
+        finally
+        {
+            TypeClassUnref.Value(enumClass);
+        }
+    }
+
     /// <summary>The GType of the GSocketFamily enum.</summary>
     public static IntPtr g_socket_family_get_type() => SocketFamilyGetType.Value();
 
@@ -85,6 +144,7 @@ internal sealed class GObjectLogCapture : IDisposable
     private const string Domain = "GLib-GObject";
     private const int LevelCritical = 1 << 3; // G_LOG_LEVEL_CRITICAL
     private const int LevelWarning = 1 << 4;  // G_LOG_LEVEL_WARNING
+    private const int LevelMask = ~3;         // drops G_LOG_FLAG_RECURSION and G_LOG_FLAG_FATAL
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     private delegate void LogFn(IntPtr logDomain, int logLevel, IntPtr message, IntPtr userData);
@@ -111,7 +171,7 @@ internal sealed class GObjectLogCapture : IDisposable
     // GLib keeps the function pointer until the handler is removed: the delegate must outlive it.
     private readonly LogFn _callback;
     private readonly int _threadId = Environment.CurrentManagedThreadId;
-    private readonly List<string> _messages = new();
+    private readonly List<(int Level, string Message)> _messages = new();
     private uint _handlerId;
 
     public GObjectLogCapture()
@@ -122,7 +182,18 @@ internal sealed class GObjectLogCapture : IDisposable
 
     public IReadOnlyList<string> Messages
     {
-        get { lock (_messages) return _messages.ToArray(); }
+        get { lock (_messages) return _messages.Select(m => m.Message).ToArray(); }
+    }
+
+    /// <summary>The messages logged at G_LOG_LEVEL_CRITICAL.</summary>
+    public IReadOnlyList<string> Criticals => MessagesAt(LevelCritical);
+
+    /// <summary>The messages logged at G_LOG_LEVEL_WARNING.</summary>
+    public IReadOnlyList<string> Warnings => MessagesAt(LevelWarning);
+
+    private IReadOnlyList<string> MessagesAt(int level)
+    {
+        lock (_messages) return _messages.Where(m => m.Level == level).Select(m => m.Message).ToArray();
     }
 
     private void OnLog(IntPtr logDomain, int logLevel, IntPtr message, IntPtr userData)
@@ -130,7 +201,7 @@ internal sealed class GObjectLogCapture : IDisposable
         if (Environment.CurrentManagedThreadId != _threadId)
             return;
         lock (_messages)
-            _messages.Add(Marshal.PtrToStringUTF8(message) ?? "(null message)");
+            _messages.Add((logLevel & LevelMask, Marshal.PtrToStringUTF8(message) ?? "(null message)"));
     }
 
     public void Dispose()

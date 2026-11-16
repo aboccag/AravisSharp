@@ -16,6 +16,10 @@ public class GObjectPropertyTests
 {
     private const string UnknownProperty = "no-such-property";
 
+    // What the internal setters report as ArgumentOutOfRangeException.ParamName; Stream
+    // passes the name of its own parameter, the v0.8.36 shims "value".
+    private const string ParamName = "written";
+
     private static void WithSocketClient(Action<IntPtr> body)
     {
         var client = GioTestNative.g_socket_client_new();
@@ -47,6 +51,36 @@ public class GObjectPropertyTests
         }
     }
 
+    private static void WithInetAddress(Action<IntPtr> body)
+    {
+        // GInetAddress "is-loopback" is a read-only gboolean (gio/ginetaddress.c).
+        var address = GioTestNative.g_inet_address_new_from_string("127.0.0.1");
+        Assert.NotEqual(IntPtr.Zero, address);
+        try
+        {
+            body(address);
+        }
+        finally
+        {
+            GLibNative.g_object_unref(address);
+        }
+    }
+
+    private static void WithInetSocketAddress(Action<IntPtr> body)
+    {
+        // GInetSocketAddress "port" is a construct-only guint (gio/ginetsocketaddress.c).
+        var address = GioTestNative.g_inet_socket_address_new_from_string("127.0.0.1", 1);
+        Assert.NotEqual(IntPtr.Zero, address);
+        try
+        {
+            body(address);
+        }
+        finally
+        {
+            GLibNative.g_object_unref(address);
+        }
+    }
+
     private static void AssertNoGObjectWarning(GObjectLogCapture log) =>
         Assert.True(log.Messages.Count == 0, "GLib-GObject logged: " + string.Join(" | ", log.Messages));
 
@@ -63,10 +97,10 @@ public class GObjectPropertyTests
         // Bound by name so that each helper is tested on its own (one theory case each).
         object?[] arguments = helper switch
         {
-            "SetIntProperty" => new object?[] { obj, propertyName, 1 },
-            "SetUIntProperty" => new object?[] { obj, propertyName, 1u },
-            "SetEnumProperty" => new object?[] { obj, propertyName, enumType, 1 },
-            "SetBoolProperty" => new object?[] { obj, propertyName, true },
+            "SetIntProperty" => new object?[] { obj, propertyName, 1, ParamName },
+            "SetUIntProperty" => new object?[] { obj, propertyName, 1u, ParamName },
+            "SetEnumProperty" => new object?[] { obj, propertyName, enumType, 1, ParamName },
+            "SetBoolProperty" => new object?[] { obj, propertyName, true, ParamName },
             "GetEnumProperty" => new object?[] { obj, propertyName, enumType },
             _ => new object?[] { obj, propertyName },
         };
@@ -107,7 +141,7 @@ public class GObjectPropertyTests
         WithSocket(socket =>
         {
             using var log = new GObjectLogCapture();
-            var ex = Assert.Throws<ArgumentException>(() => GLibNative.SetUIntProperty(socket, "listen-backlog", 5u));
+            var ex = Assert.Throws<ArgumentException>(() => GLibNative.SetUIntProperty(socket, "listen-backlog", 5u, ParamName));
             Assert.Contains("listen-backlog", ex.Message);
             ex = Assert.Throws<ArgumentException>(() => GLibNative.GetUIntProperty(socket, "listen-backlog"));
             Assert.Contains("listen-backlog", ex.Message);
@@ -124,7 +158,7 @@ public class GObjectPropertyTests
         WithSocketClient(client =>
         {
             using var log = new GObjectLogCapture();
-            var ex = Assert.Throws<ArgumentException>(() => GLibNative.SetIntProperty(client, "timeout", 5));
+            var ex = Assert.Throws<ArgumentException>(() => GLibNative.SetIntProperty(client, "timeout", 5, ParamName));
             Assert.Contains("timeout", ex.Message);
             ex = Assert.Throws<ArgumentException>(() => GLibNative.GetIntProperty(client, "timeout"));
             Assert.Contains("timeout", ex.Message);
@@ -142,7 +176,7 @@ public class GObjectPropertyTests
             var socketType = GioTestNative.g_socket_type_get_type();
             using var log = new GObjectLogCapture();
             var ex = Assert.Throws<ArgumentException>(() =>
-                GLibNative.SetEnumProperty(client, "family", socketType, GioTestNative.SocketFamilyIpv4));
+                GLibNative.SetEnumProperty(client, "family", socketType, GioTestNative.SocketFamilyIpv4, ParamName));
             Assert.Contains("family", ex.Message);
             ex = Assert.Throws<ArgumentException>(() => GLibNative.GetEnumProperty(client, "family", socketType));
             Assert.Contains("family", ex.Message);
@@ -159,7 +193,7 @@ public class GObjectPropertyTests
         WithSocketClient(client =>
         {
             using var log = new GObjectLogCapture();
-            Assert.Throws<ArgumentException>(() => GLibNative.SetIntProperty(client, "family", GioTestNative.SocketFamilyIpv4));
+            Assert.Throws<ArgumentException>(() => GLibNative.SetIntProperty(client, "family", GioTestNative.SocketFamilyIpv4, ParamName));
             Assert.Throws<ArgumentException>(() => GLibNative.GetIntProperty(client, "family"));
             Assert.Throws<ArgumentException>(() => GLibNative.GetUIntProperty(client, "family"));
             AssertNoGObjectWarning(log);
@@ -173,7 +207,7 @@ public class GObjectPropertyTests
         {
             var family = GioTestNative.g_socket_family_get_type();
             using var log = new GObjectLogCapture();
-            Assert.Throws<ArgumentException>(() => GLibNative.SetEnumProperty(socket, "listen-backlog", family, 5));
+            Assert.Throws<ArgumentException>(() => GLibNative.SetEnumProperty(socket, "listen-backlog", family, 5, ParamName));
             Assert.Throws<ArgumentException>(() => GLibNative.GetEnumProperty(socket, "listen-backlog", family));
             AssertNoGObjectWarning(log);
         });
@@ -186,11 +220,11 @@ public class GObjectPropertyTests
     {
         WithSocket(socket =>
         {
-            GLibNative.SetIntProperty(socket, "listen-backlog", 7);
+            GLibNative.SetIntProperty(socket, "listen-backlog", 7, ParamName);
 
             using var log = new GObjectLogCapture();
-            var ex = Assert.Throws<ArgumentOutOfRangeException>(() => GLibNative.SetIntProperty(socket, "listen-backlog", -1));
-            Assert.Equal("value", ex.ParamName);
+            var ex = Assert.Throws<ArgumentOutOfRangeException>(() => GLibNative.SetIntProperty(socket, "listen-backlog", -1, ParamName));
+            Assert.Equal(ParamName, ex.ParamName);
             Assert.Contains("listen-backlog", ex.Message);
             Assert.Contains("GSocket", ex.Message);
             Assert.Equal(7, GLibNative.GetIntProperty(socket, "listen-backlog"));
@@ -207,12 +241,14 @@ public class GObjectPropertyTests
         WithSocketClient(client =>
         {
             var family = GioTestNative.g_socket_family_get_type();
-            GLibNative.SetEnumProperty(client, "family", family, GioTestNative.SocketFamilyIpv4);
+            GLibNative.SetEnumProperty(client, "family", family, GioTestNative.SocketFamilyIpv4, ParamName);
 
             using var log = new GObjectLogCapture();
-            var ex = Assert.Throws<ArgumentOutOfRangeException>(() => GLibNative.SetEnumProperty(client, "family", family, 999));
-            Assert.Equal("value", ex.ParamName);
+            var ex = Assert.Throws<ArgumentOutOfRangeException>(() => GLibNative.SetEnumProperty(client, "family", family, 999, ParamName));
+            Assert.Equal(ParamName, ex.ParamName);
             Assert.Equal(GioTestNative.SocketFamilyIpv4, GLibNative.GetEnumProperty(client, "family", family));
+            // GLib logs the refused value (a critical in GLib 2.88).
+            Assert.Contains(log.Messages, m => m.Contains("family"));
         });
     }
 
@@ -225,14 +261,79 @@ public class GObjectPropertyTests
         try
         {
             using var log = new GObjectLogCapture();
-            var ex = Assert.Throws<ArgumentOutOfRangeException>(() => GLibNative.SetUIntProperty(address, "port", 2u));
-            Assert.Equal("value", ex.ParamName);
+            var ex = Assert.Throws<ArgumentOutOfRangeException>(() => GLibNative.SetUIntProperty(address, "port", 2u, ParamName));
+            Assert.Equal(ParamName, ex.ParamName);
             Assert.Equal(1u, GLibNative.GetUIntProperty(address, "port"));
+            // GLib logs the construct-only write (a critical in GLib 2.88).
+            Assert.Contains(log.Messages, m => m.Contains("port"));
         }
         finally
         {
             GLibNative.g_object_unref(address);
         }
+    }
+
+    [NativeFact]
+    public void SetBoolProperty_ReadOnlyProperty_ShouldThrowAndKeepThePreviousValue()
+    {
+        WithInetAddress(address =>
+        {
+            Assert.True(GLibNative.GetBoolProperty(address, "is-loopback"));
+
+            using var log = new GObjectLogCapture();
+            var ex = Assert.Throws<ArgumentOutOfRangeException>(() => GLibNative.SetBoolProperty(address, "is-loopback", false, ParamName));
+            Assert.Equal(ParamName, ex.ParamName);
+            Assert.Contains("is-loopback", ex.Message);
+            Assert.True(GLibNative.GetBoolProperty(address, "is-loopback"));
+            // GLib logs the write to a read-only property (a critical in GLib 2.88).
+            Assert.Contains(log.Messages, m => m.Contains("is-loopback"));
+        });
+    }
+
+    [NativeFact]
+    public void LogCapture_ShouldRecordGObjectCriticals()
+    {
+        // Proves the CRITICAL bit of GObjectLogCapture, which the "nothing logged" assertions
+        // rely on: a failed g_return_val_if_fail of GObject is a critical in every GLib version.
+        using var log = new GObjectLogCapture();
+        Assert.Equal(IntPtr.Zero, GioTestNative.FindPropertyOnANonObjectClass());
+        Assert.Contains(log.Criticals, m => m.Contains("G_IS_OBJECT_CLASS"));
+    }
+
+    [NativeFact]
+    public void EnumHelpers_WithZeroEnumType_ShouldThrowArgumentExceptionWithoutAGLibCritical()
+    {
+        WithSocketClient(client =>
+        {
+            using var log = new GObjectLogCapture();
+            var ex = Assert.Throws<ArgumentException>(() =>
+                GLibNative.SetEnumProperty(client, "family", IntPtr.Zero, GioTestNative.SocketFamilyIpv4, ParamName));
+            Assert.Equal("enumType", ex.ParamName);
+            ex = Assert.Throws<ArgumentException>(() => GLibNative.GetEnumProperty(client, "family", IntPtr.Zero));
+            Assert.Equal("enumType", ex.ParamName);
+            AssertNoGObjectWarning(log);
+
+            Assert.Equal(GioTestNative.SocketFamilyInvalid,
+                GLibNative.GetEnumProperty(client, "family", GioTestNative.g_socket_family_get_type()));
+        });
+    }
+
+    [NativeTheory]
+    [MemberData(nameof(AllHelpers))]
+    public void Helper_OnAnInstanceThatIsNotAGObject_ShouldThrowArgumentException(string helper)
+    {
+        // A GParamSpec is a GTypeInstance of a fundamental type other than GObject.
+        WithSocketClient(client =>
+        {
+            var pspec = GioTestNative.FindPropertySpec(client, "timeout");
+            Assert.NotEqual(IntPtr.Zero, pspec);
+
+            using var log = new GObjectLogCapture();
+            var ex = Assert.Throws<ArgumentException>(() =>
+                CallHelper(helper, pspec, "timeout", GioTestNative.g_socket_family_get_type()));
+            Assert.Equal("obj", ex.ParamName);
+            AssertNoGObjectWarning(log);
+        });
     }
 
     // === AC-4: round trips ===
@@ -243,9 +344,9 @@ public class GObjectPropertyTests
         WithSocket(socket =>
         {
             using var log = new GObjectLogCapture();
-            GLibNative.SetIntProperty(socket, "listen-backlog", 42);
+            GLibNative.SetIntProperty(socket, "listen-backlog", 42, ParamName);
             Assert.Equal(42, GLibNative.GetIntProperty(socket, "listen-backlog"));
-            GLibNative.SetIntProperty(socket, "listen-backlog", 0); // the declared minimum
+            GLibNative.SetIntProperty(socket, "listen-backlog", 0, ParamName); // the declared minimum
             Assert.Equal(0, GLibNative.GetIntProperty(socket, "listen-backlog"));
             AssertNoGObjectWarning(log);
         });
@@ -257,9 +358,9 @@ public class GObjectPropertyTests
         WithSocketClient(client =>
         {
             using var log = new GObjectLogCapture();
-            GLibNative.SetUIntProperty(client, "timeout", 4_000_000_000u); // above int.MaxValue
+            GLibNative.SetUIntProperty(client, "timeout", 4_000_000_000u, ParamName); // above int.MaxValue
             Assert.Equal(4_000_000_000u, GLibNative.GetUIntProperty(client, "timeout"));
-            GLibNative.SetUIntProperty(client, "timeout", 7u);
+            GLibNative.SetUIntProperty(client, "timeout", 7u, ParamName);
             Assert.Equal(7u, GLibNative.GetUIntProperty(client, "timeout"));
             AssertNoGObjectWarning(log);
         });
@@ -273,9 +374,9 @@ public class GObjectPropertyTests
         {
             var family = GioTestNative.g_socket_family_get_type();
             using var log = new GObjectLogCapture();
-            GLibNative.SetEnumProperty(client, "family", family, GioTestNative.SocketFamilyIpv4);
+            GLibNative.SetEnumProperty(client, "family", family, GioTestNative.SocketFamilyIpv4, ParamName);
             Assert.Equal(GioTestNative.SocketFamilyIpv4, GLibNative.GetEnumProperty(client, "family", family));
-            GLibNative.SetEnumProperty(client, "family", family, GioTestNative.SocketFamilyInvalid);
+            GLibNative.SetEnumProperty(client, "family", family, GioTestNative.SocketFamilyInvalid, ParamName);
             Assert.Equal(GioTestNative.SocketFamilyInvalid, GLibNative.GetEnumProperty(client, "family", family));
             AssertNoGObjectWarning(log);
         });
@@ -287,9 +388,9 @@ public class GObjectPropertyTests
         WithSocketClient(client =>
         {
             using var log = new GObjectLogCapture();
-            GLibNative.SetBoolProperty(client, "tls", true);
+            GLibNative.SetBoolProperty(client, "tls", true, ParamName);
             Assert.True(GLibNative.GetBoolProperty(client, "tls"));
-            GLibNative.SetBoolProperty(client, "tls", false);
+            GLibNative.SetBoolProperty(client, "tls", false, ParamName);
             Assert.False(GLibNative.GetBoolProperty(client, "tls"));
             AssertNoGObjectWarning(log);
         });
@@ -301,9 +402,9 @@ public class GObjectPropertyTests
         WithSocketClient(client =>
         {
             using var log = new GObjectLogCapture();
-            Assert.Throws<ArgumentException>(() => GLibNative.SetBoolProperty(client, "timeout", true));
+            Assert.Throws<ArgumentException>(() => GLibNative.SetBoolProperty(client, "timeout", true, ParamName));
             Assert.Throws<ArgumentException>(() => GLibNative.GetBoolProperty(client, "timeout"));
-            Assert.Throws<ArgumentException>(() => GLibNative.SetUIntProperty(client, "tls", 1u));
+            Assert.Throws<ArgumentException>(() => GLibNative.SetUIntProperty(client, "tls", 1u, ParamName));
             Assert.Throws<ArgumentException>(() => GLibNative.GetIntProperty(client, "tls"));
             AssertNoGObjectWarning(log);
 
@@ -319,7 +420,7 @@ public class GObjectPropertyTests
         WithSocket(socket =>
         {
             var ex = Assert.Throws<ArgumentException>(() =>
-                GLibNative.SetEnumProperty(socket, "listen-backlog", GLibNative.G_TYPE_INT, 5));
+                GLibNative.SetEnumProperty(socket, "listen-backlog", GLibNative.G_TYPE_INT, 5, ParamName));
             Assert.Equal("enumType", ex.ParamName);
             ex = Assert.Throws<ArgumentException>(() =>
                 GLibNative.GetEnumProperty(socket, "listen-backlog", GLibNative.G_TYPE_INT));
@@ -366,6 +467,78 @@ public class GObjectPropertyTests
             Assert.Equal(5, GLibNative.GetIntProperty(socket, "listen-backlog"));
         });
     }
+    public static TheoryData<string, string> LegacyShimMisuses() => new()
+    {
+        // shim, a GSocketClient property of another type than the shim's
+        { "g_object_set_int", "timeout" },
+        { "g_object_set_uint", "tls" },
+        { "g_object_set_bool", "timeout" },
+        { "g_object_get_int", "tls" },
+        { "g_object_get_uint", "family" },
+        { "g_object_get_bool", "timeout" },
+    };
+
+    private static void CallShim(string shim, IntPtr obj, string propertyName)
+    {
+        switch (shim)
+        {
+            case "g_object_set_int": GLibNative.g_object_set_int(obj, propertyName, 1, IntPtr.Zero); break;
+            case "g_object_set_uint": GLibNative.g_object_set_uint(obj, propertyName, 1u, IntPtr.Zero); break;
+            case "g_object_set_bool": GLibNative.g_object_set_bool(obj, propertyName, true, IntPtr.Zero); break;
+            case "g_object_get_int": GLibNative.g_object_get_int(obj, propertyName, out _, IntPtr.Zero); break;
+            case "g_object_get_uint": GLibNative.g_object_get_uint(obj, propertyName, out _, IntPtr.Zero); break;
+            case "g_object_get_bool": GLibNative.g_object_get_bool(obj, propertyName, out _, IntPtr.Zero); break;
+            default: throw new ArgumentOutOfRangeException(nameof(shim), shim, null);
+        }
+    }
+
+    [NativeTheory]
+    [MemberData(nameof(LegacyShimMisuses))]
+    public void LegacyShim_UnknownPropertyOrAnotherType_ShouldThrowArgumentException(string shim, string otherTypeProperty)
+    {
+        WithSocketClient(client =>
+        {
+            using var log = new GObjectLogCapture();
+            var ex = Assert.Throws<ArgumentException>(() => CallShim(shim, client, UnknownProperty));
+            Assert.Equal("propertyName", ex.ParamName);
+            Assert.Contains(UnknownProperty, ex.Message);
+
+            ex = Assert.Throws<ArgumentException>(() => CallShim(shim, client, otherTypeProperty));
+            Assert.Equal("propertyName", ex.ParamName);
+            Assert.Contains(otherTypeProperty, ex.Message);
+            AssertNoGObjectWarning(log);
+
+            Assert.Equal(0u, GLibNative.GetUIntProperty(client, "timeout"));
+            Assert.False(GLibNative.GetBoolProperty(client, "tls"));
+        });
+    }
+
+    [NativeFact]
+    public void LegacyShims_RefusedWrites_ShouldThrowArgumentOutOfRangeException()
+    {
+        WithInetSocketAddress(address =>
+        {
+            var ex = Assert.Throws<ArgumentOutOfRangeException>(() => GLibNative.g_object_set_uint(address, "port", 2u, IntPtr.Zero));
+            Assert.Equal("value", ex.ParamName);
+            Assert.Equal(1u, GLibNative.GetUIntProperty(address, "port"));
+        });
+
+        WithInetAddress(address =>
+        {
+            var ex = Assert.Throws<ArgumentOutOfRangeException>(() => GLibNative.g_object_set_bool(address, "is-loopback", false, IntPtr.Zero));
+            Assert.Equal("value", ex.ParamName);
+            Assert.True(GLibNative.GetBoolProperty(address, "is-loopback"));
+        });
+
+        WithSocketClient(client =>
+        {
+            GLibNative.g_object_set_int(client, "family", GioTestNative.SocketFamilyIpv4, IntPtr.Zero);
+            var ex = Assert.Throws<ArgumentOutOfRangeException>(() => GLibNative.g_object_set_int(client, "family", 999, IntPtr.Zero));
+            Assert.Equal("value", ex.ParamName);
+            GLibNative.g_object_get_int(client, "family", out int family, IntPtr.Zero);
+            Assert.Equal(GioTestNative.SocketFamilyIpv4, family);
+        });
+    }
 #pragma warning restore CS0618
 
     // === Null arguments ===
@@ -393,7 +566,9 @@ public class GObjectPropertyTests
         arguments[0] = obj;
         arguments[1] = null;
         for (int i = 2; i < parameters.Length; i++)
-            arguments[i] = parameters[i].ParameterType == typeof(IntPtr) ? enumType : Activator.CreateInstance(parameters[i].ParameterType);
+            arguments[i] = parameters[i].ParameterType == typeof(IntPtr) ? enumType
+                : parameters[i].ParameterType == typeof(string) ? ParamName
+                : Activator.CreateInstance(parameters[i].ParameterType);
         try
         {
             method.Invoke(null, arguments);

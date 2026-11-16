@@ -68,7 +68,7 @@ public class Stream : IDisposable
     {
         CheckDisposed();
         CheckGigE();
-        GLibNative.SetEnumProperty(_handle, "socket-buffer", AravisNative.arv_gv_stream_socket_buffer_get_type(), (int)policy);
+        GLibNative.SetEnumProperty(_handle, "socket-buffer", AravisNative.arv_gv_stream_socket_buffer_get_type(), (int)policy, nameof(policy));
         GC.KeepAlive(this);
     }
 
@@ -84,7 +84,7 @@ public class Stream : IDisposable
     {
         CheckDisposed();
         CheckGigE();
-        GLibNative.SetIntProperty(_handle, "socket-buffer-size", sizeBytes);
+        GLibNative.SetIntProperty(_handle, "socket-buffer-size", sizeBytes, nameof(sizeBytes));
         GC.KeepAlive(this);
     }
 
@@ -112,7 +112,7 @@ public class Stream : IDisposable
     {
         CheckDisposed();
         CheckGigE();
-        GLibNative.SetEnumProperty(_handle, "packet-resend", AravisNative.arv_gv_stream_packet_resend_get_type(), (int)policy);
+        GLibNative.SetEnumProperty(_handle, "packet-resend", AravisNative.arv_gv_stream_packet_resend_get_type(), (int)policy, nameof(policy));
         GC.KeepAlive(this);
     }
 
@@ -139,7 +139,7 @@ public class Stream : IDisposable
     {
         CheckDisposed();
         CheckGigE();
-        GLibNative.SetUIntProperty(_handle, "initial-packet-timeout", timeoutUs);
+        GLibNative.SetUIntProperty(_handle, "initial-packet-timeout", timeoutUs, nameof(timeoutUs));
         GC.KeepAlive(this);
     }
 
@@ -163,7 +163,7 @@ public class Stream : IDisposable
     {
         CheckDisposed();
         CheckGigE();
-        GLibNative.SetUIntProperty(_handle, "packet-timeout", timeoutUs);
+        GLibNative.SetUIntProperty(_handle, "packet-timeout", timeoutUs, nameof(timeoutUs));
         GC.KeepAlive(this);
     }
 
@@ -187,7 +187,7 @@ public class Stream : IDisposable
     {
         CheckDisposed();
         CheckGigE();
-        GLibNative.SetUIntProperty(_handle, "frame-retention", timeoutUs);
+        GLibNative.SetUIntProperty(_handle, "frame-retention", timeoutUs, nameof(timeoutUs));
         GC.KeepAlive(this);
     }
 
