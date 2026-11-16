@@ -102,6 +102,17 @@ ground:
    returns, possibly never. Recommendation: (a). It removes the last case where disposal
    leaves a thread waiting forever.
 
+## Decisions
+
+- **2026-11-16, gate 1, alex:** spec approved with the three recommendations. (1) Full
+  thread safety as decided on 13.11: `GObjectSafeHandle`, a lease around every native
+  call, the camera lock, ported onto `main`'s code (not merged from the old branch).
+  (2) `Device` and `NodeMap` share the camera's handle and throw
+  `ObjectDisposedException` once the camera is disposed; `Device.Dispose()` only marks the
+  wrapper; `Device_ShouldStayUsable_AfterCameraIsDisposed` is inverted. (3) Blocking pops
+  wait in 100 ms timed pops and throw `ObjectDisposedException` once the stream is
+  disposed. No question left open, so no council.
+
 ## Plan
 
 1. Red tests on the Fake camera for AC-1 to AC-8, ported where possible from
