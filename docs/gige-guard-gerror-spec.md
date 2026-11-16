@@ -67,6 +67,16 @@ base). `NON VÉRIFIÉ` marks what was not checked.
    open a separate issue to expose the size actually granted. (b) Both here. (c) Neither.
    Recommendation: (a).
 
+## Decisions
+
+- **2026-11-16, gate 1, alex:** spec approved with the three recommendations. (1) The GigE
+  members throw `NotSupportedException`, and the public `Stream.IsGigEVision` is the test
+  for it; this replaces `main`'s unreleased `InvalidOperationException`. (2) The eleven
+  `Gv*` members of `Camera` get the same guard, through `IsGigEVisionDevice()`. (3) The
+  Linux `net.core.rmem_max` cap is documented in the XML docs of `SetSocketBufferSize` and
+  `ConfigureGigEDefaults` here; exposing the size actually granted goes to a separate
+  issue. No question left open, so no council.
+
 ## Plan
 
 1. Red tests on the Fake camera for AC-1 to AC-4; then the shared guard, `IsGigEVision`,
