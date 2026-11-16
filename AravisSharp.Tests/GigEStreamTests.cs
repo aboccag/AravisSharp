@@ -104,6 +104,28 @@ public class GigEStreamTests : IClassFixture<GvFakeCameraFixture>
     }
 
     [NativeFact]
+    public void GigEStreamSetters_ValueRefusedByAravis_ShouldThrowAndKeepThePreviousValue()
+    {
+        // #14 AC-3 on ArvGvStream: "socket-buffer-size" is a gint in [-1, G_MAXINT] and the
+        // policies are enums (aravis/src/arvgvstream.c). These writes used to be ignored silently.
+        using var camera = _fixture.OpenCamera();
+        using var stream = camera.CreateStream();
+
+        stream.SetSocketBufferSize(-1); // the declared minimum, "not set"
+        Assert.Equal(-1, stream.GetSocketBufferSize());
+        stream.SetSocketBufferSize(1 << 20);
+        Assert.Equal(1 << 20, stream.GetSocketBufferSize());
+        Assert.Throws<ArgumentOutOfRangeException>(() => stream.SetSocketBufferSize(-2));
+        Assert.Equal(1 << 20, stream.GetSocketBufferSize());
+
+        stream.SetPacketResend(ArvGvStreamPacketResend.Never);
+        Assert.Throws<ArgumentOutOfRangeException>(() => stream.SetPacketResend((ArvGvStreamPacketResend)99));
+        Assert.Equal(ArvGvStreamPacketResend.Never, stream.GetPacketResend());
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => stream.SetSocketBufferPolicy((ArvGvStreamSocketBuffer)99));
+    }
+
+    [NativeFact]
     public void GigEStreamTimings_ShouldRoundTrip()
     {
         using var camera = _fixture.OpenCamera();

@@ -63,6 +63,7 @@ public class Stream : IDisposable
     /// capped by <see cref="SetSocketBufferSize"/>; <see cref="ArvGvStreamSocketBuffer.Fixed"/>
     /// (Aravis' default) uses <see cref="SetSocketBufferSize"/> as is.
     /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="policy"/> is not a member of the enum: Aravis refused it and kept the previous policy.</exception>
     public void SetSocketBufferPolicy(ArvGvStreamSocketBuffer policy)
     {
         CheckDisposed();
@@ -78,6 +79,7 @@ public class Stream : IDisposable
     /// system default with Fixed, one payload with Auto. Aravis applies it when the first
     /// frame arrives.
     /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="sizeBytes"/> is below -1, the property's minimum: Aravis refused it and kept the previous size.</exception>
     public void SetSocketBufferSize(int sizeBytes)
     {
         CheckDisposed();
@@ -105,6 +107,7 @@ public class Stream : IDisposable
     /// reports packet resend support and <see cref="ArvGvStreamPacketResend.Never"/> otherwise;
     /// with Never, an incomplete frame is closed as soon as the next one starts.
     /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="policy"/> is not a member of the enum: Aravis refused it and kept the previous policy.</exception>
     public void SetPacketResend(ArvGvStreamPacketResend policy)
     {
         CheckDisposed();
