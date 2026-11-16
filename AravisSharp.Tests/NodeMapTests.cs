@@ -149,6 +149,35 @@ public class NodeMapTests : IDisposable
         Assert.Equal(FeatureType.Command, details!.Type);
     }
 
+    // #10: GetNode tells a missing node from an existing one through arv_device_get_feature,
+    // not through the value of a string read.
+    [NativeFact]
+    public void GetNode_MissingNode_ShouldReturnNull()
+    {
+        Assert.Null(NodeMap.GetNode("NoSuchNode"));
+    }
+
+    [NativeFact]
+    public void GetNode_NonStringNode_ShouldReturnInfoWithNullValue()
+    {
+        var info = NodeMap.GetNode("Width");
+
+        Assert.NotNull(info);
+        Assert.Equal("Width", info!.Name);
+        Assert.True(info.IsAvailable);
+        Assert.True(info.IsImplemented);
+    }
+
+    [NativeFact]
+    public void GetNode_StringNode_ShouldReturnItsValue()
+    {
+        var info = NodeMap.GetNode("DeviceVendorName");
+
+        Assert.NotNull(info);
+        Assert.False(string.IsNullOrEmpty(info!.Value));
+        Assert.Equal(NodeMap.GetStringFeature("DeviceVendorName"), info.Value);
+    }
+
     [NativeFact]
     public void NodeMap_ShouldReadAndWriteThroughTheDevice()
     {

@@ -76,6 +76,12 @@ base). `NON VÉRIFIÉ` marks what was not checked.
   Linux `net.core.rmem_max` cap is documented in the XML docs of `SetSocketBufferSize` and
   `ConfigureGigEDefaults` here; exposing the size actually granted goes to a separate
   issue. No question left open, so no council.
+- **2026-11-16, review, alex:** `NodeMap.GetNode` is fixed in #10. The reviews found that
+  its `catch (AravisException)` was dead (`GetStringFeature` returns `null` on a `GError`
+  and never throws), so `GetNode` returned a `FeatureInfo` for any name. It now returns
+  `null` when `arv_device_get_feature` finds no node (transfer none, never unref), and a
+  `FeatureInfo` otherwise, whose `Value` is `null` for a node that is not a string;
+  `ObjectDisposedException` still propagates.
 
 ## Plan
 

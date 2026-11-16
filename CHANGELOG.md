@@ -46,11 +46,11 @@ Package versions mirror the native Aravis version they target (`0.8.36` targets
 - The GigE members of `Stream` throw `NotSupportedException` on a stream that is not GigE
   Vision (see `Stream.IsGigEVision`), instead of the unreleased `InvalidOperationException`
   (#10).
-- `NodeMap.GetNode`, `NodeMap.GetFeatureDetails`, `NodeMap.GetFeaturesInCategory` and
+- `NodeMap.GetFeatureDetails`, `NodeMap.GetFeaturesInCategory` and
   `FeatureDetails.FromNode` no longer swallow every exception: they absorb an Aravis error,
   and a missing entry point of an older system libaravis where they read optional feature
   metadata; anything else, such as `ObjectDisposedException` on a disposed `Device`,
-  propagates (#10).
+  propagates. `NodeMap.GetNode` no longer catches anything (#10).
 - The `NodeMap` feature accessors keep throwing `InvalidOperationException`, now with the
   native error message and an `AravisException` inner exception carrying its domain and
   code (#10).
@@ -73,6 +73,10 @@ Package versions mirror the native Aravis version they target (`0.8.36` targets
   logged a GLib CRITICAL and returned 0 or did nothing (#10).
 - The XML documentation of `Stream.SetSocketBufferSize` and `Stream.ConfigureGigEDefaults`
   states that Linux silently caps the socket buffer at `net.core.rmem_max` (#10).
+- `NodeMap.GetNode` returns `null` for a node the device does not have, checked through
+  `arv_device_get_feature`. It used to return a `FeatureInfo` for any name, because a
+  failed string read returns `null` rather than throwing; an existing node that is not a
+  string (such as `Width`) still gives a `FeatureInfo` with a `null` `Value` (#10).
 
 ## [0.8.36] - 2026-08-21
 

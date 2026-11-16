@@ -182,26 +182,41 @@ public class NodeMap : IDisposable
     }
 
     /// <summary>
-    /// Gets a feature node by name (legacy compatibility)
+    /// Gets a feature node by name (legacy compatibility).
     /// </summary>
+    /// <returns>
+    /// <c>null</c> when the device has no node of that name. Otherwise a
+    /// <see cref="FeatureInfo"/> whose <see cref="FeatureInfo.Value"/> is the string value of
+    /// the feature, or <c>null</c> when it cannot be read as a string (an integer feature
+    /// such as <c>Width</c>, for example).
+    /// </returns>
+    /// <exception cref="ObjectDisposedException">The device has been disposed.</exception>
     public FeatureInfo? GetNode(string nodeName)
     {
+        if (!HasNode(nodeName))
+            return null;
+
+        return new FeatureInfo
+        {
+            Name = nodeName,
+            Value = GetStringFeature(nodeName),
+            IsAvailable = true,
+            IsImplemented = true
+        };
+    }
+
+    private bool HasNode(string nodeName)
+    {
+        IntPtr namePtr = Marshal.StringToCoTaskMemUTF8(nodeName);
         try
         {
-            var value = GetStringFeature(nodeName);
-            return new FeatureInfo
-            {
-                Name = nodeName,
-                Value = value,
-                IsAvailable = true,
-                IsImplemented = true
-            };
+            // Transfer none: the node belongs to the device's ArvGc, never unref it.
+            return AravisNative.arv_device_get_feature(DeviceHandle, namePtr) != IntPtr.Zero;
         }
-        catch (AravisException)
+        finally
         {
-            // Only an Aravis error means "no such node"; a disposed device and every other
-            // exception propagate.
-            return null;
+            Marshal.FreeCoTaskMem(namePtr);
+            GC.KeepAlive(_device);
         }
     }
 
