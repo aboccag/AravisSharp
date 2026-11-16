@@ -35,6 +35,15 @@ public class NodeMap : IDisposable
         }
     }
 
+    // The feature accessors below report failures as InvalidOperationException (their
+    // existing contract); the native GError travels along as the AravisException inner
+    // exception, so its message, domain and code are not lost.
+    private static InvalidOperationException Failure(string message, ref IntPtr error)
+    {
+        var inner = AravisException.TakeGError(ref error);
+        return new InvalidOperationException($"{message}: {inner.Message}", inner);
+    }
+
     /// <summary>
     /// Gets detailed information about a feature
     /// </summary>
@@ -228,7 +237,7 @@ public class NodeMap : IDisposable
             AravisNative.arv_device_set_string_feature_value(DeviceHandle, namePtr, valuePtr, out error);
             
             if (error != IntPtr.Zero)
-                throw new InvalidOperationException($"Failed to set feature {featureName}");
+                throw Failure($"Failed to set feature {featureName}", ref error);
         }
         finally
         {
@@ -251,7 +260,7 @@ public class NodeMap : IDisposable
             long value = AravisNative.arv_device_get_integer_feature_value(DeviceHandle, namePtr, out error);
             
             if (error != IntPtr.Zero)
-                throw new InvalidOperationException($"Failed to get feature {featureName}");
+                throw Failure($"Failed to get feature {featureName}", ref error);
 
             return value;
         }
@@ -275,7 +284,7 @@ public class NodeMap : IDisposable
             AravisNative.arv_device_set_integer_feature_value(DeviceHandle, namePtr, value, out error);
             
             if (error != IntPtr.Zero)
-                throw new InvalidOperationException($"Failed to set feature {featureName}");
+                throw Failure($"Failed to set feature {featureName}", ref error);
         }
         finally
         {
@@ -297,7 +306,7 @@ public class NodeMap : IDisposable
             double value = AravisNative.arv_device_get_float_feature_value(DeviceHandle, namePtr, out error);
             
             if (error != IntPtr.Zero)
-                throw new InvalidOperationException($"Failed to get feature {featureName}");
+                throw Failure($"Failed to get feature {featureName}", ref error);
 
             return value;
         }
@@ -321,7 +330,7 @@ public class NodeMap : IDisposable
             AravisNative.arv_device_set_float_feature_value(DeviceHandle, namePtr, value, out error);
             
             if (error != IntPtr.Zero)
-                throw new InvalidOperationException($"Failed to set feature {featureName}");
+                throw Failure($"Failed to set feature {featureName}", ref error);
         }
         finally
         {
@@ -343,7 +352,7 @@ public class NodeMap : IDisposable
             bool value = AravisNative.arv_device_get_boolean_feature_value(DeviceHandle, namePtr, out error);
             
             if (error != IntPtr.Zero)
-                throw new InvalidOperationException($"Failed to get feature {featureName}");
+                throw Failure($"Failed to get feature {featureName}", ref error);
 
             return value;
         }
@@ -367,7 +376,7 @@ public class NodeMap : IDisposable
             AravisNative.arv_device_set_boolean_feature_value(DeviceHandle, namePtr, value, out error);
             
             if (error != IntPtr.Zero)
-                throw new InvalidOperationException($"Failed to set feature {featureName}");
+                throw Failure($"Failed to set feature {featureName}", ref error);
         }
         finally
         {
@@ -389,7 +398,7 @@ public class NodeMap : IDisposable
             AravisNative.arv_device_execute_command(DeviceHandle, namePtr, out error);
             
             if (error != IntPtr.Zero)
-                throw new InvalidOperationException($"Failed to execute command {commandName}");
+                throw Failure($"Failed to execute command {commandName}", ref error);
         }
         finally
         {

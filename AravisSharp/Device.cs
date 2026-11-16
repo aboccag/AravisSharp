@@ -59,7 +59,7 @@ public class Device : IDisposable
         {
             featurePtr = Marshal.StringToCoTaskMemUTF8(featureName);
             var valuePtr = AravisNative.arv_device_get_string_feature_value(_handle, featurePtr, out error);
-            CheckError(error);
+            CheckError(ref error);
             return MarshalString(valuePtr);
         }
         finally
@@ -86,7 +86,7 @@ public class Device : IDisposable
             featurePtr = Marshal.StringToCoTaskMemUTF8(featureName);
             valuePtr = Marshal.StringToCoTaskMemUTF8(value);
             AravisNative.arv_device_set_string_feature_value(_handle, featurePtr, valuePtr, out error);
-            CheckError(error);
+            CheckError(ref error);
         }
         finally
         {
@@ -112,7 +112,7 @@ public class Device : IDisposable
         {
             featurePtr = Marshal.StringToCoTaskMemUTF8(featureName);
             var value = AravisNative.arv_device_get_integer_feature_value(_handle, featurePtr, out error);
-            CheckError(error);
+            CheckError(ref error);
             return value;
         }
         finally
@@ -137,7 +137,7 @@ public class Device : IDisposable
         {
             featurePtr = Marshal.StringToCoTaskMemUTF8(featureName);
             AravisNative.arv_device_set_integer_feature_value(_handle, featurePtr, value, out error);
-            CheckError(error);
+            CheckError(ref error);
         }
         finally
         {
@@ -161,7 +161,7 @@ public class Device : IDisposable
         {
             featurePtr = Marshal.StringToCoTaskMemUTF8(featureName);
             var value = AravisNative.arv_device_get_float_feature_value(_handle, featurePtr, out error);
-            CheckError(error);
+            CheckError(ref error);
             return value;
         }
         finally
@@ -186,7 +186,7 @@ public class Device : IDisposable
         {
             featurePtr = Marshal.StringToCoTaskMemUTF8(featureName);
             AravisNative.arv_device_set_float_feature_value(_handle, featurePtr, value, out error);
-            CheckError(error);
+            CheckError(ref error);
         }
         finally
         {
@@ -210,7 +210,7 @@ public class Device : IDisposable
         {
             featurePtr = Marshal.StringToCoTaskMemUTF8(featureName);
             var value = AravisNative.arv_device_get_boolean_feature_value(_handle, featurePtr, out error);
-            CheckError(error);
+            CheckError(ref error);
             return value;
         }
         finally
@@ -235,7 +235,7 @@ public class Device : IDisposable
         {
             featurePtr = Marshal.StringToCoTaskMemUTF8(featureName);
             AravisNative.arv_device_set_boolean_feature_value(_handle, featurePtr, value, out error);
-            CheckError(error);
+            CheckError(ref error);
         }
         finally
         {
@@ -259,7 +259,7 @@ public class Device : IDisposable
         {
             featurePtr = Marshal.StringToCoTaskMemUTF8(featureName);
             AravisNative.arv_device_execute_command(_handle, featurePtr, out error);
-            CheckError(error);
+            CheckError(ref error);
         }
         finally
         {
@@ -276,15 +276,14 @@ public class Device : IDisposable
             throw new ObjectDisposedException(nameof(Device));
     }
 
-    private void CheckError(IntPtr error)
+    private void CheckError(ref IntPtr error)
     {
         // Keeps this wrapper, and so the native device, alive until the native call has returned.
         GC.KeepAlive(this);
         if (error != IntPtr.Zero)
         {
-            var gerror = Marshal.PtrToStructure<GError>(error);
-            var message = Marshal.PtrToStringUTF8(gerror.Message) ?? "Unknown error";
-            throw new AravisException(message);
+            // Frees the GError and zeroes error: the callers' finally blocks then skip it.
+            throw AravisException.TakeGError(ref error);
         }
     }
 

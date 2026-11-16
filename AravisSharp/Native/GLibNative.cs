@@ -49,6 +49,13 @@ public static class GLibNative
     [DllImport(GLibLibraryName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void g_free(IntPtr ptr);
 
+    /// <summary>
+    /// Returns the string a GQuark stands for (for example a GError domain), or NULL for 0.
+    /// The string is owned by GLib: never free it.
+    /// </summary>
+    [DllImport(GLibLibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern IntPtr g_quark_to_string(uint quark);
+
     // --- Helper methods ---
 
     /// <summary>
