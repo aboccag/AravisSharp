@@ -41,8 +41,20 @@ internal enum TypeFamily
     Unknown,
 }
 
-/// <summary>A C function prototype read from a header.</summary>
-internal sealed record CPrototype(string Name, string ReturnType, IReadOnlyList<string> Parameters, bool IsVariadic, string Source);
+/// <summary>
+/// A C function prototype read from a header. <paramref name="Exported"/> is true when
+/// <c>ARV_API</c> precedes it (or the <c>G_DECLARE_*</c> line that declares it), or when it is the
+/// <c>get_type</c> function the build generates for a public Aravis enum.
+/// </summary>
+internal sealed record CPrototype(string Name, string ReturnType, IReadOnlyList<string> Parameters, bool IsVariadic, string Source, bool Exported = false)
+{
+    /// <summary>The prototype with its spacing normalised, to compare two declarations of one name.</summary>
+    public string Signature =>
+        $"{Normalize(ReturnType)} {Name} ({string.Join(", ", Parameters.Select(Normalize))}{(IsVariadic ? ", ..." : "")})";
+
+    private static string Normalize(string type) =>
+        string.Join(' ', type.Replace("*", " * ").Split(' ', StringSplitOptions.RemoveEmptyEntries)).Replace(" *", "*");
+}
 
 /// <summary>
 /// The function prototypes and the type names (typedefs, enums, structs, callbacks) of a set of
@@ -52,13 +64,21 @@ internal sealed record CPrototype(string Name, string ReturnType, IReadOnlyList<
 /// </summary>
 /// <remarks>
 /// <para>Reading a header: line continuations are joined, comments and preprocessor lines are
-/// dropped (both branches of an <c>#if</c> are kept; the first prototype of a name wins).
+/// dropped. Both branches of an <c>#if</c> are kept: the first prototype of a name is the one
+/// <see cref="Find"/> returns, a second identical one only adds its <c>ARV_API</c> mark, and a
+/// second different one is recorded and returned by <see cref="Conflicts"/>, which the check
+/// reports.
 /// <c>G_DECLARE_FINAL_TYPE</c>, <c>G_DECLARE_DERIVABLE_TYPE</c> and <c>G_DECLARE_INTERFACE</c>
 /// declare <c>GType &lt;prefix&gt;_get_type (void)</c>. Every other all-capitals identifier, with
 /// its parenthesised arguments if any, is a macro and is removed: <c>ARV_API</c>,
 /// <c>GLIB_AVAILABLE_IN_*</c>, <c>GOBJECT_AVAILABLE_IN_*</c>, <c>GIO_AVAILABLE_IN_*</c>,
-/// <c>G_GNUC_*</c>, <c>G_BEGIN_DECLS</c>. A function name in parentheses (<c>void (g_free) (gpointer
-/// mem)</c>) is read as the name. Inline function bodies are skipped.</para>
+/// <c>G_GNUC_*</c>, <c>G_BEGIN_DECLS</c>; <c>ARV_API</c> is first recorded on the prototype it
+/// precedes. A function name in parentheses (<c>void (g_free) (gpointer mem)</c>) is read as the
+/// name. Inline function bodies are skipped.</para>
+/// <para>The reader fails closed: a prototype whose argument parentheses do not balance, or with a
+/// parenthesised argument that is not a function pointer (<c>void (*name) (...)</c>), such as a
+/// lowercase <c>__attribute__((...))</c>, is left out, so its declaration reports no
+/// prototype.</para>
 /// <para>For a public Aravis header (<c>synthesizeEnumGetTypes</c>), each <c>typedef enum</c> also
 /// declares <c>GType &lt;snake_name&gt;_get_type (void)</c>, as the <c>arvenumtypes.h</c> that
 /// <c>gnome.mkenums_simple</c> generates at build time (<c>aravis/src/meson.build</c>) does.</para>
@@ -150,7 +170,12 @@ internal sealed partial class HeaderModel
         "void", "char", "short", "int", "long", "signed", "unsigned", "float", "double", "_Bool",
     };
 
+    // Stands for ARV_API, which the macro pass would otherwise remove, until the statement it
+    // precedes is read.
+    private const string ExportMarker = "__header_check_arv_api__";
+
     private readonly Dictionary<string, CPrototype> _functions = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, List<CPrototype>> _conflicts = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _aliases = new(StringComparer.Ordinal);
     private readonly HashSet<string> _enums = new(StringComparer.Ordinal);
     private readonly HashSet<string> _structs = new(StringComparer.Ordinal);
@@ -159,6 +184,13 @@ internal sealed partial class HeaderModel
     public int FunctionCount => _functions.Count;
 
     public CPrototype? Find(string name) => _functions.GetValueOrDefault(name);
+
+    /// <summary>
+    /// Every different prototype read for a name, the first one included; empty when the name
+    /// has one prototype (or none).
+    /// </summary>
+    public IReadOnlyList<CPrototype> Conflicts(string name) =>
+        _conflicts.TryGetValue(name, out var others) ? [_functions[name], .. others] : [];
 
     /// <summary>Reads every <c>*.h</c> file of a directory (recursively or not).</summary>
     public void AddDirectory(string directory, bool recursive, Func<string, bool> synthesizeEnumGetTypes)
@@ -177,14 +209,18 @@ internal sealed partial class HeaderModel
         text = PreprocessorLineRegex().Replace(text, "");
 
         foreach (Match m in GDeclareRegex().Matches(text))
-            AddFunction(new CPrototype(m.Groups["prefix"].Value + "_get_type", "GType", [], false, source));
+            AddFunction(new CPrototype(m.Groups["prefix"].Value + "_get_type", "GType", [], false, source, m.Groups["api"].Success));
         text = GDeclareRegex().Replace(text, " ");
+        text = ArvApiRegex().Replace(text, " " + ExportMarker + " ");
         text = MacroRegex().Replace(text, " ");
         text = ParenthesisedNameRegex().Replace(text, "${name} (");
 
         foreach (var raw in SplitStatements(text))
         {
             var statement = WhitespaceRegex().Replace(raw, " ").Trim();
+            var exported = statement.Contains(ExportMarker, StringComparison.Ordinal);
+            if (exported)
+                statement = WhitespaceRegex().Replace(statement.Replace(ExportMarker, " ", StringComparison.Ordinal), " ").Trim();
             if (statement.Length == 0)
                 continue;
             if (statement.StartsWith("typedef ", StringComparison.Ordinal))
@@ -192,12 +228,32 @@ internal sealed partial class HeaderModel
             else if (EnumDefinitionRegex().Match(statement) is { Success: true } e)
                 _enums.Add(e.Groups["name"].Value);
             else
-                ReadFunction(statement, source);
+                ReadFunction(statement, source, exported);
         }
     }
 
     /// <summary>The family of a C type as written in a prototype (qualifiers and all).</summary>
     public TypeFamily Resolve(string cType) => Resolve(cType, 0);
+
+    /// <summary>
+    /// The type a C pointer type points to: one <c>*</c> stripped (an array parameter is already
+    /// written <c>T *</c>), or the target of a pointer typedef such as <c>gpointer</c>
+    /// (<c>void</c>); null when the type is not a pointer the reader can see through.
+    /// </summary>
+    public string? Pointee(string cType) => Pointee(cType, 0);
+
+    private string? Pointee(string cType, int depth)
+    {
+        var type = cType.Trim();
+        if (type.EndsWith('*'))
+            return type[..^1].Trim();
+        if (depth > 32 || type.Contains('('))
+            return null;
+        var name = string.Join(' ', type.Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(w => !Qualifiers.Contains(w)));
+        if (name is "gpointer" or "gconstpointer")
+            return "void";
+        return _aliases.TryGetValue(name, out var target) ? Pointee(target, depth + 1) : null;
+    }
 
     private TypeFamily Resolve(string cType, int depth)
     {
@@ -238,8 +294,9 @@ internal sealed partial class HeaderModel
             if (name.Length == 0)
                 return;
             _enums.Add(name);
+            // arvenumtypes.h, generated at build time, declares it ARV_API.
             if (synthesizeEnumGetTypes && body.Contains('{'))
-                AddFunction(new CPrototype(MkEnumsPrefix(name) + "_get_type", "GType", [], false, source));
+                AddFunction(new CPrototype(MkEnumsPrefix(name) + "_get_type", "GType", [], false, source, Exported: true));
             return;
         }
         if (StructHeadRegex().IsMatch(body))
@@ -268,7 +325,7 @@ internal sealed partial class HeaderModel
             _aliases.TryAdd(name, target);
     }
 
-    private void ReadFunction(string statement, string source)
+    private void ReadFunction(string statement, string source, bool exported)
     {
         if (statement.Contains('{') || statement.Contains('='))
             return;
@@ -279,9 +336,12 @@ internal sealed partial class HeaderModel
         if (returnType.Length == 0)
             return;
 
+        var arguments = SplitArguments(m.Groups["args"].Value);
+        if (arguments is null || arguments.Any(a => a.Contains('(') && !FunctionPointerParameterRegex().IsMatch(a)))
+            return; // unbalanced, or an argument the reader cannot read: no prototype, which fails closed
         var parameters = new List<string>();
         var variadic = false;
-        foreach (var argument in SplitArguments(m.Groups["args"].Value))
+        foreach (var argument in arguments)
         {
             var arg = argument.Trim();
             if (arg == "...")
@@ -293,10 +353,27 @@ internal sealed partial class HeaderModel
         }
         if (parameters is ["void"])
             parameters.Clear();
-        AddFunction(new CPrototype(m.Groups["name"].Value, returnType, parameters, variadic, source));
+        AddFunction(new CPrototype(m.Groups["name"].Value, returnType, parameters, variadic, source, exported));
     }
 
-    private void AddFunction(CPrototype prototype) => _functions.TryAdd(prototype.Name, prototype);
+    private void AddFunction(CPrototype prototype)
+    {
+        if (!_functions.TryGetValue(prototype.Name, out var first))
+        {
+            _functions.Add(prototype.Name, prototype);
+            return;
+        }
+        if (first.Signature == prototype.Signature)
+        {
+            if (prototype.Exported && !first.Exported)
+                _functions[prototype.Name] = first with { Exported = true };
+            return;
+        }
+        if (!_conflicts.TryGetValue(prototype.Name, out var others))
+            _conflicts.Add(prototype.Name, others = []);
+        if (!others.Any(o => o.Signature == prototype.Signature))
+            others.Add(prototype);
+    }
 
     /// <summary>The type of a parameter declaration, without its name.</summary>
     internal static string ParameterType(string parameter)
@@ -366,8 +443,10 @@ internal sealed partial class HeaderModel
             yield return sb.ToString();
     }
 
-    private static IEnumerable<string> SplitArguments(string args)
+    /// <summary>The top-level arguments of an argument list; null when its parentheses do not balance.</summary>
+    private static List<string>? SplitArguments(string args)
     {
+        var result = new List<string>();
         var depth = 0;
         var start = 0;
         for (var i = 0; i < args.Length; i++)
@@ -378,16 +457,20 @@ internal sealed partial class HeaderModel
                     depth++;
                     break;
                 case ')':
-                    depth--;
+                    if (--depth < 0)
+                        return null;
                     break;
                 case ',' when depth == 0:
-                    yield return args[start..i];
+                    result.Add(args[start..i]);
                     start = i + 1;
                     break;
             }
         }
+        if (depth != 0)
+            return null;
         if (args[start..].Trim().Length > 0 || start > 0)
-            yield return args[start..];
+            result.Add(args[start..]);
+        return result;
     }
 
     [GeneratedRegex(@"\\\r?\n")]
@@ -402,8 +485,14 @@ internal sealed partial class HeaderModel
     [GeneratedRegex(@"^[ \t]*#[^\n]*", RegexOptions.Multiline)]
     private static partial Regex PreprocessorLineRegex();
 
-    [GeneratedRegex(@"\bG_DECLARE_(?:FINAL|DERIVABLE)_TYPE\s*\(\s*\w+\s*,\s*(?<prefix>\w+)\s*,[^()]*\)|\bG_DECLARE_INTERFACE\s*\(\s*\w+\s*,\s*(?<prefix>\w+)\s*,[^()]*\)")]
+    [GeneratedRegex(@"(?<api>\bARV_API\s+)?\bG_DECLARE_(?:FINAL_TYPE|DERIVABLE_TYPE|INTERFACE)\s*\(\s*\w+\s*,\s*(?<prefix>\w+)\s*,[^()]*\)")]
     private static partial Regex GDeclareRegex();
+
+    [GeneratedRegex(@"\bARV_API\b")]
+    private static partial Regex ArvApiRegex();
+
+    [GeneratedRegex(@"\(\s*\*\s*\w*\s*\)\s*\(")]
+    private static partial Regex FunctionPointerParameterRegex();
 
     // An all-capitals identifier (a macro), with its balanced parenthesised arguments if any.
     [GeneratedRegex(@"\b_*[A-Z][A-Z0-9_]*[A-Z0-9]\b(?:\s*\((?>[^()]+|\((?<d>)|\)(?<-d>))*(?(d)(?!))\))?")]
@@ -445,23 +534,38 @@ internal sealed partial class HeaderModel
 /// (<c>&lt;repository&gt;/aravis/src</c>, or <c>ARAVIS_SOURCE_DIR</c>: the Aravis source tree or
 /// its <c>src</c> directory) and the GLib headers (the <c>-I</c> directories of
 /// <c>pkg-config --cflags-only-I glib-2.0 gobject-2.0 gio-2.0</c> under a <c>glib-2.0</c> path,
-/// else <c>/usr/include/glib-2.0</c>).
+/// else <c>/usr/include/glib-2.0</c>). <paramref name="GLibNote"/> says why <c>pkg-config</c> gave
+/// nothing (not installed, an error, a timeout), when it did.
 /// </summary>
-internal sealed record HeaderSources(string? AravisDirectory, IReadOnlyList<string> GLibDirectories, string? Problem)
+internal sealed record HeaderSources(string? AravisDirectory, IReadOnlyList<string> GLibDirectories, string? Problem, string? GLibNote = null)
 {
     private static readonly Lazy<HeaderSources> Located = new(Locate);
 
     public static HeaderSources Current => Located.Value;
 
-    /// <summary>True on GitHub Actions, where missing headers fail the check instead of skipping it.</summary>
-    public static bool IsCi => string.Equals(Environment.GetEnvironmentVariable("GITHUB_ACTIONS"), "true", StringComparison.OrdinalIgnoreCase);
+    /// <summary>
+    /// True in CI (<c>GITHUB_ACTIONS=true</c> or <c>CI=true</c>, any case), where missing headers
+    /// fail the check instead of skipping it.
+    /// </summary>
+    public static bool IsCi => IsCiEnvironment(Environment.GetEnvironmentVariable("GITHUB_ACTIONS"), Environment.GetEnvironmentVariable("CI"));
+
+    internal static bool IsCiEnvironment(string? githubActions, string? ci) =>
+        string.Equals(githubActions, "true", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(ci, "true", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The skip reason of the header check: null (the check runs) when the headers were found, or
+    /// in CI, where the check then runs and fails; the reason otherwise.
+    /// </summary>
+    internal static string? SkipReason(string? problem, bool isCi) =>
+        problem is null || isCi ? null : "C headers not found, the P/Invoke header check cannot run: " + problem;
 
     private static HeaderSources Locate()
     {
         var problems = new List<string>();
         var aravis = LocateAravis(problems);
-        var glib = LocateGLib(problems);
-        return new HeaderSources(aravis, glib, problems.Count == 0 ? null : string.Join(" ", problems));
+        var glib = LocateGLib(problems, out var note);
+        return new HeaderSources(aravis, glib, problems.Count == 0 ? null : string.Join(" ", problems), note);
     }
 
     private static string? LocateAravis(List<string> problems)
@@ -498,9 +602,9 @@ internal sealed record HeaderSources(string? AravisDirectory, IReadOnlyList<stri
         return null;
     }
 
-    private static IReadOnlyList<string> LocateGLib(List<string> problems)
+    private static IReadOnlyList<string> LocateGLib(List<string> problems, out string? note)
     {
-        var dirs = PkgConfigIncludeDirectories()
+        var dirs = PkgConfigIncludeDirectories(out note)
             .Where(d => d.Contains("glib-2.0", StringComparison.Ordinal) && Directory.Exists(d))
             .Distinct(StringComparer.Ordinal)
             .ToList();
@@ -508,14 +612,22 @@ internal sealed record HeaderSources(string? AravisDirectory, IReadOnlyList<stri
             dirs.Add("/usr/include/glib-2.0");
         if (!dirs.Any(d => File.Exists(Path.Combine(d, "glib.h"))))
         {
-            problems.Add("No GLib headers (glib.h) from 'pkg-config --cflags-only-I glib-2.0 gobject-2.0 gio-2.0' or /usr/include/glib-2.0: install the GLib development package (libglib2.0-dev).");
+            problems.Add("No GLib headers (glib.h) from 'pkg-config --cflags-only-I glib-2.0 gobject-2.0 gio-2.0' or /usr/include/glib-2.0: install the GLib development package (libglib2.0-dev)."
+                + (note is null ? "" : " " + note));
             return [];
         }
         return dirs;
     }
 
-    private static IEnumerable<string> PkgConfigIncludeDirectories()
+    /// <summary>
+    /// The <c>-I</c> directories <c>pkg-config</c> gives for GLib; empty, with <paramref name="note"/>
+    /// saying why, when it is not installed, fails or does not answer within 10 seconds. Both
+    /// output streams are read concurrently, so a full stderr pipe cannot block it.
+    /// </summary>
+    private static IReadOnlyList<string> PkgConfigIncludeDirectories(out string? note)
     {
+        const string Command = "pkg-config --cflags-only-I glib-2.0 gobject-2.0 gio-2.0";
+        note = null;
         try
         {
             var start = new ProcessStartInfo("pkg-config", "--cflags-only-I glib-2.0 gobject-2.0 gio-2.0")
@@ -526,19 +638,36 @@ internal sealed record HeaderSources(string? AravisDirectory, IReadOnlyList<stri
             };
             using var process = Process.Start(start);
             if (process is null)
+            {
+                note = $"'{Command}' did not start.";
                 return [];
-            var output = process.StandardOutput.ReadToEnd();
-            process.StandardError.ReadToEnd();
-            if (!process.WaitForExit(10_000) || process.ExitCode != 0)
+            }
+            var stdout = process.StandardOutput.ReadToEndAsync();
+            var stderr = process.StandardError.ReadToEndAsync();
+            if (!process.WaitForExit(10_000))
+            {
+                process.Kill(entireProcessTree: true);
+                process.WaitForExit();
+                note = $"'{Command}' did not exit within 10 s and was killed.";
                 return [];
+            }
+            process.WaitForExit(); // the end of both redirected streams
+            var output = stdout.GetAwaiter().GetResult();
+            var error = stderr.GetAwaiter().GetResult().Trim();
+            if (process.ExitCode != 0)
+            {
+                note = $"'{Command}' exited with code {process.ExitCode}" + (error.Length == 0 ? "." : $": {error}");
+                return [];
+            }
             return output.Split((char[])[' ', '\t', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
                 .Where(t => t.StartsWith("-I", StringComparison.Ordinal))
                 .Select(t => t[2..])
                 .ToList();
         }
-        catch (Win32Exception)
+        catch (Win32Exception ex)
         {
-            return []; // pkg-config is not installed
+            note = $"'{Command}' could not run ({ex.Message}); is pkg-config installed?";
+            return [];
         }
     }
 
@@ -561,16 +690,16 @@ internal sealed record HeaderSources(string? AravisDirectory, IReadOnlyList<stri
 
 /// <summary>
 /// A fact that compares the P/Invoke declarations with the C headers. Skipped, with the reason,
-/// when the headers cannot be found, except on GitHub Actions (<c>GITHUB_ACTIONS=true</c>), where
-/// the test runs and fails instead: CI must never skip the check silently.
+/// when the headers cannot be found, except in CI (<see cref="HeaderSources.IsCi"/>), where the
+/// test runs and fails instead: CI must never skip the check silently.
 /// </summary>
 internal sealed class HeaderFactAttribute : FactAttribute
 {
     public HeaderFactAttribute()
     {
-        var sources = HeaderSources.Current;
-        if (sources.Problem is not null && !HeaderSources.IsCi)
-            Skip = "C headers not found, the P/Invoke header check cannot run: " + sources.Problem;
+        var reason = HeaderSources.SkipReason(HeaderSources.Current.Problem, HeaderSources.IsCi);
+        if (reason is not null)
+            Skip = reason;
     }
 }
 
@@ -587,6 +716,20 @@ internal sealed class HeaderFactAttribute : FactAttribute
 /// a pointer-sized integer; <c>out</c>/<c>ref</c>, string, <c>StringBuilder</c>, arrays, delegates
 /// and classes are pointers; other structs are structs by value.</item>
 /// <item><c>System.Runtime.InteropServices.CLong</c>/<c>CULong</c> are <c>glong</c>/<c>gulong</c>.</item>
+/// <item>The pointee of a by-reference, pointer or array parameter whose element is a primitive,
+/// an enum, <c>bool</c>, <c>IntPtr</c>/<c>UIntPtr</c> or <c>CLong</c>/<c>CULong</c> is compared too:
+/// one <c>*</c> is stripped from the C type and its family must be one the element stands for, so
+/// <c>out uint</c> for a <c>guint64 *</c> fails. An <c>out IntPtr</c> for a <c>T **</c> passes; a
+/// struct element (<c>ref GValue</c>) is only an address.</item>
+/// <item>C# <c>char</c> stands for nothing: its width depends on the <c>CharSet</c>; use
+/// <c>byte</c>, <c>sbyte</c> or <c>ushort</c>.</item>
+/// <item>A returned <c>string</c> or <c>StringBuilder</c>, and an <c>out</c>/<c>ref</c> string, are
+/// mismatches: the marshaller frees the native memory it reads, which is wrong for memory C still
+/// owns. Such a declaration needs an allow-list entry that says who owns the memory.</item>
+/// <item>An <c>arv_*</c> function must have an <c>ARV_API</c> prototype: Aravis builds with
+/// <c>-fvisibility=hidden</c>, so no other function is exported from libaravis.</item>
+/// <item>A name read with two different prototypes (both branches of an <c>#if</c>) is
+/// reported.</item>
 /// </list>
 /// </summary>
 internal static class PInvokeSignatureCheck
@@ -600,6 +743,16 @@ internal static class PInvokeSignatureCheck
             .Where(m => (m.Attributes & MethodAttributes.PinvokeImpl) != 0
                      || m.CustomAttributes.Any(a => a.AttributeType.FullName == LibraryImportAttributeName))
             .OrderBy(m => m.Name, StringComparer.Ordinal)
+            .ToList();
+
+    /// <summary>
+    /// The DllImport and LibraryImport methods of every type of an assembly, nested and private
+    /// types included, ordered by declaring type and name.
+    /// </summary>
+    public static IReadOnlyList<MethodInfo> Imports(Assembly assembly) =>
+        assembly.GetTypes()
+            .OrderBy(t => t.FullName, StringComparer.Ordinal)
+            .SelectMany(Imports)
             .ToList();
 
     /// <summary>The native name a declaration binds.</summary>
@@ -646,8 +799,13 @@ internal static class PInvokeSignatureCheck
         var prototype = model.Find(entry);
         if (prototype is null)
             return [$"{where}: no C prototype found in the headers."];
+        var conflicts = model.Conflicts(entry);
+        if (conflicts.Count > 0)
+            return [$"{where}: {conflicts.Count} different C prototypes, the check cannot tell which one applies: {string.Join("; ", conflicts.Select(c => $"{c.Signature} ({Path.GetFileName(c.Source)})"))}."];
 
         var problems = new List<string>();
+        if (entry.StartsWith("arv_", StringComparison.Ordinal) && !prototype.Exported)
+            problems.Add($"{where}: the C prototype ({Path.GetFileName(prototype.Source)}) is not marked ARV_API, so libaravis does not export it (Aravis builds with -fvisibility=hidden).");
         if (prototype.IsVariadic)
             problems.Add($"{where}: the C function is variadic ({Path.GetFileName(prototype.Source)}); a fixed-argument import of it is not portable.");
         var parameters = method.GetParameters();
@@ -664,13 +822,43 @@ internal static class PInvokeSignatureCheck
 
     private static void CompareOne(List<string> problems, string where, string what, string cType, ParameterInfo managed, HeaderModel model)
     {
+        var type = managed.ParameterType;
+        var element = type.IsByRef || type.IsPointer || type.IsArray ? type.GetElementType() : null;
+        if ((IsString(type) && managed.Position < 0) || (element is not null && type.IsByRef && IsString(element)))
+        {
+            problems.Add($"{where}: {what} is a managed string ({Describe(managed)}) for '{cType}' in C: the marshaller frees the native memory it reads; declare IntPtr and copy, or allow-list the declaration saying who owns the memory.");
+            return;
+        }
+
         var cFamily = model.Resolve(cType);
         var accepted = ManagedFamilies(managed);
         if (cFamily == TypeFamily.Unknown)
+        {
             problems.Add($"{where}: {what}: C type '{cType}' cannot be resolved from the headers.");
-        else if (!accepted.Contains(cFamily))
+            return;
+        }
+        if (!accepted.Contains(cFamily))
+        {
             problems.Add($"{where}: {what} is '{cType}' ({cFamily}) in C, {Describe(managed)} ({string.Join("/", accepted)}) in C#.");
+            return;
+        }
+        if (element is null || !IsScalar(element))
+            return;
+
+        var pointee = model.Pointee(cType);
+        var pointeeFamily = pointee is null ? TypeFamily.Unknown : model.Resolve(pointee);
+        var elementFamilies = ManagedFamilies(element, managed.GetCustomAttribute<MarshalAsAttribute>());
+        if (pointeeFamily == TypeFamily.Unknown)
+            problems.Add($"{where}: {what}: the type that C type '{cType}' points to cannot be resolved from the headers, so {Describe(managed)} cannot be checked.");
+        else if (!elementFamilies.Contains(pointeeFamily))
+            problems.Add($"{where}: {what} points to '{pointee}' ({pointeeFamily}) in C, {Describe(managed)} ({string.Join("/", elementFamilies)}) in C#.");
     }
+
+    private static bool IsString(Type type) => type == typeof(string) || type == typeof(StringBuilder);
+
+    /// <summary>An element type whose pointee the check compares (see the class remarks).</summary>
+    private static bool IsScalar(Type type) =>
+        type.IsPrimitive || type.IsEnum || type == typeof(CLong) || type == typeof(CULong);
 
     private static string Describe(ParameterInfo p)
     {
@@ -681,9 +869,12 @@ internal static class PInvokeSignatureCheck
     }
 
     /// <summary>The C type families a managed parameter or return type may stand for.</summary>
-    internal static IReadOnlySet<TypeFamily> ManagedFamilies(ParameterInfo p)
+    internal static IReadOnlySet<TypeFamily> ManagedFamilies(ParameterInfo p) =>
+        ManagedFamilies(p.ParameterType, p.GetCustomAttribute<MarshalAsAttribute>());
+
+    /// <summary>The C type families a managed type, with its <c>MarshalAs</c> if any, may stand for.</summary>
+    internal static IReadOnlySet<TypeFamily> ManagedFamilies(Type type, MarshalAsAttribute? marshal)
     {
-        var type = p.ParameterType;
         if (type.IsByRef || type.IsPointer || type.IsArray || type == typeof(string) || type == typeof(StringBuilder)
             || typeof(Delegate).IsAssignableFrom(type) || type.IsFunctionPointer)
             return Set(TypeFamily.Pointer);
@@ -699,7 +890,6 @@ internal static class PInvokeSignatureCheck
             return Set(TypeFamily.CULong);
         if (type == typeof(bool))
         {
-            var marshal = p.GetCustomAttribute<MarshalAsAttribute>();
             return marshal is null || marshal.Value == UnmanagedType.Bool
                 ? Set(TypeFamily.Bool32)
                 : marshal.Value is UnmanagedType.U1 or UnmanagedType.I1 ? Set(TypeFamily.Bool8) : Set();
@@ -719,6 +909,8 @@ internal static class PInvokeSignatureCheck
         var primitive = Primitive(type);
         if (primitive.Count > 0)
             return primitive;
+        if (type.IsPrimitive)
+            return Set(); // char: its width depends on the CharSet
         if (type.IsValueType)
             return Set(TypeFamily.Struct);
         return Set(TypeFamily.Pointer); // a class marshalled by reference

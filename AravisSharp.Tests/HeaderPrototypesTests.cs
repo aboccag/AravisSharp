@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace AravisSharp.Tests;
 
@@ -8,7 +9,7 @@ namespace AravisSharp.Tests;
 /// (<see cref="PInvokeSignatureCheck"/>) on synthetic header snippets and declarations (issue
 /// #11). Pure: no header files, no native library.
 /// </summary>
-public class HeaderPrototypesTests
+public partial class HeaderPrototypesTests
 {
     private static HeaderModel Read(string header, bool publicAravisHeader = false)
     {
@@ -59,7 +60,9 @@ public class HeaderPrototypesTests
 
         Assert.Equal(new[] { "gpointer" }, model.Find("g_free")!.Parameters);
         Assert.Equal(TypeFamily.PointerSized, model.Resolve(model.Find("g_memdup2")!.Parameters[1]));
-        Assert.Equal(TypeFamily.Pointer, model.Resolve(model.Find("g_quark_to_string")!.ReturnType));
+        var quarkToString = model.Find("g_quark_to_string")!;
+        Assert.Equal(new[] { "GQuark" }, quarkToString.Parameters);
+        Assert.Equal(TypeFamily.Pointer, model.Resolve(quarkToString.ReturnType));
         var isA = model.Find("g_type_check_instance_is_a")!;
         Assert.Equal(TypeFamily.Bool32, model.Resolve(isA.ReturnType));
         Assert.Equal(TypeFamily.PointerSized, model.Resolve(isA.Parameters[1]));
@@ -80,7 +83,9 @@ public class HeaderPrototypesTests
             void g_object_unref (gpointer object);
             """);
 
-        Assert.Null(model.Find("g_object_ref"));
+        // The inline definition is not a prototype, and nothing of its body is read as one.
+        Assert.Equal(1, model.FunctionCount);
+        Assert.Null(model.Find("g_set_object"));
         Assert.Equal(new[] { "gpointer" }, model.Find("g_object_unref")!.Parameters);
     }
 
@@ -181,6 +186,22 @@ public class HeaderPrototypesTests
     public void Reader_StripsTheParameterName(string parameter, string expected) =>
         Assert.Equal(expected, HeaderModel.ParameterType(parameter));
 
+    [Theory]
+    [InlineData("void x_attr (gint a) __attribute__((x));")]
+    [InlineData("void x_attr (gint a __attribute__((unused)));")]
+    [InlineData("void x_attr (gint a, (gint b));")]
+    [InlineData("void x_attr (gint a));")]
+    public void Reader_LeavesOutAPrototypeItCannotRead(string header) =>
+        Assert.Null(Read(header).Find("x_attr"));
+
+    [Fact]
+    public void Reader_ReadsAFunctionPointerParameter()
+    {
+        var model = Read("void x_callback (gint a, void (*callback) (gpointer data, gint b), gpointer user_data);");
+
+        Assert.Equal(new[] { "gint", "(function pointer) *", "gpointer" }, model.Find("x_callback")!.Parameters);
+    }
+
     [Fact]
     public void Reader_ReadsVariadicPrototypes()
     {
@@ -204,13 +225,28 @@ public class HeaderPrototypesTests
         void x_pixel_format (ArvPixelFormat format);
         void x_two (gpointer a, gpointer b);
         void x_variadic (gpointer a, ...);
+        void x_u64 (gpointer o, guint64 *value);
+        void x_i64 (gpointer o, gint64 *value);
+        void x_size_out (gpointer o, size_t *value);
+        void x_buffer_out (gpointer o, ArvBuffer **buffer);
+        void x_bool_out (gpointer o, gboolean *value);
+        void x_c_bool_out (gpointer o, bool *value);
+        void x_value (GValue *value);
+        void x_enum_out (ArvAuto *value);
+        const char *x_string (gpointer o);
+        void x_string_out (gpointer o, char **value);
+        void x_u16 (guint16 value);
+        void x_gchar (gchar value);
+        void x_glong (glong value);
+        gulong x_gulong (void);
+        void x_c_bool (bool value);
         """;
 
-    private static IReadOnlyList<string> CheckFixture(string name, IReadOnlyDictionary<string, string>? allowList = null)
-    {
-        var method = typeof(Fixtures).GetMethod(name, BindingFlags.Static | BindingFlags.NonPublic)!;
-        return PInvokeSignatureCheck.Check([method], Read(Header), allowList ?? new Dictionary<string, string>());
-    }
+    private static MethodInfo Fixture(string name) =>
+        typeof(Fixtures).GetMethod(name, BindingFlags.Static | BindingFlags.NonPublic)!;
+
+    private static IReadOnlyList<string> CheckFixture(string name, IReadOnlyDictionary<string, string>? allowList = null) =>
+        PInvokeSignatureCheck.Check([Fixture(name)], Read(Header), allowList ?? new Dictionary<string, string>());
 
     [Theory]
     [InlineData(nameof(Fixtures.x_uint))]
@@ -224,6 +260,23 @@ public class HeaderPrototypesTests
     [InlineData(nameof(Fixtures.Size_AsIntPtr))]
     [InlineData(nameof(Fixtures.PixelFormat_AsUInt))]
     [InlineData(nameof(Fixtures.Two_AsStringAndDelegate))]
+    [InlineData(nameof(Fixtures.U64_AsOutULong))]
+    [InlineData(nameof(Fixtures.U64_AsRefULong))]
+    [InlineData(nameof(Fixtures.U64_AsULongArray))]
+    [InlineData(nameof(Fixtures.SizeOut_AsOutUIntPtr))]
+    [InlineData(nameof(Fixtures.BufferOut_AsOutIntPtr))]
+    [InlineData(nameof(Fixtures.BoolOut_AsOutBool))]
+    [InlineData(nameof(Fixtures.CBoolOut_AsOutBoolU1))]
+    [InlineData(nameof(Fixtures.Value_AsRefStruct))]
+    [InlineData(nameof(Fixtures.EnumOut_AsOutManagedEnum))]
+    [InlineData(nameof(Fixtures.String_AsIntPtr))]
+    [InlineData(nameof(Fixtures.StringOut_AsOutIntPtr))]
+    [InlineData(nameof(Fixtures.U16_AsUShort))]
+    [InlineData(nameof(Fixtures.GChar_AsSByte))]
+    [InlineData(nameof(Fixtures.GLong_AsCLong))]
+    [InlineData(nameof(Fixtures.GULong_AsCULong))]
+    [InlineData(nameof(Fixtures.CBool_AsU1))]
+    [InlineData(nameof(Fixtures.LibSetBool_MarshalledAsBool))]
     public void Check_AcceptsAMatchingDeclaration(string fixture) =>
         Assert.Empty(CheckFixture(fixture));
 
@@ -240,6 +293,24 @@ public class HeaderPrototypesTests
     [InlineData(nameof(Fixtures.Two_AsOne), "x_two (Fixtures.Two_AsOne): 1 argument(s) in C#, 2 in C (gpointer, gpointer).")]
     [InlineData(nameof(Fixtures.Variadic), "x_variadic (Fixtures.Variadic): the C function is variadic")]
     [InlineData(nameof(Fixtures.x_missing), "x_missing (Fixtures.x_missing): no C prototype found in the headers.")]
+    [InlineData(nameof(Fixtures.U64_AsOutUInt), "argument 2 (value) points to 'guint64' (UInt64) in C, out UInt32")]
+    [InlineData(nameof(Fixtures.U64_AsUIntArray), "argument 2 (value) points to 'guint64' (UInt64) in C, UInt32[]")]
+    [InlineData(nameof(Fixtures.I64_AsOutInt), "argument 2 (value) points to 'gint64' (Int64) in C, out Int32")]
+    [InlineData(nameof(Fixtures.SizeOut_AsOutUInt), "argument 2 (value) points to 'size_t' (PointerSized) in C, out UInt32")]
+    [InlineData(nameof(Fixtures.BoolOut_AsOutBoolU1), "argument 2 (value) points to 'gboolean' (Bool32) in C, [MarshalAs(U1)] out Boolean")]
+    [InlineData(nameof(Fixtures.String_AsString), "x_string (Fixtures.String_AsString): return is a managed string")]
+    [InlineData(nameof(Fixtures.String_AsStringBuilder), "x_string (Fixtures.String_AsStringBuilder): return is a managed string")]
+    [InlineData(nameof(Fixtures.StringOut_AsOutString), "x_string_out (Fixtures.StringOut_AsOutString): argument 2 (value) is a managed string")]
+    [InlineData(nameof(Fixtures.U16_AsChar), "argument 1 (value) is 'guint16' (UInt16) in C, Char")]
+    [InlineData(nameof(Fixtures.GChar_AsChar), "argument 1 (value) is 'gchar' (Int8) in C, Char")]
+    [InlineData(nameof(Fixtures.GLong_AsLong), "argument 1 (value) is 'glong' (CLong) in C, Int64")]
+    [InlineData(nameof(Fixtures.GULong_AsULong), "return is 'gulong' (CULong) in C, UInt64")]
+    [InlineData(nameof(Fixtures.CBool_Default), "argument 1 (value) is 'bool' (Bool8) in C, Boolean")]
+    [InlineData(nameof(Fixtures.SetBool_MarshalledAsVariantBool), "argument 2 (value) is 'gboolean' (Bool32) in C, [MarshalAs(VariantBool)] Boolean")]
+    [InlineData(nameof(Fixtures.Bool_ObjectAsUIntPtr), "argument 1 (obj) is 'gpointer' (Pointer) in C, UIntPtr")]
+    [InlineData(nameof(Fixtures.Size_AsLong), "return is 'gsize' (PointerSized) in C, Int64")]
+    [InlineData(nameof(Fixtures.Size_AsULong), "return is 'gsize' (PointerSized) in C, UInt64")]
+    [InlineData(nameof(Fixtures.LibSetBool_MarshalledAsU1), "x_set_bool (Fixtures.LibSetBool_MarshalledAsU1): argument 2 (value) is 'gboolean' (Bool32) in C, [MarshalAs(U1)] Boolean")]
     public void Check_ReportsAMismatch_NamingTheFunction(string fixture, string expected)
     {
         var failure = Assert.Single(CheckFixture(fixture));
@@ -250,11 +321,68 @@ public class HeaderPrototypesTests
     public void Check_ReportsEveryMismatch_InOneList()
     {
         var methods = new[] { nameof(Fixtures.Uint_AsInt), nameof(Fixtures.Bool_MarshalledAsU1), nameof(Fixtures.x_uint) }
-            .Select(n => typeof(Fixtures).GetMethod(n, BindingFlags.Static | BindingFlags.NonPublic)!);
+            .Select(Fixture);
 
         var failures = PInvokeSignatureCheck.Check(methods, Read(Header), new Dictionary<string, string>());
 
-        Assert.Equal(2, failures.Count);
+        Assert.Collection(failures,
+            f => Assert.StartsWith("x_uint (Fixtures.Uint_AsInt): return", f),
+            f => Assert.StartsWith("x_bool (Fixtures.Bool_MarshalledAsU1): return", f));
+    }
+
+    [Fact]
+    public void Check_AcceptsTheEntryPointOfALibraryImport()
+    {
+        Assert.Equal("x_set_bool", PInvokeSignatureCheck.EntryPoint(Fixture(nameof(Fixtures.LibSetBool_MarshalledAsBool))));
+        Assert.Equal("x_set_bool", PInvokeSignatureCheck.EntryPoint(Fixture(nameof(Fixtures.LibSetBool_MarshalledAsU1))));
+    }
+
+    private const string ExportHeader = """
+        ARV_API void arv_x_public (gpointer a);
+        void arv_x_hidden (gpointer a);
+        ARV_API G_DECLARE_FINAL_TYPE (ArvXShown, arv_x_shown, ARV, X_SHOWN, GObject)
+        void arv_x_after_macro (gpointer a);
+        G_DECLARE_FINAL_TYPE (ArvXHiddenObject, arv_x_hidden_object, ARV, X_HIDDEN_OBJECT, GObject)
+        typedef enum { ARV_XYZ_MODE_A } ArvXyzMode;
+        void g_x_not_aravis (gpointer a);
+        """;
+
+    [Theory]
+    [InlineData(nameof(Fixtures.arv_x_public))]
+    [InlineData(nameof(Fixtures.arv_x_shown_get_type))]
+    [InlineData(nameof(Fixtures.arv_xyz_mode_get_type))]
+    [InlineData(nameof(Fixtures.g_x_not_aravis))]
+    public void Check_AcceptsAnExportedAravisFunction(string fixture) =>
+        Assert.Empty(PInvokeSignatureCheck.Check([Fixture(fixture)], Read(ExportHeader, publicAravisHeader: true), new Dictionary<string, string>()));
+
+    [Theory]
+    [InlineData(nameof(Fixtures.arv_x_hidden))]
+    [InlineData(nameof(Fixtures.arv_x_hidden_object_get_type))]
+    [InlineData(nameof(Fixtures.arv_x_after_macro))]
+    public void Check_ReportsAnAravisFunctionWithoutArvApi(string fixture)
+    {
+        var failure = Assert.Single(PInvokeSignatureCheck.Check([Fixture(fixture)], Read(ExportHeader, publicAravisHeader: true), new Dictionary<string, string>()));
+
+        Assert.Contains($"{fixture} (Fixtures.{fixture}): the C prototype (test.h) is not marked ARV_API", failure);
+    }
+
+    [Fact]
+    public void Check_ReportsTwoDifferentPrototypesOfOneName()
+    {
+        var model = Read("""
+            #ifdef X_NEW
+            guint x_twice (gpointer a);
+            #else
+            gint x_twice (gpointer a);
+            #endif
+            guint x_same (gpointer a);
+            guint  x_same (gpointer   a);
+            """);
+
+        var failure = Assert.Single(PInvokeSignatureCheck.Check([Fixture(nameof(Fixtures.Twice_AsUInt))], model, new Dictionary<string, string>()));
+
+        Assert.Contains("x_twice (Fixtures.Twice_AsUInt): 2 different C prototypes", failure);
+        Assert.Empty(PInvokeSignatureCheck.Check([Fixture(nameof(Fixtures.Same_AsUInt))], model, new Dictionary<string, string>()));
     }
 
     [Fact]
@@ -285,9 +413,12 @@ public class HeaderPrototypesTests
         Off,
     }
 
+    // A GValue-shaped struct, passed by reference: only its address is compared.
+    private readonly record struct FixtureValue(IntPtr GType, long Data0, long Data1);
+
     // Declarations for the comparison only: never called, the library does not exist.
 #pragma warning disable IDE1006, SYSLIB1054, CA5392 // C names, DllImport on purpose
-    private static class Fixtures
+    private static partial class Fixtures
     {
         private const string Lib = "header-check-fixture-not-a-library";
 
@@ -321,6 +452,54 @@ public class HeaderPrototypesTests
         [DllImport(Lib, EntryPoint = "x_two")] internal static extern void Two_AsOne(IntPtr a);
         [DllImport(Lib, EntryPoint = "x_variadic")] internal static extern void Variadic(IntPtr a);
         [DllImport(Lib, EntryPoint = "x_unknown")] internal static extern IntPtr Unknown(IntPtr a);
+        [DllImport(Lib, EntryPoint = "x_u64")] internal static extern void U64_AsOutUInt(IntPtr o, out uint value);
+        [DllImport(Lib, EntryPoint = "x_u64")] internal static extern void U64_AsOutULong(IntPtr o, out ulong value);
+        [DllImport(Lib, EntryPoint = "x_u64")] internal static extern void U64_AsRefULong(IntPtr o, ref ulong value);
+        [DllImport(Lib, EntryPoint = "x_u64")] internal static extern void U64_AsULongArray(IntPtr o, ulong[] value);
+        [DllImport(Lib, EntryPoint = "x_u64")] internal static extern void U64_AsUIntArray(IntPtr o, uint[] value);
+        [DllImport(Lib, EntryPoint = "x_i64")] internal static extern void I64_AsOutInt(IntPtr o, out int value);
+        [DllImport(Lib, EntryPoint = "x_size_out")] internal static extern void SizeOut_AsOutUIntPtr(IntPtr o, out UIntPtr value);
+        [DllImport(Lib, EntryPoint = "x_size_out")] internal static extern void SizeOut_AsOutUInt(IntPtr o, out uint value);
+        [DllImport(Lib, EntryPoint = "x_buffer_out")] internal static extern void BufferOut_AsOutIntPtr(IntPtr o, out IntPtr buffer);
+        [DllImport(Lib, EntryPoint = "x_bool_out")] internal static extern void BoolOut_AsOutBool(IntPtr o, out bool value);
+        [DllImport(Lib, EntryPoint = "x_bool_out")] internal static extern void BoolOut_AsOutBoolU1(IntPtr o, [MarshalAs(UnmanagedType.U1)] out bool value);
+        [DllImport(Lib, EntryPoint = "x_c_bool_out")] internal static extern void CBoolOut_AsOutBoolU1(IntPtr o, [MarshalAs(UnmanagedType.U1)] out bool value);
+        [DllImport(Lib, EntryPoint = "x_value")] internal static extern void Value_AsRefStruct(ref FixtureValue value);
+        [DllImport(Lib, EntryPoint = "x_enum_out")] internal static extern void EnumOut_AsOutManagedEnum(out ManagedAuto value);
+        [DllImport(Lib, EntryPoint = "x_string")] internal static extern string String_AsString(IntPtr o);
+        [DllImport(Lib, EntryPoint = "x_string")] internal static extern StringBuilder String_AsStringBuilder(IntPtr o);
+        [DllImport(Lib, EntryPoint = "x_string")] internal static extern IntPtr String_AsIntPtr(IntPtr o);
+        [DllImport(Lib, EntryPoint = "x_string_out")] internal static extern void StringOut_AsOutString(IntPtr o, out string value);
+        [DllImport(Lib, EntryPoint = "x_string_out")] internal static extern void StringOut_AsOutIntPtr(IntPtr o, out IntPtr value);
+        [DllImport(Lib, EntryPoint = "x_u16")] internal static extern void U16_AsChar(char value);
+        [DllImport(Lib, EntryPoint = "x_u16")] internal static extern void U16_AsUShort(ushort value);
+        [DllImport(Lib, EntryPoint = "x_gchar")] internal static extern void GChar_AsChar(char value);
+        [DllImport(Lib, EntryPoint = "x_gchar")] internal static extern void GChar_AsSByte(sbyte value);
+        [DllImport(Lib, EntryPoint = "x_glong")] internal static extern void GLong_AsCLong(CLong value);
+        [DllImport(Lib, EntryPoint = "x_glong")] internal static extern void GLong_AsLong(long value);
+        [DllImport(Lib, EntryPoint = "x_gulong")] internal static extern CULong GULong_AsCULong();
+        [DllImport(Lib, EntryPoint = "x_gulong")] internal static extern ulong GULong_AsULong();
+        [DllImport(Lib, EntryPoint = "x_c_bool")] internal static extern void CBool_AsU1([MarshalAs(UnmanagedType.U1)] bool value);
+        [DllImport(Lib, EntryPoint = "x_c_bool")] internal static extern void CBool_Default(bool value);
+        [DllImport(Lib, EntryPoint = "x_set_bool")] internal static extern void SetBool_MarshalledAsVariantBool(IntPtr obj, [MarshalAs(UnmanagedType.VariantBool)] bool value);
+        [DllImport(Lib, EntryPoint = "x_bool")] internal static extern bool Bool_ObjectAsUIntPtr(UIntPtr obj);
+        [DllImport(Lib, EntryPoint = "x_size")] internal static extern long Size_AsLong(string name);
+        [DllImport(Lib, EntryPoint = "x_size")] internal static extern ulong Size_AsULong(string name);
+        [DllImport(Lib, EntryPoint = "x_twice")] internal static extern uint Twice_AsUInt(IntPtr a);
+        [DllImport(Lib, EntryPoint = "x_same")] internal static extern uint Same_AsUInt(IntPtr a);
+        [DllImport(Lib)] internal static extern void arv_x_public(IntPtr a);
+        [DllImport(Lib)] internal static extern void arv_x_hidden(IntPtr a);
+        [DllImport(Lib)] internal static extern void arv_x_after_macro(IntPtr a);
+        [DllImport(Lib)] internal static extern IntPtr arv_x_shown_get_type();
+        [DllImport(Lib)] internal static extern IntPtr arv_x_hidden_object_get_type();
+        [DllImport(Lib)] internal static extern IntPtr arv_xyz_mode_get_type();
+        [DllImport(Lib)] internal static extern void g_x_not_aravis(IntPtr a);
+
+        [LibraryImport(Lib, EntryPoint = "x_set_bool")]
+        internal static partial void LibSetBool_MarshalledAsBool(IntPtr obj, [MarshalAs(UnmanagedType.Bool)] bool value);
+
+        [LibraryImport(Lib, EntryPoint = "x_set_bool")]
+        internal static partial void LibSetBool_MarshalledAsU1(IntPtr obj, [MarshalAs(UnmanagedType.U1)] bool value);
     }
 #pragma warning restore IDE1006, SYSLIB1054, CA5392
 }
