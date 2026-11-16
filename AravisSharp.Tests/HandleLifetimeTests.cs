@@ -103,6 +103,57 @@ public class HandleLifetimeTests
         Assert.Equal(1, GObjectReleaseProbe.ReleaseCount(id));
     }
 
+    // AC-8. Red on 8fd1bff only as a compile error: the GenICamNode constructor took no owner.
+    [NativeFact]
+    public void GenICamNode_AfterCameraDisposed_ShouldThrowObjectDisposed()
+    {
+        var camera = CameraTestHelpers.OpenTestCamera();
+        var device = camera.GetDevice();
+        var node = OpenNode(device, "Width");
+        Assert.Equal("Width", node.Name);
+        Assert.True(node.IsAvailable());
+        Assert.False(string.IsNullOrEmpty(node.GetValueAsString()));
+
+        camera.Dispose();
+
+        Assert.Throws<ObjectDisposedException>(() => node.IsAvailable());
+        Assert.Throws<ObjectDisposedException>(() => node.IsImplemented());
+        Assert.Throws<ObjectDisposedException>(() => node.IsLocked());
+        Assert.Throws<ObjectDisposedException>(() => node.GetValueAsString());
+        Assert.Throws<ObjectDisposedException>(() => node.SetValueFromString("64"));
+        node.Dispose();
+    }
+
+    [NativeFact]
+    public void GenICamNode_AfterItsOwnDispose_ShouldThrowObjectDisposed_AndLeaveTheCameraUsable()
+    {
+        using var camera = CameraTestHelpers.OpenTestCamera();
+        var node = OpenNode(camera.GetDevice(), "Width");
+
+        node.Dispose();
+        node.Dispose();
+
+        Assert.Throws<ObjectDisposedException>(() => node.GetValueAsString());
+        Assert.True(camera.GetIntegerFeature("Width") > 0);
+    }
+
+    private static GenICamNode OpenNode(Device device, string name)
+    {
+        var genicam = AravisNative.arv_device_get_genicam(device.Handle);
+        Assert.NotEqual(IntPtr.Zero, genicam);
+        var namePtr = System.Runtime.InteropServices.Marshal.StringToCoTaskMemUTF8(name);
+        try
+        {
+            var nodePtr = AravisNative.arv_gc_get_node(genicam, namePtr);
+            Assert.NotEqual(IntPtr.Zero, nodePtr);
+            return new GenICamNode(device, nodePtr, genicam);
+        }
+        finally
+        {
+            System.Runtime.InteropServices.Marshal.FreeCoTaskMem(namePtr);
+        }
+    }
+
     #endregion
 
     #region Each reference released exactly once (AC-1)
