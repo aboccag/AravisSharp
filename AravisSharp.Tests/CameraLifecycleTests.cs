@@ -264,19 +264,18 @@ public class CameraLifecycleTests
         Assert.False(camera.IsGigEVisionDevice());
         using var stream = camera.CreateStream();
 
-        Assert.Throws<NotSupportedException>(() => stream.SetSocketBufferPolicy(ArvGvStreamSocketBuffer.Auto));
-        Assert.Throws<NotSupportedException>(() => stream.SetSocketBufferSize(1024 * 1024));
-        Assert.Throws<NotSupportedException>(() => stream.GetSocketBufferSize());
-        Assert.Throws<NotSupportedException>(() => stream.SetPacketResend(ArvGvStreamPacketResend.Always));
-        Assert.Throws<NotSupportedException>(() => stream.SetInitialPacketTimeout(1_000_000));
-        Assert.Throws<NotSupportedException>(() => stream.SetPacketTimeout(40_000));
-        Assert.Throws<NotSupportedException>(() => stream.SetFrameRetention(100_000));
-        Assert.Throws<NotSupportedException>(() => stream.GetPacketResend());
-        Assert.Throws<NotSupportedException>(() => stream.GetInitialPacketTimeout());
-        Assert.Throws<NotSupportedException>(() => stream.GetPacketTimeout());
-        Assert.Throws<NotSupportedException>(() => stream.GetFrameRetention());
-        Assert.Throws<NotSupportedException>(() => stream.ConfigureGigEDefaults());
-        Assert.Throws<NotSupportedException>(() => stream.GetGigEStatistics());
+        // GigEGuardTests.StreamGigEMembers lists all thirteen; a reflection test there keeps
+        // it complete.
+        Assert.All(GigEGuardTests.StreamGigEMembers, m =>
+        {
+            var ex = Assert.Throws<NotSupportedException>(() => m.Call(stream));
+            Assert.Contains(m.Name, ex.Message);
+            Assert.Contains("requires a GigE Vision stream", ex.Message);
+        });
+
+        // The guard runs before the argument check: an invalid cap on a non-GigE stream is
+        // still NotSupportedException, not ArgumentOutOfRangeException.
+        Assert.Throws<NotSupportedException>(() => stream.ConfigureGigEDefaults(-1));
 
         // The stream is still usable afterwards.
         AssertStreamOwnsBuffers(0, stream);
