@@ -54,6 +54,31 @@ Package versions mirror the native Aravis version they target (`0.8.36` targets
 - The `NodeMap` feature accessors keep throwing `InvalidOperationException`, now with the
   native error message and an `AravisException` inner exception carrying its domain and
   code (#10).
+- `Camera`, `Device`, `NodeMap`, `GenICamNode`, `Stream` and `Buffer` may be used from
+  several threads. Calls on one camera and on the `Device`, `NodeMap` and `GenICamNode`
+  objects obtained from it are serialised by a lock of the camera (single calls, not
+  sequences); `Stream` and `Buffer` calls are not serialised. `Dispose()` is atomic and may
+  be called from any thread: from that moment every member throws
+  `ObjectDisposedException`, calls waiting for the camera's lock give up with it, and the
+  native object is released once the calls already in progress have returned (#7).
+- `Device` and `NodeMap` belong to their `Camera`: they hold no native reference and throw
+  `ObjectDisposedException` once the camera is disposed, so an undisposed `Device` no longer
+  keeps the camera's connection open. `Device.Dispose()` only closes that wrapper. This
+  replaces the unreleased change that kept a `Device` usable after its camera was disposed;
+  in v0.8.36 such a `Device` used a released native device (#7).
+- `Stream.PopBuffer()` and `Stream.PopBuffer(ulong)` wait in timed native pops of at most
+  100 ms: a buffer is still returned as soon as it is ready, and `Stream.Dispose()` called
+  on another thread ends the wait with `ObjectDisposedException` within about 100 ms. The
+  rule documented in #12, not to dispose a stream while a thread waits in a pop, is gone (#7).
+- Of several threads pushing the same `Buffer` with `Stream.PushBuffer`, one queues it and
+  the others get `ObjectDisposedException` (#7).
+- `Camera`, `Stream`, `Buffer` and `Device` no longer declare finalizers: an internal
+  `SafeHandle` releases the native reference of an abandoned wrapper. A `Stream` that is
+  never disposed is therefore released on the finalizer thread, where Aravis stops its
+  stream thread (#7).
+- `Buffer.Dispose()` no longer swallows exceptions (#7).
+- `GenICamNode` members throw `ObjectDisposedException` once its camera or the node itself
+  is disposed (#7).
 
 ### Fixed
 - The declarations of `arv_camera_gv_get_packet_size` and `arv_camera_gv_auto_packet_size`
@@ -73,6 +98,11 @@ Package versions mirror the native Aravis version they target (`0.8.36` targets
 - `Stream.PopBuffer(ulong)` caps its timeout conversion and documents the cap and the
   disposal rule (#12).
 - A double free of the `GError` when `arv_camera_new` returns null.
+- A native camera, stream or buffer released twice when `Dispose()` ran on several threads
+  at once, and released under a native call still running on another thread (#7).
+- One buffer queued, and later released, twice by concurrent `Stream.PushBuffer` calls,
+  which crashed the process (#7).
+- `Device.NodeMap` read from several threads at once could create several node maps (#7).
 - GObject property access throws `ArgumentException` on an unknown property or one of
   another type, instead of a GLib warning and a silent no-op or 0, and reads back each
   write: a value Aravis refuses (outside the property's range, not an enum member) throws

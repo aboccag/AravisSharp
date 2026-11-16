@@ -275,7 +275,7 @@ catch (AravisException ex)
 `new Camera(id?)` · `GetVendorName()` · `GetModelName()` · `GetSerialNumber()`
 `SetExposureTime(µs)` · `SetGain(v)` · `SetFrameRate(fps)` · `SetRegion(x,y,w,h)` · `SetPixelFormat(fmt)`
 `CreateStream()` · `GetPayloadSize()` · `StartAcquisition()` · `StopAcquisition()` · `AcquireSingleFrame(timeoutUs)`
-`SetTrigger(source)` · `SoftwareTrigger()` · `ClearTriggers()` · `GetDevice()` (dispose the returned `Device`)
+`SetTrigger(source)` · `SoftwareTrigger()` · `ClearTriggers()` · `GetDevice()` (the `Device` lives as long as the camera)
 
 ### Stream
 `PushBuffer(buf)` · `PopBuffer(timeoutMs?)` · `GetStatistics()`

@@ -138,7 +138,7 @@ These methods only work with USB3 Vision cameras:
 
 ## Device Access
 
-- `Device GetDevice()` - Get underlying device object for low-level access. `Device` is `IDisposable`: `using var device = camera.GetDevice();`
+- `Device GetDevice()` - Get underlying device object for low-level access. The `Device` and its `NodeMap` belong to the camera: they throw `ObjectDisposedException` once the camera is disposed and never keep its connection open. Disposing the `Device` (`using var device = camera.GetDevice();`) only closes that wrapper.
 
 ## Enumerations
 
