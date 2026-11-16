@@ -233,10 +233,14 @@ public class FeatureDetails
     private static void ReadEnumerationChoices(IntPtr device, IntPtr namePtr, FeatureDetails details)
     {
         IntPtr error = IntPtr.Zero;
+        // Transfer container: the arrays are ours to g_free, their strings belong to the node.
+        // Declared out here so the finally frees them whatever throws in between.
+        IntPtr choicesPtr = IntPtr.Zero;
+        IntPtr displayNamesPtr = IntPtr.Zero;
         try
         {
             uint count = 0;
-            var choicesPtr = AravisNative.arv_device_dup_available_enumeration_feature_values_as_strings(device, namePtr, out count, out error);
+            choicesPtr = AravisNative.arv_device_dup_available_enumeration_feature_values_as_strings(device, namePtr, out count, out error);
             if (choicesPtr != IntPtr.Zero && count > 0 && error == IntPtr.Zero)
             {
                 for (uint i = 0; i < count; i++)
@@ -251,11 +255,9 @@ public class FeatureDetails
                 }
             }
             GLibNative.ClearError(ref error);
-            if (choicesPtr != IntPtr.Zero)
-                GLibNative.g_free(choicesPtr);
-            
+
             // Try to get display names
-            var displayNamesPtr = AravisNative.arv_device_dup_available_enumeration_feature_values_as_display_names(device, namePtr, out count, out error);
+            displayNamesPtr = AravisNative.arv_device_dup_available_enumeration_feature_values_as_display_names(device, namePtr, out count, out error);
             if (displayNamesPtr != IntPtr.Zero && error == IntPtr.Zero)
             {
                 for (uint i = 0; i < count; i++)
@@ -269,9 +271,6 @@ public class FeatureDetails
                     }
                 }
             }
-            GLibNative.ClearError(ref error);
-            if (displayNamesPtr != IntPtr.Zero)
-                GLibNative.g_free(displayNamesPtr);
         }
         catch (Exception ex) when (IsOptionalMetadataFailure(ex))
         {
@@ -279,8 +278,12 @@ public class FeatureDetails
         }
         finally
         {
-            // Frees a pending GError whatever happened above.
+            // Frees a pending GError and both arrays whatever happened above.
             GLibNative.ClearError(ref error);
+            if (choicesPtr != IntPtr.Zero)
+                GLibNative.g_free(choicesPtr);
+            if (displayNamesPtr != IntPtr.Zero)
+                GLibNative.g_free(displayNamesPtr);
         }
     }
     
