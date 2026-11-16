@@ -34,7 +34,10 @@ Package versions mirror the native Aravis version they target (`0.8.36` targets
   released, are internal. The v0.8.36 entry points `g_object_set_int`, `g_object_set_uint`,
   `g_object_set_bool`, `g_object_get_int`, `g_object_get_uint` and `g_object_get_bool` are
   back as `[Obsolete]` managed methods with the same signatures, forwarding to the checked
-  helpers instead of calling the variadic `g_object_set` / `g_object_get` (#14).
+  helpers instead of calling the variadic `g_object_set` / `g_object_get`. They are strict:
+  where v0.8.36's variadic calls converted between int and uint or only logged a GLib
+  warning, they throw `ArgumentException` on an unknown property or a type mismatch and
+  `ArgumentOutOfRangeException` on a refused value (#14).
 
 ### Fixed
 - Native signatures, ownership and object lifetimes in the binding; the `dup_*` arrays
@@ -47,7 +50,8 @@ Package versions mirror the native Aravis version they target (`0.8.36` targets
 - GObject property access throws `ArgumentException` on an unknown property or one of
   another type, instead of a GLib warning and a silent no-op or 0, and reads back each
   write: a value Aravis refuses (outside the property's range, not an enum member) throws
-  `ArgumentOutOfRangeException` from the GigE setters of `Stream` (#14).
+  `ArgumentOutOfRangeException` from the GigE setters of `Stream`, naming the setter's
+  parameter (#14).
 
 ## [0.8.36] - 2026-08-21
 

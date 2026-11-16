@@ -52,7 +52,16 @@ write, read the property again and compare it with the value written.
 
 Known gap, as ruled on 14.11.2026 (old addendum B.1): readable and writable flags are not
 checked (GLib has no accessor for them); a refused write to a read-only property is caught
-by the read-back, a read of a write-only property stays silent.
+by the read-back. A getter on a write-only property gets GLib's "not readable" message and
+returns the GValue's zero; a setter on a write-only property reads it back the same way, so
+GLib logs "not readable" and the setter throws `ArgumentOutOfRangeException` even when the
+write was applied (see the note of 16.11.2026 below).
+
+**16.11.2026, review.** The previous wording ("a read of a write-only property stays
+silent") was wrong for writes: the read-back after a write to a write-only property logs a
+GLib "not readable" message and throws `ArgumentOutOfRangeException`, though the write may
+have been applied. Documented in the XML docs of the setters; the code is unchanged (no
+`Stream` property is write-only, `aravis/src/arvgvstream.c`).
 
 ## Risks
 
