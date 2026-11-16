@@ -126,9 +126,98 @@ public class ErrorInfoTests
         Assert.Contains(native.Message, ex.Message);
     }
 
+    // A GError built here, so the domain, the code 0 and the message are known exactly.
+    // g_error_new_literal is not variadic (g_error_new is: see InteropPinTests B8).
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate uint QuarkFromStringFn([MarshalAs(UnmanagedType.LPUTF8Str)] string text);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate IntPtr ErrorNewLiteralFn(uint domain, int code, [MarshalAs(UnmanagedType.LPUTF8Str)] string message);
+
+    [NativeFact]
+    public void TakeGError_ShouldCopyDomainCodeAndMessageAndZeroThePointer()
+    {
+        var glib = AravisLibrary.ResolveDllImport(GLibNative.GLibLibraryName, typeof(GLibNative).Assembly, null);
+        Assert.NotEqual(IntPtr.Zero, glib);
+        var quarkFromString = Marshal.GetDelegateForFunctionPointer<QuarkFromStringFn>(
+            NativeLibrary.GetExport(glib, "g_quark_from_string"));
+        var errorNewLiteral = Marshal.GetDelegateForFunctionPointer<ErrorNewLiteralFn>(
+            NativeLibrary.GetExport(glib, "g_error_new_literal"));
+
+        var error = errorNewLiteral(quarkFromString("aravissharp-test"), 0, "m");
+        Assert.NotEqual(IntPtr.Zero, error);
+
+        // TakeGError frees the GError: no g_error_free here.
+        var ex = AravisException.TakeGError(ref error);
+
+        Assert.Equal(IntPtr.Zero, error);
+        Assert.Equal("aravissharp-test", ex.Domain);
+        Assert.NotNull(ex.Code);
+        Assert.Equal(0, ex.Code);
+        Assert.Equal("m", ex.Message);
+    }
+
     #endregion
 
     #region AC-4
+
+    // Every catch in GenICam/ either names a type other than Exception, or filters with
+    // `when`: a bare `catch` or `catch (Exception)` would swallow ObjectDisposedException,
+    // OutOfMemoryException and marshalling errors again.
+    private static readonly System.Text.RegularExpressions.Regex UnfilteredCatch = new(
+        @"\bcatch\s*(?:\{|$|\(\s*(?:System\.)?Exception(?:\s+\w+)?\s*\)(?!\s*when\b))",
+        System.Text.RegularExpressions.RegexOptions.Multiline);
+
+    [Fact]
+    public void GenICamSources_ShouldHaveNoUnfilteredCatch()
+    {
+        var genicam = Path.Combine(FindRepositoryRoot(), "AravisSharp", "GenICam");
+        var files = Directory.GetFiles(genicam, "*.cs", SearchOption.AllDirectories);
+        Assert.NotEmpty(files);
+
+        var offenders = files
+            .SelectMany(file => File.ReadAllLines(file).Select((line, index) => (file, line, index)))
+            .Where(l => !l.line.TrimStart().StartsWith("//", StringComparison.Ordinal))
+            .Where(l => UnfilteredCatch.IsMatch(StripLineComment(l.line)))
+            .Select(l => $"{Path.GetFileName(l.file)}:{l.index + 1}: {l.line.Trim()}")
+            .ToList();
+
+        Assert.True(offenders.Count == 0, "Unfiltered catch blocks:\n" + string.Join("\n", offenders));
+    }
+
+    [Theory]
+    [InlineData("catch", true)]
+    [InlineData("        catch {", true)]
+    [InlineData("catch (Exception)", true)]
+    [InlineData("catch (System.Exception ex)", true)]
+    [InlineData("catch (Exception ex) when (IsOptionalMetadataFailure(ex))", false)]
+    [InlineData("catch (AravisException)", false)]
+    [InlineData("catch (EntryPointNotFoundException ex)", false)]
+    public void UnfilteredCatchPattern_ShouldMatchOnlyUnfilteredCatches(string line, bool expected)
+    {
+        Assert.Equal(expected, UnfilteredCatch.IsMatch(line));
+    }
+
+    private static string StripLineComment(string line)
+    {
+        var index = line.IndexOf("//", StringComparison.Ordinal);
+        return index < 0 ? line : line[..index];
+    }
+
+    // The test assembly runs from AravisSharp.Tests/bin/<config>/<tfm>/: walk up to the
+    // folder that holds both AravisSharp.slnx and AravisSharp/GenICam.
+    private static string FindRepositoryRoot()
+    {
+        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+        {
+            if (File.Exists(Path.Combine(dir.FullName, "AravisSharp.slnx")) &&
+                Directory.Exists(Path.Combine(dir.FullName, "AravisSharp", "GenICam")))
+                return dir.FullName;
+        }
+
+        throw new DirectoryNotFoundException(
+            $"No AravisSharp.slnx with an AravisSharp/GenICam folder above {AppContext.BaseDirectory}.");
+    }
 
     [Fact]
     public void OptionalMetadataFilter_ShouldAbsorbOnlyAravisErrorsAndMissingEntryPoints()
