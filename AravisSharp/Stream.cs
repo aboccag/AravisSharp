@@ -99,6 +99,14 @@ public class Stream : IDisposable
     /// <see cref="ArvGvStreamSocketBuffer.Auto"/>. 0 or less means "not set": the operating
     /// system default with Fixed, one payload with Auto. Aravis applies it when the first
     /// frame arrives.
+    /// <para>
+    /// On Linux the kernel silently caps the receive buffer at <c>net.core.rmem_max</c>
+    /// (about 208 KiB by default): a larger size is reduced without an error, and Aravis only
+    /// reports it as a warning of its debug output, shown when that is enabled
+    /// (<c>ARV_DEBUG=interface</c>). Raise the cap
+    /// (<c>sysctl -w net.core.rmem_max=&lt;bytes&gt;</c>) for the requested size to take effect.
+    /// <see cref="GetSocketBufferSize"/> returns the requested size, not the granted one.
+    /// </para>
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="sizeBytes"/> is below -1, the property's minimum: Aravis refused it and kept the previous size.</exception>
     /// <exception cref="NotSupportedException">The stream is not a GigE Vision stream (see <see cref="IsGigEVision"/>).</exception>
@@ -253,6 +261,12 @@ public class Stream : IDisposable
     /// NIC that drops packets) needs a lower frame rate or an inter-packet delay
     /// (<see cref="Camera.GvSetPacketDelay"/>); <see cref="GetGigEStatistics"/> shows both.
     /// </summary>
+    /// <remarks>
+    /// On Linux the kernel silently caps the socket buffer at <c>net.core.rmem_max</c> (about
+    /// 208 KiB by default), so the 4 MB default is reduced to that cap unless it is raised
+    /// (<c>sysctl -w net.core.rmem_max=&lt;bytes&gt;</c>); Aravis only reports it when its debug
+    /// output is enabled (<c>ARV_DEBUG=interface</c>). See <see cref="SetSocketBufferSize"/>.
+    /// </remarks>
     /// <param name="socketBufferSizeMB">Upper bound of the socket buffer in megabytes (default: 4);
     /// 0 sizes it to one payload without a cap.</param>
     /// <exception cref="NotSupportedException">The stream is not a GigE Vision stream (see <see cref="IsGigEVision"/>).</exception>
