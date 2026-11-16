@@ -62,6 +62,14 @@ against `main` at `58e9012`, before any code. `NON VÉRIFIÉ` marks what was not
    Recommendation: (a); a packet size fits an `int`, and the negotiated size is readable
    with `GvGetPacketSize`.
 
+## Decisions
+
+- **2026-11-16, gate 1, alex:** spec approved with both recommendations. (1) The test reads
+  `aravis/src` (or `ARAVIS_SOURCE_DIR`) and the GLib headers through `pkg-config`; it fails
+  in CI when headers are missing and skips elsewhere. (2) Only the two P/Invoke
+  declarations change (`uint` returns); `GvGetPacketSize` stays `int` with a checked
+  conversion and `GvAutoPacketSize` stays `void`. No question left open, so no council.
+
 ## Plan
 
 1. Red tests: the header reader and comparison test, red on the two packet-size
