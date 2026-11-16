@@ -1443,6 +1443,11 @@ public class Camera : IDisposable
     /// Automatically determines and sets the optimal packet size for GigE Vision cameras.
     /// The negotiated size is not returned; read it with <see cref="GvGetPacketSize"/>.
     /// </summary>
+    /// <remarks>
+    /// Aravis may negotiate nothing, without an error, when the device has no packet-size test
+    /// (<c>GevSCPSFireTestPacket</c>): compare <see cref="GvGetPacketSize"/> before and after the
+    /// call to know whether the size changed.
+    /// </remarks>
     /// <exception cref="NotSupportedException">The camera is not a GigE Vision camera (see <see cref="IsGigEVisionDevice"/>).</exception>
     public void GvAutoPacketSize()
     {
@@ -1480,7 +1485,7 @@ public class Camera : IDisposable
         {
             var size = AravisNative.arv_camera_gv_get_packet_size(_handle, out error);
             CheckError(ref error);
-            return checked((int)size);
+            return ToPacketSize(size);
         }
         finally
         {
@@ -1488,6 +1493,10 @@ public class Camera : IDisposable
                 GLibNative.g_error_free(error);
         }
     }
+
+    /// <summary>The <c>guint</c> packet size of Aravis as an <see cref="int"/>, checked.</summary>
+    /// <exception cref="OverflowException"><paramref name="size"/> is above <see cref="int.MaxValue"/>.</exception>
+    internal static int ToPacketSize(uint size) => checked((int)size);
 
     /// <summary>
     /// Sets the packet size for GigE Vision cameras (in bytes)
