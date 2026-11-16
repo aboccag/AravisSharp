@@ -76,6 +76,14 @@ by the read-back, a read of a write-only property stays silent.
    14.11.2026 (old A.2, C.3): assemblies built against v0.8.36 keep working. (b) Leave them
    removed and list the break in the changelog. Recommendation: (a).
 
+## Decisions
+
+- **16.11.2026, gate 1, alex.** Spec and plan approved with the three recommendations.
+  Question 1: the six helpers become `internal`. Question 2: strict type match with an enum
+  path. Question 3: the six v0.8.36 entry points come back as `[Obsolete]` managed shims
+  forwarding to the checked helpers, with bool helpers added. Replaces: the open questions
+  above. Recorded here and on issue #14.
+
 ## Plan
 
 1. `AravisSharp.Tests/GioTestNative.cs` ported (GIO constructors bound through the
