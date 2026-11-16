@@ -258,25 +258,25 @@ public class CameraLifecycleTests
     #region Stream GigE settings
 
     [NonGigECameraFact]
-    public void Stream_GigESetters_OnNonGigEStream_ShouldThrowInvalidOperationException()
+    public void Stream_GigESetters_OnNonGigEStream_ShouldThrowNotSupportedException()
     {
         using var camera = CameraTestHelpers.OpenTestCamera();
         Assert.False(camera.IsGigEVisionDevice());
         using var stream = camera.CreateStream();
 
-        Assert.Throws<InvalidOperationException>(() => stream.SetSocketBufferPolicy(ArvGvStreamSocketBuffer.Auto));
-        Assert.Throws<InvalidOperationException>(() => stream.SetSocketBufferSize(1024 * 1024));
-        Assert.Throws<InvalidOperationException>(() => stream.GetSocketBufferSize());
-        Assert.Throws<InvalidOperationException>(() => stream.SetPacketResend(ArvGvStreamPacketResend.Always));
-        Assert.Throws<InvalidOperationException>(() => stream.SetInitialPacketTimeout(1_000_000));
-        Assert.Throws<InvalidOperationException>(() => stream.SetPacketTimeout(40_000));
-        Assert.Throws<InvalidOperationException>(() => stream.SetFrameRetention(100_000));
-        Assert.Throws<InvalidOperationException>(() => stream.GetPacketResend());
-        Assert.Throws<InvalidOperationException>(() => stream.GetInitialPacketTimeout());
-        Assert.Throws<InvalidOperationException>(() => stream.GetPacketTimeout());
-        Assert.Throws<InvalidOperationException>(() => stream.GetFrameRetention());
-        Assert.Throws<InvalidOperationException>(() => stream.ConfigureGigEDefaults());
-        Assert.Throws<InvalidOperationException>(() => stream.GetGigEStatistics());
+        Assert.Throws<NotSupportedException>(() => stream.SetSocketBufferPolicy(ArvGvStreamSocketBuffer.Auto));
+        Assert.Throws<NotSupportedException>(() => stream.SetSocketBufferSize(1024 * 1024));
+        Assert.Throws<NotSupportedException>(() => stream.GetSocketBufferSize());
+        Assert.Throws<NotSupportedException>(() => stream.SetPacketResend(ArvGvStreamPacketResend.Always));
+        Assert.Throws<NotSupportedException>(() => stream.SetInitialPacketTimeout(1_000_000));
+        Assert.Throws<NotSupportedException>(() => stream.SetPacketTimeout(40_000));
+        Assert.Throws<NotSupportedException>(() => stream.SetFrameRetention(100_000));
+        Assert.Throws<NotSupportedException>(() => stream.GetPacketResend());
+        Assert.Throws<NotSupportedException>(() => stream.GetInitialPacketTimeout());
+        Assert.Throws<NotSupportedException>(() => stream.GetPacketTimeout());
+        Assert.Throws<NotSupportedException>(() => stream.GetFrameRetention());
+        Assert.Throws<NotSupportedException>(() => stream.ConfigureGigEDefaults());
+        Assert.Throws<NotSupportedException>(() => stream.GetGigEStatistics());
 
         // The stream is still usable afterwards.
         AssertStreamOwnsBuffers(0, stream);

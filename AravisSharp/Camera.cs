@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using AravisSharp.Native;
 
@@ -1441,9 +1442,11 @@ public class Camera : IDisposable
     /// <summary>
     /// Automatically determines and sets the optimal packet size for GigE Vision cameras
     /// </summary>
+    /// <exception cref="NotSupportedException">The camera is not a GigE Vision camera (see <see cref="IsGigEVisionDevice"/>).</exception>
     public void GvAutoPacketSize()
     {
         CheckDisposed();
+        CheckGigE();
         IntPtr error = IntPtr.Zero;
         try
         {
@@ -1460,9 +1463,11 @@ public class Camera : IDisposable
     /// <summary>
     /// Gets the packet size for GigE Vision cameras (in bytes)
     /// </summary>
+    /// <exception cref="NotSupportedException">The camera is not a GigE Vision camera (see <see cref="IsGigEVisionDevice"/>).</exception>
     public int GvGetPacketSize()
     {
         CheckDisposed();
+        CheckGigE();
         IntPtr error = IntPtr.Zero;
         try
         {
@@ -1480,9 +1485,11 @@ public class Camera : IDisposable
     /// <summary>
     /// Sets the packet size for GigE Vision cameras (in bytes)
     /// </summary>
+    /// <exception cref="NotSupportedException">The camera is not a GigE Vision camera (see <see cref="IsGigEVisionDevice"/>).</exception>
     public void GvSetPacketSize(int size)
     {
         CheckDisposed();
+        CheckGigE();
         IntPtr error = IntPtr.Zero;
         try
         {
@@ -1583,9 +1590,11 @@ public class Camera : IDisposable
     /// <summary>
     /// Gets the current IP configuration mode of a GigE Vision camera
     /// </summary>
+    /// <exception cref="NotSupportedException">The camera is not a GigE Vision camera (see <see cref="IsGigEVisionDevice"/>).</exception>
     public ArvGvIpConfigurationMode GvGetIpConfigurationMode()
     {
         CheckDisposed();
+        CheckGigE();
         IntPtr error = IntPtr.Zero;
         try
         {
@@ -1604,9 +1613,11 @@ public class Camera : IDisposable
     /// The change takes effect after a camera reboot.
     /// </summary>
     /// <param name="mode">Desired configuration mode (PersistentIp, Dhcp, Lla)</param>
+    /// <exception cref="NotSupportedException">The camera is not a GigE Vision camera (see <see cref="IsGigEVisionDevice"/>).</exception>
     public void GvSetIpConfigurationMode(ArvGvIpConfigurationMode mode)
     {
         CheckDisposed();
+        CheckGigE();
         IntPtr error = IntPtr.Zero;
         try
         {
@@ -1623,9 +1634,11 @@ public class Camera : IDisposable
     /// Gets the persistent (static) IP configuration stored in the camera.
     /// Returns dotted-decimal strings. Only meaningful when the camera is in PersistentIp mode.
     /// </summary>
+    /// <exception cref="NotSupportedException">The camera is not a GigE Vision camera (see <see cref="IsGigEVisionDevice"/>).</exception>
     public (string Ip, string Mask, string Gateway) GvGetPersistentIp()
     {
         CheckDisposed();
+        CheckGigE();
         IntPtr error = IntPtr.Zero;
         IntPtr ipObj = IntPtr.Zero, maskObj = IntPtr.Zero, gwObj = IntPtr.Zero;
         try
@@ -1655,9 +1668,11 @@ public class Camera : IDisposable
     /// <param name="ip">IP address string, e.g. "192.168.1.100"</param>
     /// <param name="mask">Subnet mask string, e.g. "255.255.255.0"</param>
     /// <param name="gateway">Default gateway string, e.g. "192.168.1.1" (null/empty for none)</param>
+    /// <exception cref="NotSupportedException">The camera is not a GigE Vision camera (see <see cref="IsGigEVisionDevice"/>).</exception>
     public void GvSetPersistentIp(string ip, string mask, string? gateway)
     {
         CheckDisposed();
+        CheckGigE();
         IntPtr error = IntPtr.Zero;
         IntPtr ipPtr = IntPtr.Zero, maskPtr = IntPtr.Zero, gwPtr = IntPtr.Zero;
         try
@@ -1710,9 +1725,11 @@ public class Camera : IDisposable
     /// <summary>
     /// Gets the number of network interfaces available on a GigE Vision camera
     /// </summary>
+    /// <exception cref="NotSupportedException">The camera is not a GigE Vision camera (see <see cref="IsGigEVisionDevice"/>).</exception>
     public int GvGetNetworkInterfaceCount()
     {
         CheckDisposed();
+        CheckGigE();
         IntPtr error = IntPtr.Zero;
         try
         {
@@ -2050,9 +2067,11 @@ public class Camera : IDisposable
     // === GigE Vision — extended ===
 
     /// <summary>Gets the inter-packet delay in nanoseconds for GigE Vision cameras.</summary>
+    /// <exception cref="NotSupportedException">The camera is not a GigE Vision camera (see <see cref="IsGigEVisionDevice"/>).</exception>
     public long GvGetPacketDelay()
     {
         CheckDisposed();
+        CheckGigE();
         IntPtr error = IntPtr.Zero;
         try
         {
@@ -2064,9 +2083,11 @@ public class Camera : IDisposable
     }
 
     /// <summary>Sets the inter-packet delay in nanoseconds for GigE Vision cameras.</summary>
+    /// <exception cref="NotSupportedException">The camera is not a GigE Vision camera (see <see cref="IsGigEVisionDevice"/>).</exception>
     public void GvSetPacketDelay(long delayNs)
     {
         CheckDisposed();
+        CheckGigE();
         IntPtr error = IntPtr.Zero;
         try
         {
@@ -2077,9 +2098,11 @@ public class Camera : IDisposable
     }
 
     /// <summary>Gets the number of stream channels for GigE Vision cameras.</summary>
+    /// <exception cref="NotSupportedException">The camera is not a GigE Vision camera (see <see cref="IsGigEVisionDevice"/>).</exception>
     public int GvGetStreamChannelCount()
     {
         CheckDisposed();
+        CheckGigE();
         IntPtr error = IntPtr.Zero;
         try
         {
@@ -2142,6 +2165,17 @@ public class Camera : IDisposable
         {
             throw new ObjectDisposedException(nameof(Camera));
         }
+    }
+
+    // The one GigE guard of Camera: called after CheckDisposed and before any native call
+    // of a Gv* member. Without it Aravis fails its g_return_val_if_fail on a non-GigE camera:
+    // GLib logs a CRITICAL and the member returns 0 or does nothing. Same message pattern as
+    // Stream.CheckGigE.
+    private void CheckGigE([CallerMemberName] string member = "")
+    {
+        if (!IsGigEVisionDevice())
+            throw new NotSupportedException(
+                $"{member} requires a GigE Vision camera; check {nameof(Camera)}.{nameof(IsGigEVisionDevice)}() first.");
     }
 
     private void CheckError(IntPtr error)

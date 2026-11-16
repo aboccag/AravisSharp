@@ -150,6 +150,22 @@ public class GigEStreamTests : IClassFixture<GvFakeCameraFixture>
     }
 
     [NativeFact]
+    public void GigEGuard_OnGigEStreamAndCamera_ShouldLetTheGigEMembersThrough()
+    {
+        // #10 AC-1 and AC-2, the GigE side of the guard: IsGigEVision is true on an
+        // ArvGvStream, and the guarded members of Camera reach Aravis.
+        using var camera = _fixture.OpenCamera();
+        Assert.True(camera.IsGigEVisionDevice());
+        using var stream = camera.CreateStream();
+
+        Assert.True(stream.IsGigEVision);
+        Assert.True(camera.GvGetStreamChannelCount() >= 1);
+        Assert.True(camera.GvGetPacketSize() > 0);
+        _ = camera.GvGetPacketDelay();
+        _ = stream.GetGigEStatistics();
+    }
+
+    [NativeFact]
     public void GigEStream_WithDefaults_ShouldAcquireFrames()
     {
         using var camera = _fixture.OpenCamera();
