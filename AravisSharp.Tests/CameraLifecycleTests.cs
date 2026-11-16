@@ -218,22 +218,23 @@ public class CameraLifecycleTests
 
     #region Device lifetime
 
+    // Issue #7, gate 1 decision 2: a Device and its NodeMap share the camera's lifetime, so
+    // that a Device left undisposed never keeps the camera's connection open.
     [NativeFact]
-    public void Device_ShouldStayUsable_AfterCameraIsDisposed()
+    public void Device_ShouldThrowObjectDisposed_AfterCameraIsDisposed()
     {
         Device device;
-        long widthFromCamera;
         using (var camera = CameraTestHelpers.OpenTestCamera())
         {
-            widthFromCamera = camera.GetIntegerFeature("Width");
             device = camera.GetDevice();
+            Assert.Equal(camera.GetIntegerFeature("Width"), device.GetIntegerFeature("Width"));
         }
 
         using (device)
         {
-            Assert.Equal(widthFromCamera, device.GetIntegerFeature("Width"));
-            Assert.False(string.IsNullOrEmpty(device.GetStringFeature("PixelFormat")));
-            Assert.NotNull(device.NodeMap.GetFeatureDetails("Width"));
+            Assert.Throws<ObjectDisposedException>(() => device.GetIntegerFeature("Width"));
+            Assert.Throws<ObjectDisposedException>(() => device.GetStringFeature("PixelFormat"));
+            Assert.Throws<ObjectDisposedException>(() => device.NodeMap.GetFeatureDetails("Width"));
         }
     }
 
