@@ -104,9 +104,11 @@ public class FeatureDetails
                 Marshal.FreeCoTaskMem(nameHGlobal);
             }
         }
-        catch
+        catch (Exception ex) when (IsOptionalMetadataFailure(ex))
         {
-            // Ignore errors for individual features
+            // An Aravis error on this feature, or an older system libaravis without one of
+            // the metadata entry points: return what was read so far. Anything else (a
+            // disposed object, out of memory, a marshalling error) propagates.
         }
         
         return details;
@@ -188,8 +190,13 @@ public class FeatureDetails
                 details.IntIncrement = inc;
             GLibNative.ClearError(ref error);
         }
-        catch
+        catch (Exception ex) when (IsOptionalMetadataFailure(ex))
         {
+            // Constraints are optional metadata: leave them unset.
+        }
+        finally
+        {
+            // Frees a pending GError whatever happened above.
             GLibNative.ClearError(ref error);
         }
     }
@@ -212,8 +219,13 @@ public class FeatureDetails
                 details.FloatIncrement = inc;
             GLibNative.ClearError(ref error);
         }
-        catch
+        catch (Exception ex) when (IsOptionalMetadataFailure(ex))
         {
+            // Constraints are optional metadata: leave them unset.
+        }
+        finally
+        {
+            // Frees a pending GError whatever happened above.
             GLibNative.ClearError(ref error);
         }
     }
@@ -261,11 +273,24 @@ public class FeatureDetails
             if (displayNamesPtr != IntPtr.Zero)
                 GLibNative.g_free(displayNamesPtr);
         }
-        catch
+        catch (Exception ex) when (IsOptionalMetadataFailure(ex))
         {
+            // Constraints are optional metadata: leave them unset.
+        }
+        finally
+        {
+            // Frees a pending GError whatever happened above.
             GLibNative.ClearError(ref error);
         }
     }
+    
+    /// <summary>
+    /// The failures that reading optional feature metadata absorbs: an Aravis error, and a
+    /// missing entry point in an older system libaravis-0.8 (the resolver still loads one
+    /// when none is bundled). Every other exception propagates.
+    /// </summary>
+    internal static bool IsOptionalMetadataFailure(Exception ex) =>
+        ex is AravisException or EntryPointNotFoundException;
     
     private static FeatureAccessMode ParseAccessMode(int arvAccessMode)
     {

@@ -9,6 +9,7 @@ namespace AravisSharp.Tests;
 /// <summary>
 /// #10 AC-3: <see cref="AravisException"/> carries the domain and code of the native GError,
 /// read from real GErrors that Aravis sets on the test camera (the fake camera by default).
+/// #10 AC-4: the catch blocks of <see cref="NodeMap"/> only absorb Aravis errors.
 /// </summary>
 public class ErrorInfoTests
 {
@@ -123,6 +124,51 @@ public class ErrorInfoTests
         Assert.Equal(DeviceErrorDomain, native.Domain);
         Assert.Equal(DeviceErrorFeatureNotFound, native.Code);
         Assert.Contains(native.Message, ex.Message);
+    }
+
+    #endregion
+
+    #region AC-4
+
+    [Fact]
+    public void OptionalMetadataFilter_ShouldAbsorbOnlyAravisErrorsAndMissingEntryPoints()
+    {
+        Assert.True(FeatureDetails.IsOptionalMetadataFailure(new AravisException("boom")));
+        Assert.True(FeatureDetails.IsOptionalMetadataFailure(new EntryPointNotFoundException()));
+
+        Assert.False(FeatureDetails.IsOptionalMetadataFailure(new ObjectDisposedException("Device")));
+        Assert.False(FeatureDetails.IsOptionalMetadataFailure(new OutOfMemoryException()));
+        Assert.False(FeatureDetails.IsOptionalMetadataFailure(new MarshalDirectiveException()));
+        Assert.False(FeatureDetails.IsOptionalMetadataFailure(new DllNotFoundException()));
+    }
+
+    [NativeFact]
+    public void NodeMap_UnknownFeature_ShouldStillReturnNullOrEmpty()
+    {
+        using var camera = CameraTestHelpers.OpenTestCamera();
+        using var device = camera.GetDevice();
+        var nodeMap = device.NodeMap;
+
+        Assert.Null(nodeMap.GetStringFeature(MissingFeature));
+        Assert.Empty(nodeMap.GetFeaturesInCategory(MissingFeature));
+        var details = nodeMap.GetFeatureDetails(MissingFeature);
+        Assert.NotNull(details);
+        Assert.False(details!.IsImplemented);
+    }
+
+    [NativeFact]
+    public void NodeMap_GetNode_OnDisposedDevice_ShouldThrowObjectDisposedException()
+    {
+        using var camera = CameraTestHelpers.OpenTestCamera();
+        var device = camera.GetDevice();
+        var nodeMap = device.NodeMap;
+        Assert.NotNull(nodeMap.GetNode("Width"));
+
+        device.Dispose();
+
+        // Swallowed by a bare catch before #10: GetNode returned null as if the feature
+        // did not exist.
+        Assert.Throws<ObjectDisposedException>(() => nodeMap.GetNode("Width"));
     }
 
     #endregion

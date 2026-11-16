@@ -56,8 +56,10 @@ public class NodeMap : IDisposable
             GC.KeepAlive(_device);
             return details;
         }
-        catch
+        catch (Exception ex) when (FeatureDetails.IsOptionalMetadataFailure(ex))
         {
+            // No details for this feature; anything else (a disposed device, out of memory,
+            // a marshalling error) propagates.
             return null;
         }
     }
@@ -143,9 +145,10 @@ public class NodeMap : IDisposable
                 }
             }
         }
-        catch
+        catch (Exception ex) when (FeatureDetails.IsOptionalMetadataFailure(ex))
         {
-            // Ignore errors
+            // An Aravis error or a missing metadata entry point while walking the category:
+            // return what was collected so far. Anything else propagates.
         }
         finally
         {
@@ -194,8 +197,10 @@ public class NodeMap : IDisposable
                 IsImplemented = true
             };
         }
-        catch
+        catch (AravisException)
         {
+            // Only an Aravis error means "no such node"; a disposed device and every other
+            // exception propagate.
             return null;
         }
     }
