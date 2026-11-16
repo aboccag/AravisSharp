@@ -161,7 +161,7 @@ public class GigEStreamTests : IClassFixture<GvFakeCameraFixture>
         Assert.True(stream.IsGigEVision);
         Assert.True(camera.GvGetStreamChannelCount() >= 1);
         var packetSize = camera.GvGetPacketSize();
-        Assert.True(packetSize > 0);
+        Assert.InRange(packetSize, 1, 65535); // GevSCPSPacketSize is a 16-bit field
         var packetDelay = camera.GvGetPacketDelay();
 
         // The guard must let each call through; what the simulator does with it is not
@@ -230,4 +230,22 @@ public class GigEStreamTests : IClassFixture<GvFakeCameraFixture>
         Assert.True(complete > 0, $"None of the {received} buffers from the GigE Vision simulator was complete.");
         Assert.NotEqual(0, stream.GetGigEStatistics().Port);
     }
+}
+
+/// <summary>
+/// The conversion of the <c>guint</c> packet size Aravis returns to the <see cref="int"/> of
+/// <see cref="Camera.GvGetPacketSize"/> (issue #11). Pure: no camera.
+/// </summary>
+public class PacketSizeConversionTests
+{
+    [Theory]
+    [InlineData(1500u, 1500)]
+    [InlineData(65535u, 65535)]
+    [InlineData((uint)int.MaxValue, int.MaxValue)]
+    public void ToPacketSize_KeepsASizeThatFitsAnInt(uint native, int expected) =>
+        Assert.Equal(expected, Camera.ToPacketSize(native));
+
+    [Fact]
+    public void ToPacketSize_ThrowsOnASizeAboveIntMaxValue() =>
+        Assert.Throws<OverflowException>(() => Camera.ToPacketSize(uint.MaxValue));
 }

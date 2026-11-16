@@ -6,6 +6,9 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <TestTfmsInParallel>false</TestTfmsInParallel>
+    <!-- The LibraryImport fixtures of the P/Invoke header check (HeaderPrototypesTests): the
+         generated stubs are unsafe code. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>

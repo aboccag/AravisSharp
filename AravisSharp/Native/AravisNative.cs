@@ -313,10 +313,10 @@ public static class AravisNative
 
     // GigE Vision specifics
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void arv_camera_gv_auto_packet_size(IntPtr camera, out IntPtr error);
+    public static extern uint arv_camera_gv_auto_packet_size(IntPtr camera, out IntPtr error);
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int arv_camera_gv_get_packet_size(IntPtr camera, out IntPtr error);
+    public static extern uint arv_camera_gv_get_packet_size(IntPtr camera, out IntPtr error);
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void arv_camera_gv_set_packet_size(IntPtr camera, int size, out IntPtr error);
