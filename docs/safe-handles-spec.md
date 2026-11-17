@@ -113,6 +113,14 @@ ground:
   wait in 100 ms timed pops and throw `ObjectDisposedException` once the stream is
   disposed. No question left open, so no council.
 
+- **2026-11-17, review of #7, alex:** the five reviews found that `AcquireSingleFrame`
+  held the camera lock for its whole wait: with `timeoutUs = 0` and a software trigger
+  sent from another thread, both threads block for good, and `Dispose()` cannot release
+  the camera. Decision: the wait leaves the camera lock. `AcquireSingleFrame` drives its
+  own stream and waits in the 100 ms slices of decision 3; only the camera calls that start
+  and stop the acquisition take the lock, briefly. A `Dispose()` wakes the waiter with
+  `ObjectDisposedException`.
+
 ## Plan
 
 1. Red tests on the Fake camera for AC-1 to AC-8, ported where possible from
