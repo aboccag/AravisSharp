@@ -121,6 +121,17 @@ ground:
   and stop the acquisition take the lock, briefly. A `Dispose()` wakes the waiter with
   `ObjectDisposedException`.
 
+- **2026-11-17, hardware run (AC-10):** whole suite, Debug, on the USB3 camera
+  `Basler-2676014B32AF-21705391` (acA2040-90uc, approved by alex for this run; the
+  acA2440-75uc was not connected). net8.0: 465 passed, 4 failed, 12 skipped; net10.0: 469
+  passed, 12 skipped. The 4 failures are the four cases of
+  `InteropPinTests.PopBuffer_NoBufferQueued_ShouldBlockUntilOneIsPushed` (`Size_mismatch`
+  instead of `Success`), issue #18, seen on `main` before this branch and on one TFM only
+  here. Every test of `HandleLifetimeTests`, `ConcurrencyTests` and `CameraReopenTests`
+  passed on both TFMs (the two `[FakeCameraFact]` tests skip by design). **Not checked:**
+  a GigE stream; `AcquireSingleFrame(0)` with a software trigger sent from another thread;
+  the SingleFrame-to-Continuous fallback.
+
 ## Plan
 
 1. Red tests on the Fake camera for AC-1 to AC-8, ported where possible from
