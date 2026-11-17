@@ -28,6 +28,17 @@ public class InteropPinTests
     private static readonly TimeSpan StartBound = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan ReturnBound = TimeSpan.FromSeconds(10);
 
+    // Statuses the stream thread gives a frame it closed, complete or not. Cleared, Filling,
+    // Aborted, Unknown and PayloadNotSupported mean the buffer was not handled as a frame.
+    private static readonly ArvBufferStatus[] ClosedFrameStatuses =
+    {
+        ArvBufferStatus.Success,
+        ArvBufferStatus.Timeout,
+        ArvBufferStatus.Missing_packets,
+        ArvBufferStatus.Wrong_packet_id,
+        ArvBufferStatus.Size_mismatch,
+    };
+
     private readonly ITestOutputHelper _output;
 
     public InteropPinTests(ITestOutputHelper output)
@@ -79,8 +90,12 @@ public class InteropPinTests
 
                 Assert.Null(pop.Error);
                 Assert.NotNull(pop.Buffer);
+                // The buffer is pushed while the camera already streams, so a real camera may
+                // attach it to a frame in flight and close it as incomplete: Timeout on GigE,
+                // Size_mismatch or Missing_packets on USB3 (issue #18). What B1 and B2 pin is
+                // that the pop blocked and was released by a frame the stream thread closed.
                 using (pop.Buffer)
-                    Assert.Equal(ArvBufferStatus.Success, pop.Buffer!.Status);
+                    Assert.Contains(pop.Buffer!.Status, ClosedFrameStatuses);
             }
             finally
             {

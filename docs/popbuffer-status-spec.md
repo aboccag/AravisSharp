@@ -65,6 +65,13 @@ Issue #18, level standard, type fix, zone tests. Written on 2026-11-17 against `
    Recommendation: (a). Status is not part of B1 and B2, and (a) is deterministic on
    every camera.
 
+## Gate 1 decision
+
+2026-11-17, alex: option (a). The test keeps the push during acquisition and accepts every
+status of a frame closed by the stream thread (`Success`, `Timeout`, `Missing_packets`,
+`Wrong_packet_id`, `Size_mismatch`); it rejects `Cleared`, `Aborted`, `Filling`, `Unknown`
+and `PayloadNotSupported`.
+
 ## Plan
 
 1. Red: none to write. The failure is reproduced by the hardware run of #7 (USB3, net8.0).
