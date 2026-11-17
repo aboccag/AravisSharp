@@ -50,7 +50,8 @@ Issue #18, level standard, type fix, zone tests. Written on 2026-11-17 against `
    - (a) Keep the push during acquisition, and accept every status Aravis gives a frame
      it closed: `Success`, `Timeout`, `Missing_packets`, `Wrong_packet_id`,
      `Size_mismatch`. Still reject `Cleared`, `Aborted`, `Filling` and `Unknown`, which
-     would mean the buffer was not handled by the stream thread. This is the smallest
+     would mean the buffer was not handled by the stream thread, and `PayloadNotSupported`,
+     a frame that is not an image. This is the smallest
      change and works on every camera with no new dependency.
    - (b) Push the buffer before `StartAcquisition`, with the camera in software trigger
      mode, so no frame starts until the test calls `SoftwareTrigger()`. The pop is then

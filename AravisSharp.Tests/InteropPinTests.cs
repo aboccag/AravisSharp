@@ -28,9 +28,10 @@ public class InteropPinTests
     private static readonly TimeSpan StartBound = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan ReturnBound = TimeSpan.FromSeconds(10);
 
-    // Statuses the stream thread gives a frame it closed, complete or not. Cleared, Filling,
-    // Aborted, Unknown and PayloadNotSupported mean the buffer was not handled as a frame.
-    private static readonly ArvBufferStatus[] ClosedFrameStatuses =
+    // Statuses the stream thread gives an image frame it closed, complete or not. Cleared,
+    // Filling, Aborted and Unknown mean the buffer was not closed as a frame;
+    // PayloadNotSupported means a frame this binding cannot use.
+    private static readonly IReadOnlyList<ArvBufferStatus> ClosedFrameStatuses = new[]
     {
         ArvBufferStatus.Success,
         ArvBufferStatus.Timeout,
@@ -95,7 +96,10 @@ public class InteropPinTests
                 // Size_mismatch or Missing_packets on USB3 (issue #18). What B1 and B2 pin is
                 // that the pop blocked and was released by a frame the stream thread closed.
                 using (pop.Buffer)
-                    Assert.Contains(pop.Buffer!.Status, ClosedFrameStatuses);
+                {
+                    _output.WriteLine($"{call}: released by a buffer with status {pop.Buffer.Status}");
+                    Assert.Contains(pop.Buffer.Status, ClosedFrameStatuses);
+                }
             }
             finally
             {
