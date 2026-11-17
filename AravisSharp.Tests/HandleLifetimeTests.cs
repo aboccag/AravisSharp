@@ -137,7 +137,7 @@ public class HandleLifetimeTests
         Assert.True(camera.GetIntegerFeature("Width") > 0);
     }
 
-    private static GenICamNode OpenNode(Device device, string name)
+    internal static GenICamNode OpenNode(Device device, string name)
     {
         var genicam = AravisNative.arv_device_get_genicam(device.Handle);
         Assert.NotEqual(IntPtr.Zero, genicam);
@@ -218,6 +218,91 @@ public class HandleLifetimeTests
         }
     }
 
+    #endregion
+
+    #region The release waits for the leases taken before Dispose() (AC-2)
+
+    // Deterministic: the test holds the lease itself, as a native call in progress would.
+    [NativeFact]
+    public void Camera_DisposedWhileALeaseIsHeld_ShouldReleaseOnlyWhenTheLeaseIsReturned()
+    {
+        var camera = CameraTestHelpers.OpenTestCamera();
+        var device = camera.GetDevice();
+        long cameraId = GObjectReleaseProbe.Watch(camera.Handle);
+        long deviceId = GObjectReleaseProbe.Watch(device.Handle);
+
+        using (var lease = device.AcquireHandle())
+        {
+            camera.Dispose();
+
+            Assert.Equal(0, GObjectReleaseProbe.ReleaseCount(cameraId));
+            Assert.Equal(0, GObjectReleaseProbe.ReleaseCount(deviceId));
+            // Closing is immediate even though the release waits.
+            Assert.Throws<ObjectDisposedException>(() => camera.GetModelName());
+            Assert.Throws<ObjectDisposedException>(() => device.GetIntegerFeature("Width"));
+        }
+
+        Assert.Equal(1, GObjectReleaseProbe.ReleaseCount(cameraId));
+        Assert.Equal(1, GObjectReleaseProbe.ReleaseCount(deviceId));
+    }
+
+    [NativeFact]
+    public void Stream_DisposedWhileALeaseIsHeld_ShouldReleaseOnlyWhenTheLeaseIsReturned()
+    {
+        using var camera = CameraTestHelpers.OpenTestCamera();
+        var stream = camera.CreateStream();
+        long id = GObjectReleaseProbe.Watch(stream.Handle);
+
+        using (var lease = stream.AcquireHandle())
+        {
+            stream.Dispose();
+            Assert.Equal(0, GObjectReleaseProbe.ReleaseCount(id));
+            Assert.Throws<ObjectDisposedException>(() => stream.GetStatistics());
+        }
+
+        Assert.Equal(1, GObjectReleaseProbe.ReleaseCount(id));
+    }
+
+    [NativeFact]
+    public void Buffer_DisposedWhileALeaseIsHeld_ShouldReleaseOnlyWhenTheLeaseIsReturned()
+    {
+        var buffer = new AravisBuffer(1024);
+        long id = GObjectReleaseProbe.Watch(buffer.Handle);
+
+        using (var lease = buffer.AcquireHandle())
+        {
+            buffer.Dispose();
+            Assert.Equal(0, GObjectReleaseProbe.ReleaseCount(id));
+            Assert.Throws<ObjectDisposedException>(() => buffer.Status);
+        }
+
+        Assert.Equal(1, GObjectReleaseProbe.ReleaseCount(id));
+    }
+
+    [NativeFact]
+    public void Buffer_Pushed_ShouldBeReleasedByTheWrapperAndTheStreamOnceEach()
+    {
+        using var camera = CameraTestHelpers.OpenTestCamera();
+        var stream = camera.CreateStream();
+        var buffer = new AravisBuffer((int)camera.GetPayloadSize());
+        IntPtr own = GLibNative.g_object_ref(buffer.Handle);
+        long id = GObjectReleaseProbe.Watch(own);
+
+        stream.PushBuffer(buffer);
+        buffer.Dispose();
+        stream.Dispose();
+
+        // The wrapper and the stream each dropped their own reference, no more: the test's
+        // reference is the last one.
+        Assert.Equal(0, GObjectReleaseProbe.ReleaseCount(id));
+        GLibNative.g_object_unref(own);
+        Assert.Equal(1, GObjectReleaseProbe.ReleaseCount(id));
+    }
+
+    #endregion
+
+    #region Abandoned wrappers
+
     [NativeFact]
     public void AbandonedWrappers_ShouldEachBeReleasedOnceByTheFinalizers()
     {
@@ -275,7 +360,7 @@ public class HandleLifetimeTests
         using var barrier = new Barrier(Threads);
         var tasks = Enumerable.Range(0, Threads).Select(_ => Task.Run(() =>
         {
-            barrier.SignalAndWait(TimeSpan.FromSeconds(30));
+            Assert.True(barrier.SignalAndWait(TimeSpan.FromSeconds(30)), "the other threads did not reach the barrier");
             disposable.Dispose();
         })).ToArray();
         Assert.True(Task.WaitAll(tasks, TimeSpan.FromSeconds(30)), "Dispose() did not return");

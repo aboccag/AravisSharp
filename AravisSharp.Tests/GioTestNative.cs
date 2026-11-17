@@ -135,13 +135,15 @@ internal static class GioTestNative
 }
 
 /// <summary>
-/// Records the warnings and criticals GObject logs (domain "GLib-GObject") on the calling
-/// thread while it is alive, through <c>g_log_set_handler</c>. Messages logged by other
-/// threads in the meantime are dropped, not printed.
+/// Records the warnings and criticals GLib logs in one domain ("GLib-GObject" by default) on
+/// the calling thread while it is alive, through <c>g_log_set_handler</c>. Messages logged by
+/// other threads in the meantime are dropped, not printed, unless <c>allThreads</c> is set:
+/// the release of a native object can run on whichever thread returns its last lease.
 /// </summary>
 internal sealed class GObjectLogCapture : IDisposable
 {
-    private const string Domain = "GLib-GObject";
+    private readonly string _domain;
+    private readonly bool _allThreads;
     private const int LevelCritical = 1 << 3; // G_LOG_LEVEL_CRITICAL
     private const int LevelWarning = 1 << 4;  // G_LOG_LEVEL_WARNING
     private const int LevelMask = ~3;         // drops G_LOG_FLAG_RECURSION and G_LOG_FLAG_FATAL
@@ -174,10 +176,14 @@ internal sealed class GObjectLogCapture : IDisposable
     private readonly List<(int Level, string Message)> _messages = new();
     private uint _handlerId;
 
-    public GObjectLogCapture()
+    /// <param name="domain">The GLib log domain, such as "GLib-GObject" or "GLib".</param>
+    /// <param name="allThreads">True to record the messages of every thread.</param>
+    public GObjectLogCapture(string domain = "GLib-GObject", bool allThreads = false)
     {
+        _domain = domain;
+        _allThreads = allThreads;
         _callback = OnLog;
-        _handlerId = LogSetHandler.Value(Domain, LevelCritical | LevelWarning, _callback, IntPtr.Zero);
+        _handlerId = LogSetHandler.Value(_domain, LevelCritical | LevelWarning, _callback, IntPtr.Zero);
     }
 
     public IReadOnlyList<string> Messages
@@ -198,7 +204,7 @@ internal sealed class GObjectLogCapture : IDisposable
 
     private void OnLog(IntPtr logDomain, int logLevel, IntPtr message, IntPtr userData)
     {
-        if (Environment.CurrentManagedThreadId != _threadId)
+        if (!_allThreads && Environment.CurrentManagedThreadId != _threadId)
             return;
         lock (_messages)
             _messages.Add((logLevel & LevelMask, Marshal.PtrToStringUTF8(message) ?? "(null message)"));
@@ -208,7 +214,7 @@ internal sealed class GObjectLogCapture : IDisposable
     {
         if (_handlerId != 0)
         {
-            LogRemoveHandler.Value(Domain, _handlerId);
+            LogRemoveHandler.Value(_domain, _handlerId);
             _handlerId = 0;
         }
         GC.KeepAlive(_callback);
