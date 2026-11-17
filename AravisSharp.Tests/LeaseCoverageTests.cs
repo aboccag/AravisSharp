@@ -51,7 +51,7 @@ public class LeaseCoverageTests
             ["Camera.GInetAddressMaskToDotted(IntPtr)"] = (1, "Static helper on a GInetAddressMask this call owns, called under the camera's lease."),
             ["Buffer..ctor(IntPtr)"] = (1, "arv_buffer_new_allocate creates the object the handle then owns: nothing to pin yet."),
             ["GObjectSafeHandle.ReleaseHandle()"] = (1, "The release itself: SafeHandle runs it once the last lease is returned."),
-            ["FeatureDetails.FromNode(IntPtr, string)"] = (16, "Public static helper taking a raw device pointer: the library calls it only from NodeMap.GetFeatureDetails, under the camera's lease."),
+            ["FeatureDetails.FromNode(IntPtr, string)"] = (11, "Public static helper taking a raw device pointer: the library calls it only from NodeMap.GetFeatureDetails, under the camera's lease."),
             ["FeatureDetails.DetermineTypeAndConstraints(IntPtr, string, IntPtr, FeatureDetails)"] = (1, "Local function Is() of a private helper of FromNode, called synchronously under the same lease."),
             ["FeatureDetails.ReadIntegerConstraints(IntPtr, IntPtr, FeatureDetails)"] = (2, "Private helper of FromNode, same lease."),
             ["FeatureDetails.ReadFloatConstraints(IntPtr, IntPtr, FeatureDetails)"] = (2, "Private helper of FromNode, same lease."),

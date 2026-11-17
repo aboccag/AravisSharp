@@ -262,7 +262,7 @@ public class ConcurrencyTests
             Task<Exception?> other;
             using (var lease = lockHolder.AcquireHandle())
             {
-                other = Task.Run(() => Record.Exception(() => device.GetIntegerFeature("Width")));
+                other = Task.Run<Exception?>(() => Record.Exception(() => device.GetIntegerFeature("Width")));
                 Assert.False(other.Wait(TimeSpan.FromMilliseconds(300)));
                 device.Dispose();
             }
@@ -289,7 +289,7 @@ public class ConcurrencyTests
             Task<Exception?> other;
             using (var lease = device.AcquireHandle())
             {
-                other = Task.Run(() => Record.Exception(() => node.GetValueAsString()));
+                other = Task.Run<Exception?>(() => Record.Exception(() => node.GetValueAsString()));
                 Assert.False(other.Wait(TimeSpan.FromMilliseconds(300)));
                 node.Dispose();
             }
