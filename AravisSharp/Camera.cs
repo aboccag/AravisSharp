@@ -18,9 +18,12 @@ namespace AravisSharp;
 /// </para>
 /// <para>
 /// Once <see cref="Dispose"/> has been called, every member of the camera and of its
-/// <see cref="Device"/> and node map throws <see cref="ObjectDisposedException"/>; a call
-/// already in progress on another thread completes normally, and the native camera is released
-/// when it returns. A <see cref="Stream"/> keeps its own native reference: to open the same
+/// <see cref="Device"/> and node map throws <see cref="ObjectDisposedException"/>; a native
+/// call already in progress on another thread completes normally, and the native camera is
+/// released when it returns. A member made of several native calls (the <c>Gv*</c> members,
+/// which check the device type first; <see cref="AcquireSingleFrame"/>) can therefore throw
+/// <see cref="ObjectDisposedException"/> part-way. Code that runs during a call, the
+/// exception filters of the caller included, runs with the camera's lock held. A <see cref="Stream"/> keeps its own native reference: to open the same
 /// camera again, dispose the camera and every stream created from it; a camera that is never
 /// disposed keeps its connection until the garbage collector releases it.
 /// </para>
@@ -1795,28 +1798,90 @@ public class Camera : IDisposable
     /// waits for a single frame, stops acquisition, and returns the buffer.
     /// The caller owns the returned <see cref="Buffer"/> and must dispose it.
     /// </summary>
-    /// <param name="timeoutUs">Timeout in microseconds (0 = infinite)</param>
+    /// <param name="timeoutUs">
+    /// Timeout in microseconds (0 = infinite). Values above <c>long.MaxValue / 2</c> are capped to it.
+    /// </param>
+    /// <returns>The frame, whatever its <see cref="Buffer.Status"/>: check it before use.</returns>
+    /// <remarks>
+    /// <para>
+    /// Does what <c>arv_camera_acquisition</c> does: a stream of its own with one buffer of
+    /// the payload size, the <see cref="ArvAcquisitionMode.SingleFrame"/> acquisition mode
+    /// (<see cref="ArvAcquisitionMode.Continuous"/> on a camera that has no SingleFrame),
+    /// start, wait, stop. The stream and its buffers are released on every path.
+    /// </para>
+    /// <para>
+    /// The camera's lock is held only by the calls that set up, start and stop the
+    /// acquisition, not during the wait: other threads can use the camera meanwhile, to send
+    /// the <see cref="SoftwareTrigger"/> the frame waits for, for example. The wait is made of
+    /// timed pops of at most 100 ms: <see cref="Dispose"/> called on another thread ends it
+    /// with <see cref="ObjectDisposedException"/>, after the acquisition is stopped and the
+    /// stream released.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="AravisException">
+    /// No frame arrived within <paramref name="timeoutUs"/>, or a native call failed.
+    /// </exception>
+    /// <exception cref="ObjectDisposedException">The camera was disposed, possibly while this call waited.</exception>
     public Buffer AcquireSingleFrame(ulong timeoutUs = 2_000_000)
     {
-        using var lease = AcquireHandle();
-        IntPtr error = IntPtr.Zero;
+        // Pins the native camera, without its lock, for the whole call: the acquisition can
+        // still be stopped after Dispose() was called on another thread during the wait.
+        using var pin = _safeHandle.Acquire(nameof(Camera));
+        using var stream = CreateStream();
+        stream.PushBuffer(new Buffer(checked((int)GetPayloadSize())));
         try
         {
-            var bufferHandle = AravisNative.arv_camera_acquisition(lease.Handle, timeoutUs, out error);
-            // A failed stop acquisition still returns the popped buffer alongside the error.
-            if (error != IntPtr.Zero && bufferHandle != IntPtr.Zero)
-                GLibNative.g_object_unref(bufferHandle);
-            CheckError(ref error);
-            if (bufferHandle == IntPtr.Zero)
-                throw new AravisException("arv_camera_acquisition returned null buffer");
-            return Buffer.FromOwnedHandle(bufferHandle);
+            SetAcquisitionMode(ArvAcquisitionMode.SingleFrame);
+        }
+        catch (AravisException ex) when (ex.Code == GcErrorEnumEntryNotFound)
+        {
+            // Some cameras have no SingleFrame: Aravis falls back to Continuous on this code,
+            // whatever the domain.
+            SetAcquisitionMode(ArvAcquisitionMode.Continuous);
+        }
+        StartAcquisition();
+
+        Buffer? buffer = null;
+        bool waited = false;
+        try
+        {
+            buffer = stream.WaitForBuffer(timeoutUs == 0 ? null : Math.Min(timeoutUs, MaxTimeoutUs), _safeHandle, nameof(Camera));
+            waited = true;
         }
         finally
         {
+            // Stopped even when the wait failed or the camera was disposed meanwhile: the pin
+            // keeps the native camera, and the lock is taken directly since Acquire() refuses
+            // a closing handle. Brief: no other call waits under this lock.
+            IntPtr error = IntPtr.Zero;
+            lock (_safeHandle.SyncRoot)
+            {
+                AravisNative.arv_camera_stop_acquisition(pin.Handle, out error);
+            }
             if (error != IntPtr.Zero)
-                GLibNative.g_error_free(error);
+            {
+                if (!waited)
+                {
+                    // The wait's own exception propagates.
+                    GLibNative.g_error_free(error);
+                }
+                else
+                {
+                    buffer?.Dispose();
+                    throw AravisException.TakeGError(ref error);
+                }
+            }
         }
+
+        return buffer ?? throw new AravisException($"No frame arrived within {timeoutUs} µs.");
     }
+
+    // ARV_GC_ERROR_ENUM_ENTRY_NOT_FOUND, the code on which arv_camera_acquisition falls back
+    // to the Continuous acquisition mode.
+    private const int GcErrorEnumEntryNotFound = 8;
+
+    // GLib adds a pop timeout to a signed 64-bit monotonic time: see Stream.ToTimeoutMicroseconds.
+    private const ulong MaxTimeoutUs = long.MaxValue / 2;
 
     // === Enumerate available values ===
 
@@ -2169,7 +2234,7 @@ public class Camera : IDisposable
         {
             var streamHandle = AravisNative.arv_camera_create_stream(lease.Handle, IntPtr.Zero, IntPtr.Zero, out error);
             CheckError(ref error);
-            
+
             if (streamHandle == IntPtr.Zero)
             {
                 throw new AravisException("Failed to create stream");

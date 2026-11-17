@@ -43,8 +43,11 @@ public enum ArvGvStreamPacketResend
 /// Members may be called from several threads, for example one thread waiting in
 /// <see cref="PopBuffer()"/> while another pushes buffers; calls are not serialised (the
 /// stream's queues are thread-safe in Aravis). Once <see cref="Dispose"/> has been called,
-/// every member throws <see cref="ObjectDisposedException"/>; a call already in progress on
-/// another thread completes normally, and the native stream is released when it returns.
+/// every member throws <see cref="ObjectDisposedException"/>; a native call already in
+/// progress on another thread completes normally, and the native stream is released when it
+/// returns. A member made of several native calls (<see cref="ConfigureGigEDefaults"/>, and
+/// the GigE members, which check the stream type first) can therefore throw
+/// <see cref="ObjectDisposedException"/> part-way, with only some of its calls made.
 /// </para>
 /// <para>
 /// A stream holds its own native reference on the camera's device, so it stays usable after
@@ -87,14 +90,24 @@ public class Stream : IDisposable
     }
 
     /// <param name="handle">A stream the caller owns a reference on (<c>transfer full</c>); the wrapper takes it over.</param>
+    /// <exception cref="ArgumentException"><paramref name="handle"/> is null.</exception>
     internal Stream(IntPtr handle)
     {
+        if (handle == IntPtr.Zero)
+            throw new ArgumentException("A null native stream cannot be wrapped.", nameof(handle));
+
         _safeHandle = new GObjectSafeHandle(handle);
-        if (!_safeHandle.IsInvalid)
+        try
         {
             // Don't emit signals by default (we'll use polling)
             using var lease = AcquireHandle();
             AravisNative.arv_stream_set_emit_signals(lease.Handle, false);
+        }
+        catch
+        {
+            // No wrapper is returned: release the stream now rather than in a finalizer.
+            _safeHandle.Dispose();
+            throw;
         }
     }
 
@@ -309,6 +322,12 @@ public class Stream : IDisposable
     /// The <paramref name="buffer"/> wrapper is closed: its members throw
     /// <see cref="ObjectDisposedException"/> from now on, and disposing it does nothing.
     /// </summary>
+    /// <remarks>
+    /// A read of the buffer already in progress on another thread
+    /// (<see cref="Buffer.CopyData"/>, for example) keeps its memory valid, but the stream
+    /// thread may already be filling it with a new frame: that read returns a mix of two
+    /// frames. Push a buffer only once nothing reads it any more.
+    /// </remarks>
     /// <exception cref="ObjectDisposedException">
     /// The stream is disposed, or <paramref name="buffer"/> was already disposed or pushed. Of
     /// several threads pushing the same buffer at once, one queues it and the others get this
@@ -384,9 +403,10 @@ public class Stream : IDisposable
     /// <summary>
     /// Waits for a buffer for <paramref name="timeoutUs"/> microseconds (null: no limit), in
     /// slices of at most <see cref="WaitSliceUs"/>, giving up with
-    /// <see cref="ObjectDisposedException"/> once the stream is closing.
+    /// <see cref="ObjectDisposedException"/> once the stream is closing, or once
+    /// <paramref name="watched"/> is (named <paramref name="watchedName"/> in the exception).
     /// </summary>
-    private Buffer? WaitForBuffer(ulong? timeoutUs)
+    internal Buffer? WaitForBuffer(ulong? timeoutUs, GObjectSafeHandle? watched = null, string? watchedName = null)
     {
         using var lease = AcquireHandle();
         var clock = Stopwatch.StartNew();
@@ -405,6 +425,8 @@ public class Stream : IDisposable
 
             if (_safeHandle.IsClosing)
                 throw new ObjectDisposedException(nameof(Stream));
+            if (watched is not null && watched.IsClosing)
+                throw new ObjectDisposedException(watchedName);
             if (timeoutUs is ulong total && ElapsedMicroseconds(clock) >= total)
                 return null;
         }
