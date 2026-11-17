@@ -73,7 +73,7 @@ public class Device : IDisposable
         using var lease = AcquireHandle();
         IntPtr error = IntPtr.Zero;
         IntPtr featurePtr = IntPtr.Zero;
-        
+
         try
         {
             featurePtr = Marshal.StringToCoTaskMemUTF8(featureName);
@@ -99,7 +99,7 @@ public class Device : IDisposable
         IntPtr error = IntPtr.Zero;
         IntPtr featurePtr = IntPtr.Zero;
         IntPtr valuePtr = IntPtr.Zero;
-        
+
         try
         {
             featurePtr = Marshal.StringToCoTaskMemUTF8(featureName);
@@ -126,7 +126,7 @@ public class Device : IDisposable
         using var lease = AcquireHandle();
         IntPtr error = IntPtr.Zero;
         IntPtr featurePtr = IntPtr.Zero;
-        
+
         try
         {
             featurePtr = Marshal.StringToCoTaskMemUTF8(featureName);
@@ -151,7 +151,7 @@ public class Device : IDisposable
         using var lease = AcquireHandle();
         IntPtr error = IntPtr.Zero;
         IntPtr featurePtr = IntPtr.Zero;
-        
+
         try
         {
             featurePtr = Marshal.StringToCoTaskMemUTF8(featureName);
@@ -175,7 +175,7 @@ public class Device : IDisposable
         using var lease = AcquireHandle();
         IntPtr error = IntPtr.Zero;
         IntPtr featurePtr = IntPtr.Zero;
-        
+
         try
         {
             featurePtr = Marshal.StringToCoTaskMemUTF8(featureName);
@@ -200,7 +200,7 @@ public class Device : IDisposable
         using var lease = AcquireHandle();
         IntPtr error = IntPtr.Zero;
         IntPtr featurePtr = IntPtr.Zero;
-        
+
         try
         {
             featurePtr = Marshal.StringToCoTaskMemUTF8(featureName);
@@ -224,7 +224,7 @@ public class Device : IDisposable
         using var lease = AcquireHandle();
         IntPtr error = IntPtr.Zero;
         IntPtr featurePtr = IntPtr.Zero;
-        
+
         try
         {
             featurePtr = Marshal.StringToCoTaskMemUTF8(featureName);
@@ -249,7 +249,7 @@ public class Device : IDisposable
         using var lease = AcquireHandle();
         IntPtr error = IntPtr.Zero;
         IntPtr featurePtr = IntPtr.Zero;
-        
+
         try
         {
             featurePtr = Marshal.StringToCoTaskMemUTF8(featureName);
@@ -273,7 +273,7 @@ public class Device : IDisposable
         using var lease = AcquireHandle();
         IntPtr error = IntPtr.Zero;
         IntPtr featurePtr = IntPtr.Zero;
-        
+
         try
         {
             featurePtr = Marshal.StringToCoTaskMemUTF8(featureName);
@@ -298,7 +298,15 @@ public class Device : IDisposable
     {
         if (Volatile.Read(ref _disposed) != 0)
             throw new ObjectDisposedException(nameof(Device));
-        return _owner.AcquireBorrowed(_handle, nameof(Device), CameraDisposedMessage, serialized: true);
+        var lease = _owner.AcquireBorrowed(_handle, nameof(Device), CameraDisposedMessage, serialized: true);
+        // Dispose() may have run while this call waited for the camera's lock: honour it, so
+        // that no call starts after Dispose() has returned.
+        if (Volatile.Read(ref _disposed) != 0)
+        {
+            lease.Dispose();
+            throw new ObjectDisposedException(nameof(Device));
+        }
+        return lease;
     }
 
     private static void CheckError(ref IntPtr error)

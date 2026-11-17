@@ -148,16 +148,6 @@ internal sealed class GObjectSafeHandle : SafeHandle
         return new GObjectLease(this, borrowed ? borrowedPointer : DangerousGetHandle(), acquired, locked);
     }
 
-    /// <summary>
-    /// Pins the native object for the owner's own clean-up, after <see cref="BeginClose"/>.
-    /// </summary>
-    public GObjectLease AcquireForClose()
-    {
-        bool acquired = false;
-        DangerousAddRef(ref acquired);
-        return new GObjectLease(this, DangerousGetHandle(), acquired, locked: false);
-    }
-
     private static ObjectDisposedException Disposed(string objectName, string? message)
         => message is null
             ? new ObjectDisposedException(objectName)
@@ -167,6 +157,13 @@ internal sealed class GObjectSafeHandle : SafeHandle
 /// <summary>
 /// A short-lived hold on a <see cref="GObjectSafeHandle"/>. Dispose it once the native call returned.
 /// </summary>
+/// <remarks>
+/// Use it only as a <c>using</c> variable and never copy it: each copy would return the
+/// reference (and leave the lock) again when disposed. Being a <c>ref struct</c>, it cannot be
+/// boxed, captured by a lambda or kept across an <c>await</c>. Code that runs while it is held,
+/// exception filters of the caller included, runs with the object pinned and, for a
+/// serialised lease, with the lock held.
+/// </remarks>
 internal readonly ref struct GObjectLease
 {
     private readonly GObjectSafeHandle? _owner;

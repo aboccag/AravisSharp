@@ -146,7 +146,7 @@ public class HandleLifetimeTests
         {
             var nodePtr = AravisNative.arv_gc_get_node(genicam, namePtr);
             Assert.NotEqual(IntPtr.Zero, nodePtr);
-            return new GenICamNode(device, nodePtr, genicam);
+            return new GenICamNode(device, nodePtr);
         }
         finally
         {

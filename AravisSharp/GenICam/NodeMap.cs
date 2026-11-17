@@ -13,7 +13,10 @@ namespace AravisSharp.GenICam;
 /// A node map belongs to the <see cref="Camera"/> its <see cref="Device"/> came from: its
 /// calls are serialised with the camera's, and once the camera or the Device is disposed
 /// every member throws <see cref="ObjectDisposedException"/>, including those that return
-/// null or an empty list when Aravis reports an error.
+/// null or an empty list when Aravis reports an error. Members that walk several features
+/// (<see cref="GetFeaturesInCategory"/>, <see cref="GetFeaturesByCategory"/>,
+/// <see cref="GetAllFeatures"/>) can throw it part-way. <see cref="Dispose"/> does nothing:
+/// a node map stays usable until its camera or Device is disposed.
 /// </remarks>
 public class NodeMap : IDisposable
 {

@@ -21,7 +21,6 @@ public class GenICamNode : IDisposable
     // device: the camera's handle is pinned around every native call.
     private readonly GObjectSafeHandle _owner;
     private readonly IntPtr _nodeHandle;
-    private readonly IntPtr _genicamHandle;
     private int _disposed;
 
     public string Name { get; }
@@ -32,12 +31,10 @@ public class GenICamNode : IDisposable
 
     /// <param name="device">The Device of the camera that owns the node.</param>
     /// <param name="nodeHandle">An ArvGcFeatureNode of that camera's GenICam object.</param>
-    /// <param name="genicamHandle">That camera's ArvGc.</param>
-    internal GenICamNode(Device device, IntPtr nodeHandle, IntPtr genicamHandle)
+    internal GenICamNode(Device device, IntPtr nodeHandle)
     {
         _owner = device.Owner;
         _nodeHandle = nodeHandle;
-        _genicamHandle = genicamHandle;
         using var lease = AcquireOwner();
 
         // Get node name
@@ -150,7 +147,14 @@ public class GenICamNode : IDisposable
     {
         if (Volatile.Read(ref _disposed) != 0)
             throw new ObjectDisposedException(nameof(GenICamNode));
-        return _owner.AcquireBorrowed(_nodeHandle, nameof(GenICamNode), OwnerDisposedMessage, serialized: true);
+        var lease = _owner.AcquireBorrowed(_nodeHandle, nameof(GenICamNode), OwnerDisposedMessage, serialized: true);
+        // Dispose() may have run while this call waited for the camera's lock: honour it.
+        if (Volatile.Read(ref _disposed) != 0)
+        {
+            lease.Dispose();
+            throw new ObjectDisposedException(nameof(GenICamNode));
+        }
+        return lease;
     }
 
     /// <summary>
