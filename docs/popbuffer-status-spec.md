@@ -73,6 +73,10 @@ status of a frame closed by the stream thread (`Success`, `Timeout`, `Missing_pa
 `Wrong_packet_id`, `Size_mismatch`); it rejects `Cleared`, `Aborted`, `Filling`, `Unknown`
 and `PayloadNotSupported`.
 
+Addendum 2026-11-17, alex, after the C# review: on the Fake camera the test still requires
+`Success`, since the fake stream always generates a whole frame; the wider set applies
+only when `ARAVIS_TEST_DEVICE_ID` names a real camera.
+
 ## Plan
 
 1. Red: none to write. The failure is reproduced by the hardware run of #7 (USB3, net8.0).

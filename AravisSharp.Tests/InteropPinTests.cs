@@ -98,7 +98,12 @@ public class InteropPinTests
                 using (pop.Buffer)
                 {
                     _output.WriteLine($"{call}: released by a buffer with status {pop.Buffer.Status}");
-                    Assert.Contains(pop.Buffer.Status, ClosedFrameStatuses);
+                    // The fake stream generates a whole frame into the buffer it receives,
+                    // so on the fake camera anything but Success is a regression.
+                    if (CameraTestHelpers.UsesFakeCamera)
+                        Assert.Equal(ArvBufferStatus.Success, pop.Buffer.Status);
+                    else
+                        Assert.Contains(pop.Buffer.Status, ClosedFrameStatuses);
                 }
             }
             finally
