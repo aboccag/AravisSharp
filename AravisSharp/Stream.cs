@@ -458,7 +458,7 @@ public class Stream : IDisposable
 
     // Not serialised: the stream queues are thread-safe in Aravis (GAsyncQueue), and a
     // blocking PopBuffer() must not keep other threads out.
-    private GObjectLease AcquireHandle() => _safeHandle.Acquire(nameof(Stream));
+    internal GObjectLease AcquireHandle() => _safeHandle.Acquire(nameof(Stream));
 
     // The one GigE guard of Stream: called under the member's lease and before any native call
     // of a GigE member. Same message pattern as Camera.CheckGigE.

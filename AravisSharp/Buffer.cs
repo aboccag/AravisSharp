@@ -305,7 +305,7 @@ public class Buffer : IDisposable
 
     // Not serialised: a buffer's accessors only read its fields, and it is filled by the
     // stream thread only while the stream owns it.
-    private GObjectLease AcquireHandle() => _safeHandle.Acquire(nameof(Buffer));
+    internal GObjectLease AcquireHandle() => _safeHandle.Acquire(nameof(Buffer));
 
     /// <summary>
     /// Releases the native buffer. Safe to call more than once and from any thread: from the
