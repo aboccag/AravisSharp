@@ -55,7 +55,13 @@ public class Buffer : IDisposable
 
     /// <summary>Wraps a buffer popped from a stream.</summary>
     /// <param name="handle">A buffer the caller owns a reference on (<c>transfer full</c>); the wrapper takes it over.</param>
-    internal static Buffer FromOwnedHandle(IntPtr handle) => new(new GObjectSafeHandle(handle));
+    /// <exception cref="ArgumentException"><paramref name="handle"/> is null.</exception>
+    internal static Buffer FromOwnedHandle(IntPtr handle)
+    {
+        if (handle == IntPtr.Zero)
+            throw new ArgumentException("A null native buffer cannot be wrapped.", nameof(handle));
+        return new Buffer(new GObjectSafeHandle(handle));
+    }
 
     /// <summary>
     /// Queues this buffer on <paramref name="streamHandle"/> and closes the wrapper: the stream
@@ -73,11 +79,28 @@ public class Buffer : IDisposable
         if (!_safeHandle.BeginClose())
             throw new ObjectDisposedException(nameof(Buffer));
 
-        // arv_stream_push_buffer takes over a reference (transfer full): give it a new one,
-        // so that the wrapper's own reference is still released exactly once, below.
-        GLibNative.g_object_ref(lease.Handle);
-        AravisNative.arv_stream_push_buffer(streamHandle, lease.Handle);
-        _safeHandle.Dispose();
+        try
+        {
+            // arv_stream_push_buffer takes over a reference (transfer full): give it a new
+            // one, so that the wrapper's own reference is still released exactly once, below.
+            GLibNative.g_object_ref(lease.Handle);
+            try
+            {
+                AravisNative.arv_stream_push_buffer(streamHandle, lease.Handle);
+            }
+            catch
+            {
+                // Not queued (the call itself failed, a missing entry point for example):
+                // the stream did not take the new reference.
+                GLibNative.g_object_unref(lease.Handle);
+                throw;
+            }
+        }
+        finally
+        {
+            // Closed either way: the wrapper's reference goes once the leases are returned.
+            _safeHandle.Dispose();
+        }
     }
 
     /// <summary>
@@ -222,12 +245,23 @@ public class Buffer : IDisposable
 
     /// <summary>
     /// Gets the raw buffer data.
-    /// The pointer refers to native memory owned by this Buffer: it is valid only while this
-    /// Buffer is alive and has been neither disposed nor pushed back to a stream. Keep a
-    /// reference to the Buffer (or call <see cref="GC.KeepAlive(object)"/> on it) until you are
-    /// done reading, or use <see cref="CopyData"/> / <see cref="CopyDataTo"/> instead.
     /// </summary>
     /// <returns>Pointer to buffer data and size</returns>
+    /// <remarks>
+    /// <para>
+    /// The pointer refers to native memory owned by this Buffer, and nothing pins it once this
+    /// method has returned: it is valid only while this Buffer is reachable and has been
+    /// neither disposed nor pushed back to a stream, by any thread. Once the Buffer is no
+    /// longer referenced, the garbage collector may release the memory even while the pointer
+    /// is still in use: in <c>stream.PopBuffer()!.GetData()</c>, for example, nothing keeps the
+    /// Buffer alive. Keep it in a variable (a <c>using</c> declaration) and call
+    /// <see cref="GC.KeepAlive(object)"/> on it after the last read.
+    /// </para>
+    /// <para>
+    /// Prefer <see cref="CopyData"/> or <see cref="CopyDataTo"/>, which hold the buffer for the
+    /// whole copy.
+    /// </para>
+    /// </remarks>
     public (IntPtr Data, int Size) GetData()
     {
         using var lease = AcquireHandle();
@@ -245,32 +279,24 @@ public class Buffer : IDisposable
     /// <summary>
     /// Copies the buffer data to a byte array
     /// </summary>
-    public byte[] CopyData()
-    {
-        // dataPtr points into memory the native buffer owns: the lease keeps it until the
-        // copy is done, even if another thread disposes or pushes this Buffer meanwhile.
-        using var lease = AcquireHandle();
-        var (dataPtr, size) = GetData();
-        
-        if (dataPtr == IntPtr.Zero || size <= 0)
-        {
-            return Array.Empty<byte>();
-        }
-
-        var buffer = new byte[size];
-        Marshal.Copy(dataPtr, buffer, 0, size);
-        return buffer;
-    }
+    /// <remarks>
+    /// The buffer is held for the whole copy: disposing or pushing it on another thread
+    /// meanwhile cannot free the memory being read. Pushing it gives it back to the stream
+    /// thread, though, which may start filling it with the next frame while the copy runs:
+    /// the copy then holds a mix of two frames. Do not push a buffer that is still being read.
+    /// </remarks>
+    public byte[] CopyData() => ReadData(static data => data.ToArray());
 
     /// <summary>
     /// Copies the buffer data to a provided span
     /// </summary>
+    /// <remarks>Held for the whole copy, with the same limit as <see cref="CopyData"/>: do not push a buffer that is still being read.</remarks>
     public unsafe void CopyDataTo(Span<byte> destination)
     {
-        // Same lease as CopyData: the native memory stays valid until the copy is done.
+        // The lease holds the buffer until the copy is done.
         using var lease = AcquireHandle();
         var (dataPtr, size) = GetData();
-        
+
         if (dataPtr == IntPtr.Zero || size <= 0)
         {
             return;
@@ -281,20 +307,26 @@ public class Buffer : IDisposable
             throw new ArgumentException($"Destination buffer is too small. Required: {size}, Available: {destination.Length}");
         }
 
-        var source = new Span<byte>((void*)dataPtr, size);
-        source.CopyTo(destination);
+        new ReadOnlySpan<byte>((void*)dataPtr, size).CopyTo(destination);
     }
 
     /// <summary>
     /// Gets a read-only span of the buffer data (zero-copy access).
-    /// The span points into native memory: it is valid only while this Buffer is alive
-    /// and has been neither disposed nor pushed back to a stream.
     /// </summary>
     /// <returns>Read-only span of the buffer data</returns>
+    /// <remarks>
+    /// The span points into native memory that nothing pins once this method has returned,
+    /// with the limits of <see cref="GetData"/>: it is valid only while this Buffer is
+    /// reachable and has been neither disposed nor pushed back to a stream. In
+    /// <c>stream.PopBuffer()!.GetDataSpan()</c> nothing keeps the Buffer alive, and the
+    /// garbage collector may release the memory while the span is still read. Keep the Buffer
+    /// in a variable (a <c>using</c> declaration) and call <see cref="GC.KeepAlive(object)"/>
+    /// on it after the last read, or use <see cref="CopyData"/> / <see cref="CopyDataTo"/>.
+    /// </remarks>
     public unsafe ReadOnlySpan<byte> GetDataSpan()
     {
         var (dataPtr, size) = GetData();
-        
+
         if (dataPtr == IntPtr.Zero || size <= 0)
         {
             return ReadOnlySpan<byte>.Empty;
@@ -303,8 +335,27 @@ public class Buffer : IDisposable
         return new ReadOnlySpan<byte>((void*)dataPtr, size);
     }
 
-    // Not serialised: a buffer's accessors only read its fields, and it is filled by the
-    // stream thread only while the stream owns it.
+    /// <summary>Reads the data of <see cref="ReadData{TResult}"/>, while the buffer is held.</summary>
+    internal delegate TResult DataReader<TResult>(ReadOnlySpan<byte> data);
+
+    /// <summary>
+    /// Runs <paramref name="read"/> on the buffer data while holding the buffer, so that no
+    /// Dispose(), push or finalizer can free the memory before it returns. The span must not
+    /// escape <paramref name="read"/>.
+    /// </summary>
+    internal unsafe TResult ReadData<TResult>(DataReader<TResult> read)
+    {
+        using var lease = AcquireHandle();
+        var (dataPtr, size) = GetData();
+        var data = dataPtr == IntPtr.Zero || size <= 0
+            ? ReadOnlySpan<byte>.Empty
+            : new ReadOnlySpan<byte>((void*)dataPtr, size);
+        return read(data);
+    }
+
+    // Not serialised: a buffer's accessors only read it. The stream thread writes into a
+    // buffer once it has been pushed, which closes this wrapper first; a read already in
+    // progress then sees a mix of two frames (see CopyData).
     internal GObjectLease AcquireHandle() => _safeHandle.Acquire(nameof(Buffer));
 
     /// <summary>

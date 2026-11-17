@@ -41,11 +41,17 @@ public static class ImageHelper
             throw new NotSupportedException($"PGM format only supports MONO_8. Current format: 0x{pixelFormat:X8}");
         }
 
+        var (xPadding, _) = buffer.GetImagePadding();
+
         // PGM allows exactly one whitespace byte after maxval, so write "\n", never "\r\n".
         using var file = File.Create(filename);
         file.Write(System.Text.Encoding.ASCII.GetBytes($"P5\n{width} {height}\n255\n"));
-        file.Write(GetPackedPixels(buffer, 1));
-        GC.KeepAlive(buffer);
+        // The buffer is held while its memory is written out.
+        buffer.ReadData(data =>
+        {
+            file.Write(GetPackedPixels(data, width, height, xPadding, 1));
+            return 0;
+        });
     }
 
     /// <summary>
@@ -109,8 +115,16 @@ public static class ImageHelper
         var width = buffer.Width;
         var height = buffer.Height;
         var pixelFormat = buffer.PixelFormat;
-        var data = GetPackedPixels(buffer, GetBytesPerPixel(pixelFormat));
+        var (xPadding, _) = buffer.GetImagePadding();
+        int bytesPerPixel = GetBytesPerPixel(pixelFormat);
 
+        // The buffer is held while its memory is read; the image is a copy.
+        return buffer.ReadData(data =>
+            DecodeImage(GetPackedPixels(data, width, height, xPadding, bytesPerPixel), width, height, pixelFormat));
+    }
+
+    private static Image DecodeImage(ReadOnlySpan<byte> data, int width, int height, uint pixelFormat)
+    {
         Image image;
         if (pixelFormat == ArvPixelFormat.ARV_PIXEL_FORMAT_MONO_8)
         {
@@ -163,22 +177,15 @@ public static class ImageHelper
             throw new NotSupportedException($"Unsupported pixel format: {GetPixelFormatName(pixelFormat)} (0x{pixelFormat:X8})");
         }
 
-        // The span above points into the native buffer: keep it alive until the copy is done.
-        GC.KeepAlive(buffer);
         return image;
     }
 
     /// <summary>
-    /// Returns the image pixels without row padding, after checking the buffer holds a whole image.
-    /// The span may point into the buffer's native memory: keep the buffer alive while using it.
+    /// Returns the image pixels without row padding, after checking the buffer data holds a
+    /// whole image. The result may be a slice of <paramref name="data"/>.
     /// </summary>
-    private static ReadOnlySpan<byte> GetPackedPixels(AravisSharp.Buffer buffer, int bytesPerPixel)
+    private static ReadOnlySpan<byte> GetPackedPixels(ReadOnlySpan<byte> data, int width, int height, int xPadding, int bytesPerPixel)
     {
-        var width = buffer.Width;
-        var height = buffer.Height;
-        var (xPadding, _) = buffer.GetImagePadding();
-        var data = buffer.GetDataSpan();
-
         long rowBytes = (long)width * bytesPerPixel;
         long stride = rowBytes + xPadding;
         if (width <= 0 || height <= 0 || data.Length < stride * (height - 1) + rowBytes)
