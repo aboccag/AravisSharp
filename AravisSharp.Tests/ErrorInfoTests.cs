@@ -101,7 +101,7 @@ public class ErrorInfoTests
             Marshal.FreeCoTaskMem(namePtr);
         }
         Assert.NotEqual(IntPtr.Zero, nodePtr);
-        using var node = new GenICamNode(nodePtr, genicam);
+        using var node = new GenICamNode(device, nodePtr);
 
         // Width is an integer node: Aravis refuses the string before touching the device.
         var ex = Assert.Throws<AravisException>(() => node.SetValueFromString("not a number"));

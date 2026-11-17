@@ -6,18 +6,24 @@ namespace AravisSharp;
 /// <summary>
 /// Represents an image buffer from a camera stream
 /// </summary>
+/// <remarks>
+/// Members may be called from several threads; calls are not serialised. Once
+/// <see cref="Dispose()"/> has returned, or the buffer has been pushed to a stream, every
+/// member throws <see cref="ObjectDisposedException"/>; a call already in progress on another
+/// thread completes normally, and the native buffer is released when it returns. A buffer that
+/// is never disposed is released by the garbage collector.
+/// </remarks>
 public class Buffer : IDisposable
 {
-    private IntPtr _handle;
-    private bool _disposed;
-    private bool _ownsHandle;
+    private readonly GObjectSafeHandle _safeHandle;
 
+    /// <summary>The native buffer pointer, for tests. Library code takes a lease instead.</summary>
     internal IntPtr Handle
     {
         get
         {
-            CheckDisposed();
-            return _handle;
+            using var lease = AcquireHandle();
+            return lease.Handle;
         }
     }
 
@@ -26,10 +32,9 @@ public class Buffer : IDisposable
     /// </summary>
     public Buffer(IntPtr size)
     {
-        _handle = AravisNative.arv_buffer_new_allocate(ToUIntPtr(size));
-        _ownsHandle = true;
-        
-        if (_handle == IntPtr.Zero)
+        _safeHandle = new GObjectSafeHandle(AravisNative.arv_buffer_new_allocate(ToUIntPtr(size)));
+
+        if (_safeHandle.IsInvalid)
         {
             throw new AravisException("Failed to allocate buffer");
         }
@@ -43,19 +48,59 @@ public class Buffer : IDisposable
     {
     }
 
-    internal Buffer(IntPtr handle, bool ownsHandle)
+    private Buffer(GObjectSafeHandle safeHandle)
     {
-        _handle = handle;
-        _ownsHandle = ownsHandle;
+        _safeHandle = safeHandle;
     }
 
-    internal void ReleaseOwnership()
+    /// <summary>Wraps a buffer popped from a stream.</summary>
+    /// <param name="handle">A buffer the caller owns a reference on (<c>transfer full</c>); the wrapper takes it over.</param>
+    /// <exception cref="ArgumentException"><paramref name="handle"/> is null.</exception>
+    internal static Buffer FromOwnedHandle(IntPtr handle)
     {
-        CheckDisposed();
-        _ownsHandle = false;
-        _handle = IntPtr.Zero;
-        _disposed = true;
-        GC.SuppressFinalize(this);
+        if (handle == IntPtr.Zero)
+            throw new ArgumentException("A null native buffer cannot be wrapped.", nameof(handle));
+        return new Buffer(new GObjectSafeHandle(handle));
+    }
+
+    /// <summary>
+    /// Queues this buffer on <paramref name="streamHandle"/> and closes the wrapper: the stream
+    /// gets a reference of its own, and the wrapper's reference is dropped once the calls in
+    /// progress on other threads have returned, whatever the stream does with the buffer
+    /// meanwhile.
+    /// </summary>
+    /// <param name="streamHandle">A stream pointer the caller holds a lease on.</param>
+    /// <exception cref="ObjectDisposedException">
+    /// The buffer was already disposed or pushed (only one of several concurrent pushes wins).
+    /// </exception>
+    internal void PushTo(IntPtr streamHandle)
+    {
+        using var lease = AcquireHandle();
+        if (!_safeHandle.BeginClose())
+            throw new ObjectDisposedException(nameof(Buffer));
+
+        try
+        {
+            // arv_stream_push_buffer takes over a reference (transfer full): give it a new
+            // one, so that the wrapper's own reference is still released exactly once, below.
+            GLibNative.g_object_ref(lease.Handle);
+            try
+            {
+                AravisNative.arv_stream_push_buffer(streamHandle, lease.Handle);
+            }
+            catch
+            {
+                // Not queued (the call itself failed, a missing entry point for example):
+                // the stream did not take the new reference.
+                GLibNative.g_object_unref(lease.Handle);
+                throw;
+            }
+        }
+        finally
+        {
+            // Closed either way: the wrapper's reference goes once the leases are returned.
+            _safeHandle.Dispose();
+        }
     }
 
     /// <summary>
@@ -65,10 +110,8 @@ public class Buffer : IDisposable
     {
         get
         {
-            CheckDisposed();
-            var value = AravisNative.arv_buffer_get_status(_handle);
-            GC.KeepAlive(this);
-            return value;
+            using var lease = AcquireHandle();
+            return AravisNative.arv_buffer_get_status(lease.Handle);
         }
     }
 
@@ -79,10 +122,8 @@ public class Buffer : IDisposable
     {
         get
         {
-            CheckDisposed();
-            var value = AravisNative.arv_buffer_get_image_width(_handle);
-            GC.KeepAlive(this);
-            return value;
+            using var lease = AcquireHandle();
+            return AravisNative.arv_buffer_get_image_width(lease.Handle);
         }
     }
 
@@ -93,10 +134,8 @@ public class Buffer : IDisposable
     {
         get
         {
-            CheckDisposed();
-            var value = AravisNative.arv_buffer_get_image_height(_handle);
-            GC.KeepAlive(this);
-            return value;
+            using var lease = AcquireHandle();
+            return AravisNative.arv_buffer_get_image_height(lease.Handle);
         }
     }
 
@@ -107,10 +146,8 @@ public class Buffer : IDisposable
     {
         get
         {
-            CheckDisposed();
-            var value = AravisNative.arv_buffer_get_image_pixel_format(_handle);
-            GC.KeepAlive(this);
-            return value;
+            using var lease = AcquireHandle();
+            return AravisNative.arv_buffer_get_image_pixel_format(lease.Handle);
         }
     }
 
@@ -121,10 +158,8 @@ public class Buffer : IDisposable
     {
         get
         {
-            CheckDisposed();
-            var value = AravisNative.arv_buffer_get_timestamp(_handle);
-            GC.KeepAlive(this);
-            return value;
+            using var lease = AcquireHandle();
+            return AravisNative.arv_buffer_get_timestamp(lease.Handle);
         }
     }
 
@@ -135,10 +170,8 @@ public class Buffer : IDisposable
     {
         get
         {
-            CheckDisposed();
-            var value = AravisNative.arv_buffer_get_frame_id(_handle);
-            GC.KeepAlive(this);
-            return value;
+            using var lease = AcquireHandle();
+            return AravisNative.arv_buffer_get_frame_id(lease.Handle);
         }
     }
 
@@ -149,10 +182,8 @@ public class Buffer : IDisposable
     {
         get
         {
-            CheckDisposed();
-            var value = AravisNative.arv_buffer_get_image_x(_handle);
-            GC.KeepAlive(this);
-            return value;
+            using var lease = AcquireHandle();
+            return AravisNative.arv_buffer_get_image_x(lease.Handle);
         }
     }
 
@@ -163,10 +194,8 @@ public class Buffer : IDisposable
     {
         get
         {
-            CheckDisposed();
-            var value = AravisNative.arv_buffer_get_image_y(_handle);
-            GC.KeepAlive(this);
-            return value;
+            using var lease = AcquireHandle();
+            return AravisNative.arv_buffer_get_image_y(lease.Handle);
         }
     }
 
@@ -175,9 +204,8 @@ public class Buffer : IDisposable
     /// </summary>
     public (int XPadding, int YPadding) GetImagePadding()
     {
-        CheckDisposed();
-        AravisNative.arv_buffer_get_image_padding(_handle, out int x, out int y);
-        GC.KeepAlive(this);
+        using var lease = AcquireHandle();
+        AravisNative.arv_buffer_get_image_padding(lease.Handle, out int x, out int y);
         return (x, y);
     }
 
@@ -188,10 +216,8 @@ public class Buffer : IDisposable
     {
         get
         {
-            CheckDisposed();
-            var value = AravisNative.arv_buffer_get_payload_type(_handle);
-            GC.KeepAlive(this);
-            return value;
+            using var lease = AcquireHandle();
+            return AravisNative.arv_buffer_get_payload_type(lease.Handle);
         }
     }
 
@@ -202,10 +228,8 @@ public class Buffer : IDisposable
     {
         get
         {
-            CheckDisposed();
-            var value = AravisNative.arv_buffer_get_system_timestamp(_handle);
-            GC.KeepAlive(this);
-            return value;
+            using var lease = AcquireHandle();
+            return AravisNative.arv_buffer_get_system_timestamp(lease.Handle);
         }
     }
 
@@ -214,25 +238,34 @@ public class Buffer : IDisposable
     /// </summary>
     public (int X, int Y, int Width, int Height) GetImageRegion()
     {
-        CheckDisposed();
-        AravisNative.arv_buffer_get_image_region(_handle, out int x, out int y, out int width, out int height);
-        GC.KeepAlive(this);
+        using var lease = AcquireHandle();
+        AravisNative.arv_buffer_get_image_region(lease.Handle, out int x, out int y, out int width, out int height);
         return (x, y, width, height);
     }
 
     /// <summary>
     /// Gets the raw buffer data.
-    /// The pointer refers to native memory owned by this Buffer: it is valid only while this
-    /// Buffer is alive and has been neither disposed nor pushed back to a stream. Keep a
-    /// reference to the Buffer (or call <see cref="GC.KeepAlive(object)"/> on it) until you are
-    /// done reading, or use <see cref="CopyData"/> / <see cref="CopyDataTo"/> instead.
     /// </summary>
     /// <returns>Pointer to buffer data and size</returns>
+    /// <remarks>
+    /// <para>
+    /// The pointer refers to native memory owned by this Buffer, and nothing pins it once this
+    /// method has returned: it is valid only while this Buffer is reachable and has been
+    /// neither disposed nor pushed back to a stream, by any thread. Once the Buffer is no
+    /// longer referenced, the garbage collector may release the memory even while the pointer
+    /// is still in use: in <c>stream.PopBuffer()!.GetData()</c>, for example, nothing keeps the
+    /// Buffer alive. Keep it in a variable (a <c>using</c> declaration) and call
+    /// <see cref="GC.KeepAlive(object)"/> on it after the last read.
+    /// </para>
+    /// <para>
+    /// Prefer <see cref="CopyData"/> or <see cref="CopyDataTo"/>, which hold the buffer for the
+    /// whole copy.
+    /// </para>
+    /// </remarks>
     public (IntPtr Data, int Size) GetData()
     {
-        CheckDisposed();
-        var dataPtr = AravisNative.arv_buffer_get_data(_handle, out UIntPtr sizePtr);
-        GC.KeepAlive(this);
+        using var lease = AcquireHandle();
+        var dataPtr = AravisNative.arv_buffer_get_data(lease.Handle, out UIntPtr sizePtr);
         ulong nativeSize = sizePtr.ToUInt64();
         if (nativeSize > int.MaxValue)
         {
@@ -246,31 +279,24 @@ public class Buffer : IDisposable
     /// <summary>
     /// Copies the buffer data to a byte array
     /// </summary>
-    public byte[] CopyData()
-    {
-        CheckDisposed();
-        var (dataPtr, size) = GetData();
-        
-        if (dataPtr == IntPtr.Zero || size <= 0)
-        {
-            return Array.Empty<byte>();
-        }
-
-        var buffer = new byte[size];
-        Marshal.Copy(dataPtr, buffer, 0, size);
-        // dataPtr points into memory this Buffer owns: keep it alive until the copy is done.
-        GC.KeepAlive(this);
-        return buffer;
-    }
+    /// <remarks>
+    /// The buffer is held for the whole copy: disposing or pushing it on another thread
+    /// meanwhile cannot free the memory being read. Pushing it gives it back to the stream
+    /// thread, though, which may start filling it with the next frame while the copy runs:
+    /// the copy then holds a mix of two frames. Do not push a buffer that is still being read.
+    /// </remarks>
+    public byte[] CopyData() => ReadData(static data => data.ToArray());
 
     /// <summary>
     /// Copies the buffer data to a provided span
     /// </summary>
+    /// <remarks>Held for the whole copy, with the same limit as <see cref="CopyData"/>: do not push a buffer that is still being read.</remarks>
     public unsafe void CopyDataTo(Span<byte> destination)
     {
-        CheckDisposed();
+        // The lease holds the buffer until the copy is done.
+        using var lease = AcquireHandle();
         var (dataPtr, size) = GetData();
-        
+
         if (dataPtr == IntPtr.Zero || size <= 0)
         {
             return;
@@ -281,23 +307,26 @@ public class Buffer : IDisposable
             throw new ArgumentException($"Destination buffer is too small. Required: {size}, Available: {destination.Length}");
         }
 
-        var source = new Span<byte>((void*)dataPtr, size);
-        source.CopyTo(destination);
-        // source points into memory this Buffer owns: keep it alive until the copy is done.
-        GC.KeepAlive(this);
+        new ReadOnlySpan<byte>((void*)dataPtr, size).CopyTo(destination);
     }
 
     /// <summary>
     /// Gets a read-only span of the buffer data (zero-copy access).
-    /// The span points into native memory: it is valid only while this Buffer is alive
-    /// and has been neither disposed nor pushed back to a stream.
     /// </summary>
     /// <returns>Read-only span of the buffer data</returns>
+    /// <remarks>
+    /// The span points into native memory that nothing pins once this method has returned,
+    /// with the limits of <see cref="GetData"/>: it is valid only while this Buffer is
+    /// reachable and has been neither disposed nor pushed back to a stream. In
+    /// <c>stream.PopBuffer()!.GetDataSpan()</c> nothing keeps the Buffer alive, and the
+    /// garbage collector may release the memory while the span is still read. Keep the Buffer
+    /// in a variable (a <c>using</c> declaration) and call <see cref="GC.KeepAlive(object)"/>
+    /// on it after the last read, or use <see cref="CopyData"/> / <see cref="CopyDataTo"/>.
+    /// </remarks>
     public unsafe ReadOnlySpan<byte> GetDataSpan()
     {
-        CheckDisposed();
         var (dataPtr, size) = GetData();
-        
+
         if (dataPtr == IntPtr.Zero || size <= 0)
         {
             return ReadOnlySpan<byte>.Empty;
@@ -306,43 +335,42 @@ public class Buffer : IDisposable
         return new ReadOnlySpan<byte>((void*)dataPtr, size);
     }
 
-    private void CheckDisposed()
+    /// <summary>Reads the data of <see cref="ReadData{TResult}"/>, while the buffer is held.</summary>
+    internal delegate TResult DataReader<TResult>(ReadOnlySpan<byte> data);
+
+    /// <summary>
+    /// Runs <paramref name="read"/> on the buffer data while holding the buffer, so that no
+    /// Dispose(), push or finalizer can free the memory before it returns. The span must not
+    /// escape <paramref name="read"/>.
+    /// </summary>
+    internal unsafe TResult ReadData<TResult>(DataReader<TResult> read)
     {
-        if (_disposed)
-        {
-            throw new ObjectDisposedException(nameof(Buffer));
-        }
+        using var lease = AcquireHandle();
+        var (dataPtr, size) = GetData();
+        var data = dataPtr == IntPtr.Zero || size <= 0
+            ? ReadOnlySpan<byte>.Empty
+            : new ReadOnlySpan<byte>((void*)dataPtr, size);
+        return read(data);
     }
 
+    // Not serialised: a buffer's accessors only read it. The stream thread writes into a
+    // buffer once it has been pushed, which closes this wrapper first; a read already in
+    // progress then sees a mix of two frames (see CopyData).
+    internal GObjectLease AcquireHandle() => _safeHandle.Acquire(nameof(Buffer));
+
+    /// <summary>
+    /// Releases the native buffer. Safe to call more than once and from any thread: from the
+    /// moment it is called every member throws <see cref="ObjectDisposedException"/>, and the
+    /// native buffer is released once the calls already in progress have returned. Does
+    /// nothing to a buffer that was pushed to a stream: the stream owns it.
+    /// </summary>
     public void Dispose()
     {
-        Dispose(disposing: true);
+        // No catch: g_object_unref reports nothing to catch, and an exception here (a missing
+        // native library) is a real failure, not a clean-up detail to hide.
+        _safeHandle.BeginClose();
+        _safeHandle.Dispose();
         GC.SuppressFinalize(this);
-    }
-
-    private void Dispose(bool disposing)
-    {
-        if (!_disposed)
-        {
-            if (_handle != IntPtr.Zero && _ownsHandle)
-            {
-                try
-                {
-                    GLibNative.g_object_unref(_handle);
-                }
-                catch
-                {
-                    // Ignore errors during cleanup
-                }
-            }
-            _handle = IntPtr.Zero;
-            _disposed = true;
-        }
-    }
-
-    ~Buffer()
-    {
-        Dispose(disposing: false);
     }
 
     private static UIntPtr ToUIntPtr(IntPtr size)

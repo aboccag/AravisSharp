@@ -9,30 +9,27 @@ namespace AravisSharp.GenICam;
 /// Provides access to the GenICam node map for exploring camera features
 /// Uses the device API for feature access
 /// </summary>
+/// <remarks>
+/// A node map belongs to the <see cref="Camera"/> its <see cref="Device"/> came from: its
+/// calls are serialised with the camera's, and once the camera or the Device is disposed
+/// every member throws <see cref="ObjectDisposedException"/>, including those that return
+/// null or an empty list when Aravis reports an error. Members that walk several features
+/// (<see cref="GetFeaturesInCategory"/>, <see cref="GetFeaturesByCategory"/>,
+/// <see cref="GetAllFeatures"/>) can throw it part-way. <see cref="Dispose"/> does nothing:
+/// a node map stays usable until its camera or Device is disposed.
+/// </remarks>
 public class NodeMap : IDisposable
 {
-    // The genicam object belongs to the device: holding the Device keeps both alive.
+    // The genicam object belongs to the device, itself owned by the camera: every native
+    // call takes the Device's lease, which pins the camera and holds its lock.
     private readonly Device _device;
-    private bool _disposed;
-    private IntPtr _genicam;
+    private readonly IntPtr _genicam;
 
     internal NodeMap(Device device)
     {
         _device = device;
-        _genicam = AravisNative.arv_device_get_genicam(device.Handle);
-    }
-
-    private IntPtr DeviceHandle => _device.Handle;
-
-    // The genicam object is owned by the device: check the device first, so a disposed
-    // Device throws ObjectDisposedException instead of handing out a dangling pointer.
-    private IntPtr Genicam
-    {
-        get
-        {
-            _ = _device.Handle;
-            return _genicam;
-        }
+        using var lease = device.AcquireHandle();
+        _genicam = AravisNative.arv_device_get_genicam(lease.Handle);
     }
 
     // The feature accessors below report failures as InvalidOperationException (their
@@ -49,12 +46,10 @@ public class NodeMap : IDisposable
     /// </summary>
     public FeatureDetails? GetFeatureDetails(string featureName)
     {
-        var deviceHandle = DeviceHandle;
+        using var lease = _device.AcquireHandle();
         try
         {
-            var details = FeatureDetails.FromNode(deviceHandle, featureName);
-            GC.KeepAlive(_device);
-            return details;
+            return FeatureDetails.FromNode(lease.Handle, featureName);
         }
         catch (Exception ex) when (FeatureDetails.IsOptionalMetadataFailure(ex))
         {
@@ -99,7 +94,8 @@ public class NodeMap : IDisposable
     public List<FeatureDetails> GetFeaturesInCategory(string categoryName)
     {
         var features = new List<FeatureDetails>();
-        var genicam = Genicam;
+        using var lease = _device.AcquireHandle();
+        var genicam = _genicam;
         
         try
         {
@@ -149,10 +145,6 @@ public class NodeMap : IDisposable
         {
             // An Aravis error or a missing metadata entry point while walking the category:
             // return what was collected so far. Anything else propagates.
-        }
-        finally
-        {
-            GC.KeepAlive(_device);
         }
         
         return features;
@@ -207,16 +199,16 @@ public class NodeMap : IDisposable
 
     private bool HasNode(string nodeName)
     {
+        using var lease = _device.AcquireHandle();
         IntPtr namePtr = Marshal.StringToCoTaskMemUTF8(nodeName);
         try
         {
             // Transfer none: the node belongs to the device's ArvGc, never unref it.
-            return AravisNative.arv_device_get_feature(DeviceHandle, namePtr) != IntPtr.Zero;
+            return AravisNative.arv_device_get_feature(lease.Handle, namePtr) != IntPtr.Zero;
         }
         finally
         {
             Marshal.FreeCoTaskMem(namePtr);
-            GC.KeepAlive(_device);
         }
     }
 
@@ -225,11 +217,12 @@ public class NodeMap : IDisposable
     /// </summary>
     public string? GetStringFeature(string featureName)
     {
+        using var lease = _device.AcquireHandle();
         IntPtr namePtr = Marshal.StringToCoTaskMemUTF8(featureName);
         IntPtr error = IntPtr.Zero;
         try
         {
-            IntPtr valuePtr = AravisNative.arv_device_get_string_feature_value(DeviceHandle, namePtr, out error);
+            IntPtr valuePtr = AravisNative.arv_device_get_string_feature_value(lease.Handle, namePtr, out error);
             
             if (error != IntPtr.Zero)
                 return null;
@@ -240,7 +233,6 @@ public class NodeMap : IDisposable
         {
             GLibNative.ClearError(ref error);
             Marshal.FreeCoTaskMem(namePtr);
-            GC.KeepAlive(_device);
         }
     }
 
@@ -249,12 +241,13 @@ public class NodeMap : IDisposable
     /// </summary>
     public void SetStringFeature(string featureName, string value)
     {
+        using var lease = _device.AcquireHandle();
         IntPtr namePtr = Marshal.StringToCoTaskMemUTF8(featureName);
         IntPtr valuePtr = Marshal.StringToCoTaskMemUTF8(value);
         IntPtr error = IntPtr.Zero;
         try
         {
-            AravisNative.arv_device_set_string_feature_value(DeviceHandle, namePtr, valuePtr, out error);
+            AravisNative.arv_device_set_string_feature_value(lease.Handle, namePtr, valuePtr, out error);
             
             if (error != IntPtr.Zero)
                 throw Failure($"Failed to set feature {featureName}", ref error);
@@ -263,7 +256,6 @@ public class NodeMap : IDisposable
         {
             GLibNative.ClearError(ref error);
             Marshal.FreeCoTaskMem(namePtr);
-            GC.KeepAlive(_device);
             Marshal.FreeCoTaskMem(valuePtr);
         }
     }
@@ -273,11 +265,12 @@ public class NodeMap : IDisposable
     /// </summary>
     public long GetIntegerFeature(string featureName)
     {
+        using var lease = _device.AcquireHandle();
         IntPtr namePtr = Marshal.StringToCoTaskMemUTF8(featureName);
         IntPtr error = IntPtr.Zero;
         try
         {
-            long value = AravisNative.arv_device_get_integer_feature_value(DeviceHandle, namePtr, out error);
+            long value = AravisNative.arv_device_get_integer_feature_value(lease.Handle, namePtr, out error);
             
             if (error != IntPtr.Zero)
                 throw Failure($"Failed to get feature {featureName}", ref error);
@@ -288,7 +281,6 @@ public class NodeMap : IDisposable
         {
             GLibNative.ClearError(ref error);
             Marshal.FreeCoTaskMem(namePtr);
-            GC.KeepAlive(_device);
         }
     }
 
@@ -297,11 +289,12 @@ public class NodeMap : IDisposable
     /// </summary>
     public void SetIntegerFeature(string featureName, long value)
     {
+        using var lease = _device.AcquireHandle();
         IntPtr namePtr = Marshal.StringToCoTaskMemUTF8(featureName);
         IntPtr error = IntPtr.Zero;
         try
         {
-            AravisNative.arv_device_set_integer_feature_value(DeviceHandle, namePtr, value, out error);
+            AravisNative.arv_device_set_integer_feature_value(lease.Handle, namePtr, value, out error);
             
             if (error != IntPtr.Zero)
                 throw Failure($"Failed to set feature {featureName}", ref error);
@@ -310,7 +303,6 @@ public class NodeMap : IDisposable
         {
             GLibNative.ClearError(ref error);
             Marshal.FreeCoTaskMem(namePtr);
-            GC.KeepAlive(_device);
         }
     }
 
@@ -319,11 +311,12 @@ public class NodeMap : IDisposable
     /// </summary>
     public double GetFloatFeature(string featureName)
     {
+        using var lease = _device.AcquireHandle();
         IntPtr namePtr = Marshal.StringToCoTaskMemUTF8(featureName);
         IntPtr error = IntPtr.Zero;
         try
         {
-            double value = AravisNative.arv_device_get_float_feature_value(DeviceHandle, namePtr, out error);
+            double value = AravisNative.arv_device_get_float_feature_value(lease.Handle, namePtr, out error);
             
             if (error != IntPtr.Zero)
                 throw Failure($"Failed to get feature {featureName}", ref error);
@@ -334,7 +327,6 @@ public class NodeMap : IDisposable
         {
             GLibNative.ClearError(ref error);
             Marshal.FreeCoTaskMem(namePtr);
-            GC.KeepAlive(_device);
         }
     }
 
@@ -343,11 +335,12 @@ public class NodeMap : IDisposable
     /// </summary>
     public void SetFloatFeature(string featureName, double value)
     {
+        using var lease = _device.AcquireHandle();
         IntPtr namePtr = Marshal.StringToCoTaskMemUTF8(featureName);
         IntPtr error = IntPtr.Zero;
         try
         {
-            AravisNative.arv_device_set_float_feature_value(DeviceHandle, namePtr, value, out error);
+            AravisNative.arv_device_set_float_feature_value(lease.Handle, namePtr, value, out error);
             
             if (error != IntPtr.Zero)
                 throw Failure($"Failed to set feature {featureName}", ref error);
@@ -356,7 +349,6 @@ public class NodeMap : IDisposable
         {
             GLibNative.ClearError(ref error);
             Marshal.FreeCoTaskMem(namePtr);
-            GC.KeepAlive(_device);
         }
     }
 
@@ -365,11 +357,12 @@ public class NodeMap : IDisposable
     /// </summary>
     public bool GetBooleanFeature(string featureName)
     {
+        using var lease = _device.AcquireHandle();
         IntPtr namePtr = Marshal.StringToCoTaskMemUTF8(featureName);
         IntPtr error = IntPtr.Zero;
         try
         {
-            bool value = AravisNative.arv_device_get_boolean_feature_value(DeviceHandle, namePtr, out error);
+            bool value = AravisNative.arv_device_get_boolean_feature_value(lease.Handle, namePtr, out error);
             
             if (error != IntPtr.Zero)
                 throw Failure($"Failed to get feature {featureName}", ref error);
@@ -380,7 +373,6 @@ public class NodeMap : IDisposable
         {
             GLibNative.ClearError(ref error);
             Marshal.FreeCoTaskMem(namePtr);
-            GC.KeepAlive(_device);
         }
     }
 
@@ -389,11 +381,12 @@ public class NodeMap : IDisposable
     /// </summary>
     public void SetBooleanFeature(string featureName, bool value)
     {
+        using var lease = _device.AcquireHandle();
         IntPtr namePtr = Marshal.StringToCoTaskMemUTF8(featureName);
         IntPtr error = IntPtr.Zero;
         try
         {
-            AravisNative.arv_device_set_boolean_feature_value(DeviceHandle, namePtr, value, out error);
+            AravisNative.arv_device_set_boolean_feature_value(lease.Handle, namePtr, value, out error);
             
             if (error != IntPtr.Zero)
                 throw Failure($"Failed to set feature {featureName}", ref error);
@@ -402,7 +395,6 @@ public class NodeMap : IDisposable
         {
             GLibNative.ClearError(ref error);
             Marshal.FreeCoTaskMem(namePtr);
-            GC.KeepAlive(_device);
         }
     }
 
@@ -411,11 +403,12 @@ public class NodeMap : IDisposable
     /// </summary>
     public void ExecuteCommand(string commandName)
     {
+        using var lease = _device.AcquireHandle();
         IntPtr namePtr = Marshal.StringToCoTaskMemUTF8(commandName);
         IntPtr error = IntPtr.Zero;
         try
         {
-            AravisNative.arv_device_execute_command(DeviceHandle, namePtr, out error);
+            AravisNative.arv_device_execute_command(lease.Handle, namePtr, out error);
             
             if (error != IntPtr.Zero)
                 throw Failure($"Failed to execute command {commandName}", ref error);
@@ -424,7 +417,6 @@ public class NodeMap : IDisposable
         {
             GLibNative.ClearError(ref error);
             Marshal.FreeCoTaskMem(namePtr);
-            GC.KeepAlive(_device);
         }
     }
 
@@ -433,19 +425,17 @@ public class NodeMap : IDisposable
     /// </summary>
     public string? GetGenicamXml()
     {
-        var xmlPtr = AravisNative.arv_device_get_genicam_xml(DeviceHandle, out UIntPtr size);
-        var xml = xmlPtr == IntPtr.Zero ? null : Marshal.PtrToStringUTF8(xmlPtr, checked((int)size)).TrimEnd('\0');
-        GC.KeepAlive(_device);
-        return xml;
+        using var lease = _device.AcquireHandle();
+        var xmlPtr = AravisNative.arv_device_get_genicam_xml(lease.Handle, out UIntPtr size);
+        return xmlPtr == IntPtr.Zero ? null : Marshal.PtrToStringUTF8(xmlPtr, checked((int)size)).TrimEnd('\0');
     }
 
+    /// <summary>
+    /// Does nothing native: the node map belongs to the camera, and stays usable until the
+    /// camera or its Device is disposed.
+    /// </summary>
     public void Dispose()
     {
-        if (!_disposed)
-        {
-            // Device handle is owned by Camera, don't free it
-            _disposed = true;
-        }
         GC.SuppressFinalize(this);
     }
 }

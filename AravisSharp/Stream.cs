@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using AravisSharp.Native;
 
@@ -37,12 +38,39 @@ public enum ArvGvStreamPacketResend
 /// <summary>
 /// Represents a video stream from a camera
 /// </summary>
+/// <remarks>
+/// <para>
+/// Members may be called from several threads, for example one thread waiting in
+/// <see cref="PopBuffer()"/> while another pushes buffers; calls are not serialised (the
+/// stream's queues are thread-safe in Aravis). Once <see cref="Dispose"/> has been called,
+/// every member throws <see cref="ObjectDisposedException"/>; a native call already in
+/// progress on another thread completes normally, and the native stream is released when it
+/// returns. A member made of several native calls (<see cref="ConfigureGigEDefaults"/>, and
+/// the GigE members, which check the stream type first) can therefore throw
+/// <see cref="ObjectDisposedException"/> part-way, with only some of its calls made.
+/// </para>
+/// <para>
+/// A stream holds its own native reference on the camera's device, so it stays usable after
+/// the <see cref="Camera"/> is disposed, and keeps the camera's connection open until it is
+/// disposed itself: dispose the stream as well as the camera before opening the same camera
+/// again. A stream that is never disposed is released by the garbage collector, on the
+/// finalizer thread; Aravis then stops the stream thread there and releases the buffers
+/// still queued.
+/// </para>
+/// </remarks>
 public class Stream : IDisposable
 {
-    private IntPtr _handle;
-    private bool _disposed;
+    private readonly GObjectSafeHandle _safeHandle;
 
-    internal IntPtr Handle => _handle;
+    /// <summary>The native stream pointer, for tests. Library code takes a lease instead.</summary>
+    internal IntPtr Handle
+    {
+        get
+        {
+            using var lease = AcquireHandle();
+            return lease.Handle;
+        }
+    }
 
     /// <summary>
     /// True when this is a GigE Vision stream (an ArvGvStream), on which the GigE members
@@ -56,20 +84,30 @@ public class Stream : IDisposable
     {
         get
         {
-            CheckDisposed();
-            var result = GLibNative.g_type_check_instance_is_a(_handle, AravisNative.arv_gv_stream_get_type());
-            GC.KeepAlive(this);
-            return result;
+            using var lease = AcquireHandle();
+            return GLibNative.g_type_check_instance_is_a(lease.Handle, AravisNative.arv_gv_stream_get_type());
         }
     }
 
+    /// <param name="handle">A stream the caller owns a reference on (<c>transfer full</c>); the wrapper takes it over.</param>
+    /// <exception cref="ArgumentException"><paramref name="handle"/> is null.</exception>
     internal Stream(IntPtr handle)
     {
-        _handle = handle;
-        if (_handle != IntPtr.Zero)
+        if (handle == IntPtr.Zero)
+            throw new ArgumentException("A null native stream cannot be wrapped.", nameof(handle));
+
+        _safeHandle = new GObjectSafeHandle(handle);
+        try
         {
             // Don't emit signals by default (we'll use polling)
-            AravisNative.arv_stream_set_emit_signals(_handle, false);
+            using var lease = AcquireHandle();
+            AravisNative.arv_stream_set_emit_signals(lease.Handle, false);
+        }
+        catch
+        {
+            // No wrapper is returned: release the stream now rather than in a finalizer.
+            _safeHandle.Dispose();
+            throw;
         }
     }
 
@@ -87,10 +125,9 @@ public class Stream : IDisposable
     /// <exception cref="NotSupportedException">The stream is not a GigE Vision stream (see <see cref="IsGigEVision"/>).</exception>
     public void SetSocketBufferPolicy(ArvGvStreamSocketBuffer policy)
     {
-        CheckDisposed();
+        using var lease = AcquireHandle();
         CheckGigE();
-        GLibNative.SetEnumProperty(_handle, "socket-buffer", AravisNative.arv_gv_stream_socket_buffer_get_type(), (int)policy, nameof(policy));
-        GC.KeepAlive(this);
+        GLibNative.SetEnumProperty(lease.Handle, "socket-buffer", AravisNative.arv_gv_stream_socket_buffer_get_type(), (int)policy, nameof(policy));
     }
 
     /// <summary>
@@ -112,10 +149,9 @@ public class Stream : IDisposable
     /// <exception cref="NotSupportedException">The stream is not a GigE Vision stream (see <see cref="IsGigEVision"/>).</exception>
     public void SetSocketBufferSize(int sizeBytes)
     {
-        CheckDisposed();
+        using var lease = AcquireHandle();
         CheckGigE();
-        GLibNative.SetIntProperty(_handle, "socket-buffer-size", sizeBytes, nameof(sizeBytes));
-        GC.KeepAlive(this);
+        GLibNative.SetIntProperty(lease.Handle, "socket-buffer-size", sizeBytes, nameof(sizeBytes));
     }
 
     /// <summary>
@@ -125,10 +161,9 @@ public class Stream : IDisposable
     /// <exception cref="NotSupportedException">The stream is not a GigE Vision stream (see <see cref="IsGigEVision"/>).</exception>
     public int GetSocketBufferSize()
     {
-        CheckDisposed();
+        using var lease = AcquireHandle();
         CheckGigE();
-        var size = GLibNative.GetIntProperty(_handle, "socket-buffer-size");
-        GC.KeepAlive(this);
+        var size = GLibNative.GetIntProperty(lease.Handle, "socket-buffer-size");
         return size;
     }
 
@@ -142,20 +177,18 @@ public class Stream : IDisposable
     /// <exception cref="NotSupportedException">The stream is not a GigE Vision stream (see <see cref="IsGigEVision"/>).</exception>
     public void SetPacketResend(ArvGvStreamPacketResend policy)
     {
-        CheckDisposed();
+        using var lease = AcquireHandle();
         CheckGigE();
-        GLibNative.SetEnumProperty(_handle, "packet-resend", AravisNative.arv_gv_stream_packet_resend_get_type(), (int)policy, nameof(policy));
-        GC.KeepAlive(this);
+        GLibNative.SetEnumProperty(lease.Handle, "packet-resend", AravisNative.arv_gv_stream_packet_resend_get_type(), (int)policy, nameof(policy));
     }
 
     /// <summary>Gets the packet resend policy of the GigE Vision stream.</summary>
     /// <exception cref="NotSupportedException">The stream is not a GigE Vision stream (see <see cref="IsGigEVision"/>).</exception>
     public ArvGvStreamPacketResend GetPacketResend()
     {
-        CheckDisposed();
+        using var lease = AcquireHandle();
         CheckGigE();
-        var policy = GLibNative.GetEnumProperty(_handle, "packet-resend", AravisNative.arv_gv_stream_packet_resend_get_type());
-        GC.KeepAlive(this);
+        var policy = GLibNative.GetEnumProperty(lease.Handle, "packet-resend", AravisNative.arv_gv_stream_packet_resend_get_type());
         return (ArvGvStreamPacketResend)policy;
     }
 
@@ -171,20 +204,18 @@ public class Stream : IDisposable
     /// <exception cref="NotSupportedException">The stream is not a GigE Vision stream (see <see cref="IsGigEVision"/>).</exception>
     public void SetInitialPacketTimeout(uint timeoutUs)
     {
-        CheckDisposed();
+        using var lease = AcquireHandle();
         CheckGigE();
-        GLibNative.SetUIntProperty(_handle, "initial-packet-timeout", timeoutUs, nameof(timeoutUs));
-        GC.KeepAlive(this);
+        GLibNative.SetUIntProperty(lease.Handle, "initial-packet-timeout", timeoutUs, nameof(timeoutUs));
     }
 
     /// <summary>Gets the initial packet timeout of the GigE Vision stream, in microseconds.</summary>
     /// <exception cref="NotSupportedException">The stream is not a GigE Vision stream (see <see cref="IsGigEVision"/>).</exception>
     public uint GetInitialPacketTimeout()
     {
-        CheckDisposed();
+        using var lease = AcquireHandle();
         CheckGigE();
-        var timeout = GLibNative.GetUIntProperty(_handle, "initial-packet-timeout");
-        GC.KeepAlive(this);
+        var timeout = GLibNative.GetUIntProperty(lease.Handle, "initial-packet-timeout");
         return timeout;
     }
 
@@ -197,20 +228,18 @@ public class Stream : IDisposable
     /// <exception cref="NotSupportedException">The stream is not a GigE Vision stream (see <see cref="IsGigEVision"/>).</exception>
     public void SetPacketTimeout(uint timeoutUs)
     {
-        CheckDisposed();
+        using var lease = AcquireHandle();
         CheckGigE();
-        GLibNative.SetUIntProperty(_handle, "packet-timeout", timeoutUs, nameof(timeoutUs));
-        GC.KeepAlive(this);
+        GLibNative.SetUIntProperty(lease.Handle, "packet-timeout", timeoutUs, nameof(timeoutUs));
     }
 
     /// <summary>Gets the packet timeout of the GigE Vision stream, in microseconds.</summary>
     /// <exception cref="NotSupportedException">The stream is not a GigE Vision stream (see <see cref="IsGigEVision"/>).</exception>
     public uint GetPacketTimeout()
     {
-        CheckDisposed();
+        using var lease = AcquireHandle();
         CheckGigE();
-        var timeout = GLibNative.GetUIntProperty(_handle, "packet-timeout");
-        GC.KeepAlive(this);
+        var timeout = GLibNative.GetUIntProperty(lease.Handle, "packet-timeout");
         return timeout;
     }
 
@@ -223,20 +252,18 @@ public class Stream : IDisposable
     /// <exception cref="NotSupportedException">The stream is not a GigE Vision stream (see <see cref="IsGigEVision"/>).</exception>
     public void SetFrameRetention(uint timeoutUs)
     {
-        CheckDisposed();
+        using var lease = AcquireHandle();
         CheckGigE();
-        GLibNative.SetUIntProperty(_handle, "frame-retention", timeoutUs, nameof(timeoutUs));
-        GC.KeepAlive(this);
+        GLibNative.SetUIntProperty(lease.Handle, "frame-retention", timeoutUs, nameof(timeoutUs));
     }
 
     /// <summary>Gets the frame retention of the GigE Vision stream, in microseconds.</summary>
     /// <exception cref="NotSupportedException">The stream is not a GigE Vision stream (see <see cref="IsGigEVision"/>).</exception>
     public uint GetFrameRetention()
     {
-        CheckDisposed();
+        using var lease = AcquireHandle();
         CheckGigE();
-        var timeout = GLibNative.GetUIntProperty(_handle, "frame-retention");
-        GC.KeepAlive(this);
+        var timeout = GLibNative.GetUIntProperty(lease.Handle, "frame-retention");
         return timeout;
     }
 
@@ -272,7 +299,7 @@ public class Stream : IDisposable
     /// <exception cref="NotSupportedException">The stream is not a GigE Vision stream (see <see cref="IsGigEVision"/>).</exception>
     public void ConfigureGigEDefaults(int socketBufferSizeMB = 4)
     {
-        CheckDisposed();
+        using var lease = AcquireHandle();
         CheckGigE();
         if (socketBufferSizeMB < 0 || socketBufferSizeMB > int.MaxValue / (1024 * 1024))
             throw new ArgumentOutOfRangeException(nameof(socketBufferSizeMB), socketBufferSizeMB,
@@ -292,16 +319,27 @@ public class Stream : IDisposable
 
     /// <summary>
     /// Pushes a buffer to the input queue for filling and transfers ownership to the stream.
+    /// The <paramref name="buffer"/> wrapper is closed: its members throw
+    /// <see cref="ObjectDisposedException"/> from now on, and disposing it does nothing.
     /// </summary>
+    /// <remarks>
+    /// A read of the buffer already in progress on another thread
+    /// (<see cref="Buffer.CopyData"/>, for example) keeps its memory valid, but the stream
+    /// thread may already be filling it with a new frame: that read returns a mix of two
+    /// frames. Push a buffer only once nothing reads it any more.
+    /// </remarks>
+    /// <exception cref="ObjectDisposedException">
+    /// The stream is disposed, or <paramref name="buffer"/> was already disposed or pushed. Of
+    /// several threads pushing the same buffer at once, one queues it and the others get this
+    /// exception.
+    /// </exception>
     public void PushBuffer(Buffer buffer)
     {
-        CheckDisposed();
+        using var lease = AcquireHandle();
         if (buffer == null)
             throw new ArgumentNullException(nameof(buffer));
-        
-        AravisNative.arv_stream_push_buffer(_handle, buffer.Handle);
-        buffer.ReleaseOwnership();
-        GC.KeepAlive(this);
+
+        buffer.PushTo(lease.Handle);
     }
 
     /// <summary>
@@ -310,8 +348,8 @@ public class Stream : IDisposable
     /// </summary>
     public Buffer? TryPopBuffer()
     {
-        CheckDisposed();
-        return WrapBuffer(AravisNative.arv_stream_try_pop_buffer(_handle));
+        using var lease = AcquireHandle();
+        return WrapBuffer(AravisNative.arv_stream_try_pop_buffer(lease.Handle));
     }
 
     /// <summary>
@@ -319,16 +357,14 @@ public class Stream : IDisposable
     /// Use <see cref="PopBuffer(ulong)"/> or <see cref="TryPopBuffer"/> to avoid waiting forever.
     /// </summary>
     /// <remarks>
-    /// Do not dispose the stream while another thread is blocked in a pop. Observed with
-    /// GLib 2.88: the output queue is not freed while a thread waits on it, GLib logs a
-    /// critical, the queue leaks, and a thread waiting without a timeout never returns.
-    /// With a GLib built without these checks the behaviour is undefined.
+    /// The wait is made of timed native pops of at most 100 ms: a buffer is returned as soon
+    /// as it is ready, and when <see cref="Dispose"/> is called on another thread the wait
+    /// ends with <see cref="ObjectDisposedException"/> within about 100 ms.
     /// </remarks>
-    public Buffer? PopBuffer()
-    {
-        CheckDisposed();
-        return WrapBuffer(AravisNative.arv_stream_pop_buffer(_handle));
-    }
+    /// <exception cref="ObjectDisposedException">
+    /// The stream was disposed, possibly by another thread while this call was waiting.
+    /// </exception>
+    public Buffer? PopBuffer() => WaitForBuffer(timeoutUs: null);
 
     /// <summary>
     /// Pops a buffer from the output queue with timeout
@@ -340,19 +376,15 @@ public class Stream : IDisposable
     /// </param>
     /// <returns>Buffer or null if timeout occurred</returns>
     /// <remarks>
-    /// Do not dispose the stream while another thread is blocked in a pop. Observed with
-    /// GLib 2.88: the output queue is not freed while a thread waits on it, GLib logs a
-    /// critical, the queue leaks, and a thread waiting without a timeout never returns.
-    /// With a GLib built without these checks the behaviour is undefined.
+    /// The wait is made of timed native pops of at most 100 ms: a buffer is returned as soon
+    /// as it is ready, and when <see cref="Dispose"/> is called on another thread the wait
+    /// ends with <see cref="ObjectDisposedException"/> within about 100 ms.
     /// </remarks>
-    public Buffer? PopBuffer(ulong timeoutMs)
-    {
-        CheckDisposed();
-        if (timeoutMs == ulong.MaxValue)
-            return WrapBuffer(AravisNative.arv_stream_pop_buffer(_handle));
-
-        return WrapBuffer(AravisNative.arv_stream_timeout_pop_buffer(_handle, ToTimeoutMicroseconds(timeoutMs)));
-    }
+    /// <exception cref="ObjectDisposedException">
+    /// The stream was disposed, possibly by another thread while this call was waiting.
+    /// </exception>
+    public Buffer? PopBuffer(ulong timeoutMs) =>
+        WaitForBuffer(timeoutMs == ulong.MaxValue ? null : ToTimeoutMicroseconds(timeoutMs));
 
     /// <summary>
     /// Converts a <see cref="PopBuffer(ulong)"/> timeout from milliseconds to the
@@ -363,11 +395,48 @@ public class Stream : IDisposable
     internal static ulong ToTimeoutMicroseconds(ulong timeoutMs) =>
         Math.Min(timeoutMs, (ulong)long.MaxValue / 2000) * 1000;
 
-    private Buffer? WrapBuffer(IntPtr bufferHandle)
+    // A native pop cannot be interrupted, and disposing the stream while a thread waits on
+    // its output queue makes GLib log a critical and leak the queue. So waits are cut in
+    // slices: a waiting thread notices Dispose() within one slice and returns its lease.
+    internal const ulong WaitSliceUs = 100_000;
+
+    /// <summary>
+    /// Waits for a buffer for <paramref name="timeoutUs"/> microseconds (null: no limit), in
+    /// slices of at most <see cref="WaitSliceUs"/>, giving up with
+    /// <see cref="ObjectDisposedException"/> once the stream is closing, or once
+    /// <paramref name="watched"/> is (named <paramref name="watchedName"/> in the exception).
+    /// </summary>
+    internal Buffer? WaitForBuffer(ulong? timeoutUs, GObjectSafeHandle? watched = null, string? watchedName = null)
     {
-        GC.KeepAlive(this);
-        return bufferHandle == IntPtr.Zero ? null : new Buffer(bufferHandle, true);
+        using var lease = AcquireHandle();
+        var clock = Stopwatch.StartNew();
+        while (true)
+        {
+            ulong slice = WaitSliceUs;
+            if (timeoutUs is ulong limit)
+            {
+                ulong spent = ElapsedMicroseconds(clock);
+                slice = spent >= limit ? 0 : Math.Min(slice, limit - spent);
+            }
+
+            var bufferHandle = AravisNative.arv_stream_timeout_pop_buffer(lease.Handle, slice);
+            if (bufferHandle != IntPtr.Zero)
+                return Buffer.FromOwnedHandle(bufferHandle);
+
+            if (_safeHandle.IsClosing)
+                throw new ObjectDisposedException(nameof(Stream));
+            if (watched is not null && watched.IsClosing)
+                throw new ObjectDisposedException(watchedName);
+            if (timeoutUs is ulong total && ElapsedMicroseconds(clock) >= total)
+                return null;
+        }
     }
+
+    private static ulong ElapsedMicroseconds(Stopwatch clock) =>
+        (ulong)clock.Elapsed.Ticks / (TimeSpan.TicksPerMillisecond / 1000);
+
+    private static Buffer? WrapBuffer(IntPtr bufferHandle) =>
+        bufferHandle == IntPtr.Zero ? null : Buffer.FromOwnedHandle(bufferHandle);
 
     /// <summary>
     /// Gets the number of buffers currently in the input and output queues.
@@ -377,9 +446,8 @@ public class Stream : IDisposable
     /// </summary>
     public (int InputBuffers, int OutputBuffers) GetBufferCounts()
     {
-        CheckDisposed();
-        AravisNative.arv_stream_get_n_buffers(_handle, out int input, out int output);
-        GC.KeepAlive(this);
+        using var lease = AcquireHandle();
+        AravisNative.arv_stream_get_n_buffers(lease.Handle, out int input, out int output);
         return (input, output);
     }
 
@@ -388,9 +456,8 @@ public class Stream : IDisposable
     /// </summary>
     public (ulong CompletedBuffers, ulong Failures, ulong Underruns) GetStatistics()
     {
-        CheckDisposed();
-        AravisNative.arv_stream_get_statistics(_handle, out ulong completed, out ulong failures, out ulong underruns);
-        GC.KeepAlive(this);
+        using var lease = AcquireHandle();
+        AravisNative.arv_stream_get_statistics(lease.Handle, out ulong completed, out ulong failures, out ulong underruns);
         return (completed, failures, underruns);
     }
 
@@ -404,23 +471,18 @@ public class Stream : IDisposable
     /// <exception cref="NotSupportedException">The stream is not a GigE Vision stream (see <see cref="IsGigEVision"/>).</exception>
     public (ushort Port, ulong ResentPackets, ulong MissingPackets) GetGigEStatistics()
     {
-        CheckDisposed();
+        using var lease = AcquireHandle();
         CheckGigE();
-        var port = AravisNative.arv_gv_stream_get_port(_handle);
-        AravisNative.arv_gv_stream_get_statistics(_handle, out ulong resent, out ulong missing);
-        GC.KeepAlive(this);
+        var port = AravisNative.arv_gv_stream_get_port(lease.Handle);
+        AravisNative.arv_gv_stream_get_statistics(lease.Handle, out ulong resent, out ulong missing);
         return (port, resent, missing);
     }
 
-    private void CheckDisposed()
-    {
-        if (_disposed)
-        {
-            throw new ObjectDisposedException(nameof(Stream));
-        }
-    }
+    // Not serialised: the stream queues are thread-safe in Aravis (GAsyncQueue), and a
+    // blocking PopBuffer() must not keep other threads out.
+    internal GObjectLease AcquireHandle() => _safeHandle.Acquire(nameof(Stream));
 
-    // The one GigE guard of Stream: called after CheckDisposed and before any native call
+    // The one GigE guard of Stream: called under the member's lease and before any native call
     // of a GigE member. Same message pattern as Camera.CheckGigE.
     private void CheckGigE([CallerMemberName] string member = "")
     {
@@ -429,23 +491,21 @@ public class Stream : IDisposable
                 $"{member} requires a GigE Vision stream; check {nameof(Stream)}.{nameof(IsGigEVision)} first.");
     }
 
+    /// <summary>
+    /// Releases the stream. Safe to call more than once and from any thread: from the moment
+    /// it is called every member throws <see cref="ObjectDisposedException"/>, a
+    /// <see cref="PopBuffer()"/> waiting on another thread gives up with the same exception
+    /// within about 100 ms, and the native stream is released once the calls in progress have
+    /// returned. Aravis then releases the buffers left in both queues.
+    /// </summary>
+    /// <remarks>
+    /// The stream keeps the camera's connection open on its own: dispose the stream as well as
+    /// the camera before opening the same camera again.
+    /// </remarks>
     public void Dispose()
     {
-        if (!_disposed)
-        {
-            if (_handle != IntPtr.Zero)
-            {
-                // arv_stream_finalize releases the buffers left in both queues.
-                GLibNative.g_object_unref(_handle);
-                _handle = IntPtr.Zero;
-            }
-            _disposed = true;
-        }
+        _safeHandle.BeginClose();
+        _safeHandle.Dispose();
         GC.SuppressFinalize(this);
-    }
-
-    ~Stream()
-    {
-        Dispose();
     }
 }

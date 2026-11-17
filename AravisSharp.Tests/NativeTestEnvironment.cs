@@ -58,6 +58,22 @@ internal sealed class RealCameraFactAttribute : NativeFactAttribute
 }
 
 /// <summary>
+/// A test that relies on a behaviour of the Aravis fake camera itself, for example its
+/// stream thread filling queued buffers even without acquisition
+/// (aravis/src/arvfakestream.c). Skipped when ARAVIS_TEST_DEVICE_ID names a real camera.
+/// </summary>
+internal sealed class FakeCameraFactAttribute : NativeFactAttribute
+{
+    public FakeCameraFactAttribute()
+    {
+        if (Skip == null && !CameraTestHelpers.UsesFakeCamera)
+        {
+            Skip = $"Relies on the fake camera's stream thread; {CameraTestHelpers.DeviceIdVariable} names a real camera.";
+        }
+    }
+}
+
+/// <summary>
 /// A test that needs a GigE Vision camera. Skipped unless ARAVIS_TEST_DEVICE_ID names one.
 /// </summary>
 internal sealed class GigECameraFactAttribute : NativeFactAttribute
