@@ -98,3 +98,17 @@ cannot be read.
 4. Reviews: OCR and `ecc:csharp-reviewer`.
 5. Hardware: one allowed GigE camera, request 8 MiB, check the reported limit against `ss`.
 6. Merge `--no-ff` with `Closes #17`.
+
+## Verification
+
+- 2026-11-19, Fake camera, branch at `896c57f`, Debug: whole suite, 478 passed, 0 failed,
+  19 skipped out of 497, on net8.0 and on net10.0. The kernel test ran in both cases on
+  the GigE simulator (`rmem_max` = 4 194 304, iproute2 6.19.0).
+- 2026-11-19, GigE `Basler-acA1920-40gm-24466563`, `Fixed` policy, a throw-away program
+  reading `ss -uamn` after the first frame (`rmem_max` = 4 194 304, so
+  `GetSocketBufferSizeLimit()` = 4 194 304):
+  - requested 1 048 576: kernel `rb` = 2 097 152, twice the request (not reduced);
+  - requested 8 388 608: kernel `rb` = 8 388 608, twice the limit (reduced to 4 194 304).
+  In both cases `GetSocketBufferSize()` still returned the requested size.
+- Not checked: Windows and macOS (null by construction); a Linux container without
+  `rmem_max`; the Opto Engineering cameras.
