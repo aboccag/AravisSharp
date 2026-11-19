@@ -60,9 +60,9 @@ public class CameraSettingsSnapshotTests
         Assert.Contains("Height", snapshot.Keys);
         Assert.Contains("PixelFormat", snapshot.Keys);
         Assert.Contains("AcquisitionMode", snapshot.Keys);
-        // GigE and USB3 transport settings do not exist on the fake camera.
-        Assert.DoesNotContain("GevSCPSPacketSize", snapshot.Keys);
+        // The USB3 bandwidth limit does not exist on the fake camera.
         Assert.DoesNotContain("DeviceLinkThroughputLimit", snapshot.Keys);
+        Assert.DoesNotContain("DeviceLinkThroughputLimitMode", snapshot.Keys);
     }
 
     [FakeCameraFact]
@@ -116,9 +116,9 @@ public class CameraSettingsSnapshotTests
         var nodeMap = device.NodeMap;
         long width = nodeMap.GetIntegerFeature("Width");
         long height = nodeMap.GetIntegerFeature("Height");
-        // A snapshot holding a Height no camera accepts, as if the recorded value had
-        // become invalid, next to a Width that can be restored.
-        var snapshot = CameraSettingsSnapshot.Capture(nodeMap).With("Height", "-5");
+        // A snapshot holding a Height that cannot be written (the fake camera accepts any
+        // number, so the recorded value is not one), next to a Width that can be restored.
+        var snapshot = CameraSettingsSnapshot.Capture(nodeMap).With("Height", "not a number");
         try
         {
             nodeMap.SetIntegerFeature("Width", width / 2);
