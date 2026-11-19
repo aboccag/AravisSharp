@@ -135,6 +135,11 @@ Package versions mirror the native Aravis version they target (`0.8.36` targets
 - The eleven `Gv*` members of `Camera` throw `NotSupportedException` on a camera that is
   not GigE Vision (see `Camera.IsGigEVisionDevice`). They used to call Aravis anyway, which
   logged a GLib CRITICAL and returned 0 or did nothing (#10).
+- `Camera.UvGetBandwidth`, `UvSetBandwidth` and `UvGetBandwidthBounds` throw
+  `NotSupportedException` on a camera that is not USB3 Vision (see
+  `Camera.IsUSB3VisionDevice`), and `UvIsBandwidthControlAvailable` returns `false` there
+  without calling Aravis. They used to call Aravis anyway, which logged a GLib CRITICAL
+  and returned 0, or did nothing for the setter (#19).
 - The XML documentation of `Stream.SetSocketBufferSize` and `Stream.ConfigureGigEDefaults`
   states that Linux silently caps the socket buffer at `net.core.rmem_max` (#10).
 - `NodeMap.GetNode` returns `null` for a node the device does not have, checked through
