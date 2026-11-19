@@ -36,7 +36,7 @@ Issue #21, level standard, type fix, zone tests. Written on 2026-11-19 against `
   short (`AravisSharp/Utilities/ImageHelper.cs:191-194,248-249`). Only the test is too
   strict.
 - `ResolveTestDeviceId` fails at the first discovery that does not list the requested
-  device. On 19.11.2026 one discovery out of several hundred missed the Basler
+  device. On 19.11.2026 one discovery of a whole-suite run missed the Basler
   acA1920-40gm (net10.0, `CameraWrapperTests.DeviceType_ShouldBeEitherGigEOrUSB`).
 
 ## Acceptance criteria
