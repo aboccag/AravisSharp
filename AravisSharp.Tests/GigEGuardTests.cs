@@ -60,6 +60,7 @@ public class GigEGuardTests
     internal static readonly string[] StreamNonGigEMembers =
     {
         nameof(Stream.IsGigEVision),
+        nameof(Stream.GetSocketBufferSizeLimit), // static: a cap of the system, not of a stream
         nameof(Stream.PushBuffer),
         nameof(Stream.TryPopBuffer),
         nameof(Stream.PopBuffer),

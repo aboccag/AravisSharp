@@ -140,9 +140,10 @@ public class Stream : IDisposable
     /// On Linux the kernel silently caps the receive buffer at <c>net.core.rmem_max</c>
     /// (about 208 KiB by default): a larger size is reduced without an error, and Aravis only
     /// reports it as a warning of its debug output, shown when that is enabled
-    /// (<c>ARV_DEBUG=interface</c>). Raise the cap
+    /// (<c>ARV_DEBUG=interface</c>) and only for a size above twice the cap. Raise the cap
     /// (<c>sysctl -w net.core.rmem_max=&lt;bytes&gt;</c>) for the requested size to take effect.
-    /// <see cref="GetSocketBufferSize"/> returns the requested size, not the granted one.
+    /// <see cref="GetSocketBufferSize"/> returns the requested size, not the granted one:
+    /// compare it with <see cref="GetSocketBufferSizeLimit"/> to know whether it is reduced.
     /// </para>
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="sizeBytes"/> is below -1, the property's minimum: Aravis refused it and kept the previous size.</exception>
@@ -165,6 +166,62 @@ public class Stream : IDisposable
         CheckGigE();
         var size = GLibNative.GetIntProperty(lease.Handle, "socket-buffer-size");
         return size;
+    }
+
+    // net.core.rmem_max: the largest value Linux accepts for SO_RCVBUF from any process.
+    internal const string SocketBufferSizeLimitPath = "/proc/sys/net/core/rmem_max";
+
+    /// <summary>
+    /// Gets the largest socket receive buffer, in bytes, that the operating system grants a
+    /// GigE Vision stream, or <c>null</c> when no such cap is known.
+    /// <para>
+    /// On Linux this is <c>net.core.rmem_max</c>, read on each call: a size set with
+    /// <see cref="SetSocketBufferSize"/> or <see cref="ConfigureGigEDefaults"/> above it is
+    /// reduced to it, without an error. The size a stream gets is therefore the smaller of the
+    /// requested size and this value:
+    /// <code>
+    /// int requested = stream.GetSocketBufferSize();
+    /// if (Stream.GetSocketBufferSizeLimit() is int limit &amp;&amp; requested &gt; limit)
+    ///     Console.WriteLine($"Socket buffer reduced from {requested} to {limit} bytes: raise net.core.rmem_max.");
+    /// </code>
+    /// With <see cref="ArvGvStreamSocketBuffer.Auto"/> the requested size is the size of one
+    /// buffer plus 1 KiB of protocol overhead, capped by <see cref="GetSocketBufferSize"/> when
+    /// that is positive. With either policy Aravis never requests less than 20 KiB. Tools
+    /// that show the kernel's own figure (<c>getsockopt(SO_RCVBUF)</c>, <c>ss -m</c>) report
+    /// twice the granted size: Linux doubles it for its bookkeeping.
+    /// </para>
+    /// <para>
+    /// On Windows and macOS the result is always <c>null</c>: Windows has no comparable
+    /// system-wide cap, and the macOS cap (<c>kern.ipc.maxsockbuf</c>) is not read. It is also
+    /// <c>null</c> on Linux when the value cannot be read, for example in a container that
+    /// does not expose it; the cap of the host may still apply there.
+    /// </para>
+    /// </summary>
+    /// <returns>The cap in bytes, or <c>null</c> when it is unknown.</returns>
+    public static int? GetSocketBufferSizeLimit() =>
+        OperatingSystem.IsLinux() ? ReadSocketBufferSizeLimit(SocketBufferSizeLimitPath) : null;
+
+    /// <summary>
+    /// Reads a cap written as one positive decimal integer, the format of
+    /// <c>/proc/sys/net/core/rmem_max</c>; <c>null</c> when the file cannot be read or holds
+    /// anything else.
+    /// </summary>
+    internal static int? ReadSocketBufferSizeLimit(string path)
+    {
+        string text;
+        try
+        {
+            text = File.ReadAllText(path);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+
+        return int.TryParse(text.AsSpan().Trim(), System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture, out int limit) && limit > 0
+            ? limit
+            : null;
     }
 
     /// <summary>
@@ -292,7 +349,8 @@ public class Stream : IDisposable
     /// On Linux the kernel silently caps the socket buffer at <c>net.core.rmem_max</c> (about
     /// 208 KiB by default), so the 4 MB default is reduced to that cap unless it is raised
     /// (<c>sysctl -w net.core.rmem_max=&lt;bytes&gt;</c>); Aravis only reports it when its debug
-    /// output is enabled (<c>ARV_DEBUG=interface</c>). See <see cref="SetSocketBufferSize"/>.
+    /// output is enabled (<c>ARV_DEBUG=interface</c>). <see cref="GetSocketBufferSizeLimit"/>
+    /// returns the cap. See <see cref="SetSocketBufferSize"/>.
     /// </remarks>
     /// <param name="socketBufferSizeMB">Upper bound of the socket buffer in megabytes (default: 4);
     /// 0 sizes it to one payload without a cap.</param>

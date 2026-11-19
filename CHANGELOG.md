@@ -23,6 +23,10 @@ Package versions mirror the native Aravis version they target (`0.8.36` targets
   `null` on an exception that does not come from a `GError` (#10).
 - `Stream.IsGigEVision`: true on a GigE Vision stream, the one on which the GigE members of
   `Stream` can be used (#10).
+- `Stream.GetSocketBufferSizeLimit()`: the largest GigE socket receive buffer the system
+  grants, `net.core.rmem_max` on Linux and `null` on Windows and macOS. A size requested
+  with `SetSocketBufferSize` or `ConfigureGigEDefaults` above it is reduced to it without
+  an error (#17).
 
 ### Changed
 - The Aravis bundled with the application is loaded before a system one.

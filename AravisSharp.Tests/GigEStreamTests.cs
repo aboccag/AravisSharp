@@ -230,6 +230,138 @@ public class GigEStreamTests : IClassFixture<GvFakeCameraFixture>
         Assert.True(complete > 0, $"None of the {received} buffers from the GigE Vision simulator was complete.");
         Assert.NotEqual(0, stream.GetGigEStatistics().Port);
     }
+
+    // #17 AC-3: what Stream.GetSocketBufferSizeLimit() lets a caller predict is what the
+    // kernel grants. Linux doubles the size it accepts for SO_RCVBUF, after capping the
+    // request at net.core.rmem_max, and `ss -m` shows that doubled figure as "rb". Aravis
+    // applies the size when a frame starts, so the socket is read after one buffer came back.
+    // Skipped, with the reason, where it cannot be checked (see the attribute).
+    [KernelSocketBufferTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SocketBufferSizeLimit_ShouldMatchWhatTheKernelGrants(bool requestAboveTheLimit)
+    {
+        int? cap = Stream.GetSocketBufferSizeLimit();
+        Assert.True(cap.HasValue, "net.core.rmem_max could be read when the test was discovered, not now.");
+        int limit = cap.Value;
+        int requested = requestAboveTheLimit ? limit * 2 : limit / 2;
+
+        using var camera = _fixture.OpenCamera();
+        camera.SetAcquisitionMode(ArvAcquisitionMode.Continuous);
+        using var stream = camera.CreateStream();
+        stream.SetSocketBufferPolicy(ArvGvStreamSocketBuffer.Fixed);
+        stream.SetSocketBufferSize(requested);
+
+        var payload = (int)camera.GetPayloadSize();
+        for (int i = 0; i < 4; i++)
+            stream.PushBuffer(new AravisBuffer(payload));
+
+        long? kernelBytes;
+        camera.StartAcquisition();
+        try
+        {
+            using var first = stream.PopBuffer(5000);
+            Assert.NotNull(first); // a frame started: Aravis applied the size
+            kernelBytes = KernelSocketBuffer.ReadReceiveBufferBytes(stream.GetGigEStatistics().Port);
+        }
+        finally
+        {
+            camera.StopAcquisition();
+        }
+
+        Assert.True(kernelBytes != null, "ss did not show the stream's UDP socket.");
+        Assert.Equal(requested, stream.GetSocketBufferSize());
+        Assert.Equal(2L * Math.Min(requested, limit), kernelBytes);
+    }
+}
+
+/// <summary>
+/// Reads the receive buffer size the Linux kernel holds for a UDP socket, with
+/// <c>ss -uamn</c> (iproute2): the "rb" figure of its skmem column.
+/// </summary>
+internal static class KernelSocketBuffer
+{
+    private const int AravisMinimum = 20 * 1024; // ARV_GV_STREAM_MIN_BUFFER_SIZE
+
+    /// <summary>
+    /// Why the kernel's figure cannot be compared with the library's on this system, or null
+    /// when it can. Evaluated once, when the tests are discovered.
+    /// </summary>
+    public static string? UnavailableReason { get; } = FindUnavailableReason();
+
+    private static string? FindUnavailableReason()
+    {
+        if (!OperatingSystem.IsLinux())
+            return "Reads the Linux kernel's socket buffer: Linux only.";
+        if (Stream.GetSocketBufferSizeLimit() is not int limit)
+            return $"{Stream.SocketBufferSizeLimitPath} cannot be read (a container without it?).";
+        // The test requests half and twice the cap: half must be above the size Aravis never
+        // goes below, and twice must fit in an int.
+        if (limit / 2 < AravisMinimum || limit > int.MaxValue / 2)
+            return $"net.core.rmem_max is {limit}: half or twice of it cannot be requested.";
+        if (Run("-uamn", "sport", "=", ":1") == null)
+            return "ss (iproute2) is not installed or does not accept -uamn with a port filter.";
+        return null;
+    }
+
+    public static long? ReadReceiveBufferBytes(ushort localPort)
+    {
+        string? output = Run("-uamn", "sport", "=", ":" + localPort.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        if (output == null)
+            return null;
+
+        var match = System.Text.RegularExpressions.Regex.Match(output, @"skmem:\(r\d+,rb(\d+),");
+        return match.Success ? long.Parse(match.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture) : null;
+    }
+
+    private static string? Run(params string[] arguments)
+    {
+        var start = new System.Diagnostics.ProcessStartInfo("ss")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+        };
+        foreach (string argument in arguments)
+            start.ArgumentList.Add(argument);
+
+        try
+        {
+            using var process = System.Diagnostics.Process.Start(start);
+            if (process == null)
+                return null;
+            // Both pipes are drained at the same time, so a full one cannot block ss.
+            var output = process.StandardOutput.ReadToEndAsync();
+            var error = process.StandardError.ReadToEndAsync();
+            if (!process.WaitForExit(5000))
+            {
+                process.Kill();
+                return null;
+            }
+            Task.WaitAll(output, error);
+            return process.ExitCode == 0 ? output.Result : null;
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            return null; // ss is not installed
+        }
+    }
+}
+
+/// <summary>
+/// A theory that compares the library's answer with the socket buffer the Linux kernel
+/// holds. Skipped, with the reason, without the native library or where
+/// <see cref="KernelSocketBuffer.UnavailableReason"/> is set.
+/// </summary>
+internal sealed class KernelSocketBufferTheoryAttribute : TheoryAttribute
+{
+    public KernelSocketBufferTheoryAttribute()
+    {
+        if (!NativeTestEnvironment.IsAravisAvailable)
+            Skip = NativeTestEnvironment.MissingAravisMessage;
+        else if (KernelSocketBuffer.UnavailableReason is string reason)
+            Skip = reason;
+    }
 }
 
 /// <summary>
