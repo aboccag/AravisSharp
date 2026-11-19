@@ -184,10 +184,20 @@ public class NodeMapTests : IDisposable
         var (min, max) = _camera.GetWidthBounds();
         var increment = _camera.GetWidthIncrement();
         var target = min + increment <= max ? min + increment : min;
+        long original = NodeMap.GetIntegerFeature("Width");
 
-        NodeMap.SetIntegerFeature("Width", target);
+        try
+        {
+            NodeMap.SetIntegerFeature("Width", target);
 
-        Assert.Equal(target, NodeMap.GetIntegerFeature("Width"));
-        Assert.Equal(target, _camera.GetIntegerFeature("Width"));
+            Assert.Equal(target, NodeMap.GetIntegerFeature("Width"));
+            Assert.Equal(target, _camera.GetIntegerFeature("Width"));
+        }
+        finally
+        {
+            // A real camera keeps the narrow image for the tests that follow, and after the
+            // run (issue #21).
+            NodeMap.SetIntegerFeature("Width", original);
+        }
     }
 }

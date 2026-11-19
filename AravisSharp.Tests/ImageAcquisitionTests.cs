@@ -118,7 +118,7 @@ public class ImageAcquisitionTests : IDisposable
     public void AcquireSingleFrame_DataSizeMatchesDimensions()
     {
         _camera.SetAcquisitionMode(ArvAcquisitionMode.Continuous);
-        using var stream = CreateStreamWithBuffers(_camera, 5, out _);
+        using var stream = CreateStreamWithBuffers(_camera, 5, out var payloadSize);
 
         _camera.StartAcquisition();
         try
@@ -129,8 +129,19 @@ public class ImageAcquisitionTests : IDisposable
             {
                 Assert.Equal(ArvBufferStatus.Success, buffer.Status);
                 var (_, size) = buffer.GetData();
-                var expectedSize = ImageHelper.CalculateBufferSize(buffer.Width, buffer.Height, buffer.PixelFormat);
-                Assert.Equal(expectedSize, size);
+                var imageSize = ImageHelper.CalculateBufferSize(buffer.Width, buffer.Height, buffer.PixelFormat);
+                if (CameraTestHelpers.UsesFakeCamera)
+                {
+                    Assert.Equal(imageSize, size);
+                }
+                else
+                {
+                    // A real camera may pad its payload: the Opto Engineering ITA32 rounds it
+                    // up to a multiple of 512 bytes (issue #21). The data holds at least the
+                    // image, and never more than the payload the camera announced.
+                    Assert.True(payloadSize >= imageSize, $"The camera announces a payload of {payloadSize} bytes for an image of {imageSize}.");
+                    Assert.InRange(size, imageSize, (int)payloadSize);
+                }
             }
         }
         finally

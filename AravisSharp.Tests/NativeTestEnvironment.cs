@@ -74,6 +74,26 @@ internal sealed class FakeCameraFactAttribute : NativeFactAttribute
 }
 
 /// <summary>
+/// A theory that must only run on the Aravis fake camera, for example because it writes
+/// settings no real camera should receive. Skipped without the native library and when
+/// ARAVIS_TEST_DEVICE_ID names a real camera.
+/// </summary>
+internal sealed class FakeCameraTheoryAttribute : TheoryAttribute
+{
+    public FakeCameraTheoryAttribute()
+    {
+        if (!NativeTestEnvironment.IsAravisAvailable)
+        {
+            Skip = NativeTestEnvironment.MissingAravisMessage;
+        }
+        else if (!CameraTestHelpers.UsesFakeCamera)
+        {
+            Skip = $"Runs on the fake camera only; {CameraTestHelpers.DeviceIdVariable} names a real camera.";
+        }
+    }
+}
+
+/// <summary>
 /// A test that needs a GigE Vision camera. Skipped unless ARAVIS_TEST_DEVICE_ID names one.
 /// </summary>
 internal sealed class GigECameraFactAttribute : NativeFactAttribute

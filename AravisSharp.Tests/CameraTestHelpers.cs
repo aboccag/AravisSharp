@@ -28,9 +28,35 @@ internal static class CameraTestHelpers
         string.Equals(camera.Protocol, "Fake", StringComparison.OrdinalIgnoreCase) ||
         camera.DeviceId.StartsWith("Fake_", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// How many discoveries may miss the requested device before it counts as absent. A
+    /// GigE camera occasionally fails to answer one discovery broadcast (issue #21).
+    /// </summary>
+    internal const int DiscoveryAttempts = 3;
+
+    /// <summary>
+    /// Looks for a device by id, discovering again when it is not listed, up to
+    /// <see cref="DiscoveryAttempts"/> discoveries. Returns null when it is absent from all
+    /// of them; <paramref name="visible"/> is what the last discovery listed.
+    /// </summary>
+    internal static CameraInfo? FindDevice(string deviceId, Func<List<CameraInfo>> discover, out List<CameraInfo> visible)
+    {
+        visible = new List<CameraInfo>();
+        for (int attempt = 0; attempt < DiscoveryAttempts; attempt++)
+        {
+            visible = discover();
+            var match = visible.FirstOrDefault(c => c.DeviceId == deviceId);
+            if (match != null)
+                return match;
+        }
+        return null;
+    }
+
     // Discovery only, never opens a device. Cached: skip attributes ask once per test.
     private static readonly Lazy<string?> RequestedDeviceProtocol = new(() =>
-        CameraDiscovery.DiscoverCameras().FirstOrDefault(c => c.DeviceId == RequestedDeviceId)?.Protocol);
+        RequestedDeviceId is string requested
+            ? FindDevice(requested, CameraDiscovery.DiscoverCameras, out _)?.Protocol
+            : null);
 
     /// <summary>
     /// Protocol of the camera the suite opens ("Fake", "GigEVision", "USB3Vision"), from
@@ -61,23 +87,28 @@ internal static class CameraTestHelpers
     /// use by another application. Discovery alone never opens a device.
     /// Fails the calling test when the device is not present: a missing camera must not
     /// turn camera tests into silent passes.
+    /// <para>
+    /// The first time it returns a real device, it opens it once to record its settings:
+    /// they are written back when the test run ends (<see cref="RealCameraSettings"/>).
+    /// </para>
     /// </summary>
     public static string ResolveTestDeviceId()
     {
-        var cameras = CameraDiscovery.DiscoverCameras();
         var requested = RequestedDeviceId;
 
         if (requested != null)
         {
-            var match = cameras.FirstOrDefault(c => c.DeviceId == requested);
+            var match = FindDevice(requested, CameraDiscovery.DiscoverCameras, out var visible);
             if (match == null)
             {
-                Assert.Fail($"{DeviceIdVariable}=\"{requested}\" but no such device was discovered. " +
-                            $"Visible devices: {string.Join(", ", cameras.Select(c => c.DeviceId))}");
+                Assert.Fail($"{DeviceIdVariable}=\"{requested}\" but no such device was discovered in {DiscoveryAttempts} attempts. " +
+                            $"Visible devices: {string.Join(", ", visible.Select(c => c.DeviceId))}");
             }
-            return match!.DeviceId;
+            RealCameraSettings.RecordOnce(match!.DeviceId);
+            return match.DeviceId;
         }
 
+        var cameras = CameraDiscovery.DiscoverCameras();
         var fake = cameras.FirstOrDefault(IsFakeCamera);
         Assert.True(fake != null, "The Aravis fake camera was not discovered; the \"Fake\" interface should be enabled by NativeLibraryInitializer.");
         return fake!.DeviceId;

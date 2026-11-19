@@ -38,6 +38,9 @@ Package versions mirror the native Aravis version they target (`0.8.36` targets
   Trusted Publishing.
 - Tests open real hardware only when `ARAVIS_TEST_DEVICE_ID` names a device; CI runs the
   whole suite on the Fake camera and smoke-tests the packed NuGet on every platform.
+- The test suite gives a real camera its settings back when it ends (image region, pixel
+  format, acquisition mode, exposure, gain, triggers, GigE packet size, USB3 bandwidth
+  limit); it used to leave `Width` at its minimum and `AcquisitionMode` on `SingleFrame` (#21).
 - The GObject property helpers of `GLibNative` (`SetIntProperty`, `SetUIntProperty`,
   `SetEnumProperty`, `GetIntProperty`, `GetUIntProperty`, `GetEnumProperty`), never
   released, are internal. The v0.8.36 entry points `g_object_set_int`, `g_object_set_uint`,
