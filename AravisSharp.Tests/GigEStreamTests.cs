@@ -230,6 +230,98 @@ public class GigEStreamTests : IClassFixture<GvFakeCameraFixture>
         Assert.True(complete > 0, $"None of the {received} buffers from the GigE Vision simulator was complete.");
         Assert.NotEqual(0, stream.GetGigEStatistics().Port);
     }
+
+    // #17 AC-3: what Stream.GetSocketBufferSizeLimit() lets a caller predict is what the
+    // kernel grants. Linux doubles the size it accepts for SO_RCVBUF, after capping the
+    // request at net.core.rmem_max, and `ss -m` shows that doubled figure as "rb". Aravis
+    // applies the size when a frame starts, so the socket is read after one buffer came back.
+    // Not checked (the test passes without asserting) where there is no cap to read, no `ss`,
+    // or a cap too small or too large to request half and twice of it.
+    [NativeTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SocketBufferSizeLimit_ShouldMatchWhatTheKernelGrants(bool requestAboveTheLimit)
+    {
+        const int aravisMinimum = 20 * 1024; // ARV_GV_STREAM_MIN_BUFFER_SIZE
+        if (Stream.GetSocketBufferSizeLimit() is not int limit ||
+            limit / 2 < aravisMinimum || limit > int.MaxValue / 2 ||
+            !KernelSocketBuffer.IsAvailable)
+            return;
+
+        int requested = requestAboveTheLimit ? limit * 2 : limit / 2;
+
+        using var camera = _fixture.OpenCamera();
+        camera.SetAcquisitionMode(ArvAcquisitionMode.Continuous);
+        using var stream = camera.CreateStream();
+        stream.SetSocketBufferPolicy(ArvGvStreamSocketBuffer.Fixed);
+        stream.SetSocketBufferSize(requested);
+
+        var payload = (int)camera.GetPayloadSize();
+        for (int i = 0; i < 4; i++)
+            stream.PushBuffer(new AravisBuffer(payload));
+
+        long? kernelBytes;
+        camera.StartAcquisition();
+        try
+        {
+            using var first = stream.PopBuffer(5000);
+            Assert.True(first != null, "No buffer came back from the GigE Vision simulator.");
+            kernelBytes = KernelSocketBuffer.ReadReceiveBufferBytes(stream.GetGigEStatistics().Port);
+        }
+        finally
+        {
+            camera.StopAcquisition();
+        }
+
+        Assert.True(kernelBytes != null, "ss did not show the stream's UDP socket.");
+        Assert.Equal(requested, stream.GetSocketBufferSize());
+        Assert.Equal(2L * Math.Min(requested, limit), kernelBytes);
+    }
+}
+
+/// <summary>
+/// Reads the receive buffer size the Linux kernel holds for a UDP socket, with
+/// <c>ss -uamn</c> (iproute2): the "rb" figure of its skmem column.
+/// </summary>
+internal static class KernelSocketBuffer
+{
+    public static bool IsAvailable { get; } = OperatingSystem.IsLinux() && Run("-V") != null;
+
+    public static long? ReadReceiveBufferBytes(ushort localPort)
+    {
+        string? output = Run("-uamnH", "sport", "=", ":" + localPort.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        if (output == null)
+            return null;
+
+        var match = System.Text.RegularExpressions.Regex.Match(output, @"skmem:\(r\d+,rb(\d+),");
+        return match.Success ? long.Parse(match.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture) : null;
+    }
+
+    private static string? Run(params string[] arguments)
+    {
+        var start = new System.Diagnostics.ProcessStartInfo("ss")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+        };
+        foreach (string argument in arguments)
+            start.ArgumentList.Add(argument);
+
+        try
+        {
+            using var process = System.Diagnostics.Process.Start(start);
+            if (process == null)
+                return null;
+            string output = process.StandardOutput.ReadToEnd();
+            process.StandardError.ReadToEnd();
+            return process.WaitForExit(5000) && process.ExitCode == 0 ? output : null;
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            return null; // ss is not installed
+        }
+    }
 }
 
 /// <summary>
