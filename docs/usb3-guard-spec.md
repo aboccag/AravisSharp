@@ -50,6 +50,11 @@ at `ed9003c`, before any change. `NON VÉRIFIÉ` marks what was not checked.
    Recommendation: (a). A member named "is ... available" that throws on the cameras where
    the answer is no forces every caller to test `IsUSB3VisionDevice()` before asking.
 
+## Gate 1 decision
+
+2026-11-19, alex: (a). `UvIsBandwidthControlAvailable()` returns `false` on a camera that is
+not USB3 Vision, with no native call; the three other members throw.
+
 ## Plan
 
 1. Red tests: `Usb3GuardTests` on the Fake camera (exception, message, no CRITICAL, the
