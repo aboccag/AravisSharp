@@ -86,3 +86,11 @@ only when `ARAVIS_TEST_DEVICE_ID` names a real camera.
 4. Hardware: run `InteropPinTests` on the USB3 camera, then on one GigE camera of the
    allowed list, one at a time, several times on USB3 since the failure is intermittent.
 5. Reviews: OCR and `ecc:csharp-reviewer`. Merge `--no-ff` with `Closes #18`.
+
+## Hardware run
+
+- 2026-11-19, GigE `Basler-acA1920-40gm-24466563`, branch at `2dd2631`, Debug:
+  `InteropPinTests` three times on net8.0 and net10.0. Each run: 10 passed, 0 failed,
+  0 skipped per framework. All 8 blocking pops of each run were released by a buffer
+  with status `Timeout`, as diagnosed.
+- USB3: not run on 2026-11-19, no USB camera connected.
