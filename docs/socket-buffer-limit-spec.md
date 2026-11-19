@@ -110,5 +110,20 @@ cannot be read.
   - requested 1 048 576: kernel `rb` = 2 097 152, twice the request (not reduced);
   - requested 8 388 608: kernel `rb` = 8 388 608, twice the limit (reduced to 4 194 304).
   In both cases `GetSocketBufferSize()` still returned the requested size.
+- 2026-11-19, whole suite with `ARAVIS_TEST_DEVICE_ID`, branch at `abe3863`, Debug, one
+  camera at a time, 497 tests per framework:
+  - GigE `Basler-acA1920-40gm-24466563`: net8.0 479 passed, 0 failed, 18 skipped; net10.0
+    478 passed, 1 failed, 18 skipped. The failure is
+    `CameraWrapperTests.DeviceType_ShouldBeEitherGigEOrUSB`: discovery did not list the
+    camera at that moment ("no such device was discovered"), no test of #17.
+  - GigE `Opto Engineering-ITA24-GM-10C-600357`: 479 passed, 0 failed, 18 skipped on both.
+  - GigE `Opto Engineering-ITA32-GM-10C-601879`: 478 passed, 1 failed, 18 skipped on both.
+    The failure is `ImageAcquisitionTests.AcquireSingleFrame_DataSizeMatchesDimensions`:
+    this camera rounds its payload up to a multiple of 512 bytes (payload 420 352 for a
+    272 x 1544 Mono8 image of 419 968 bytes), and the test requires the two to be equal.
+  Both failures predate #17 and are not caused by it. Found on the way:
+  `NodeMapTests.NodeMap_ShouldReadAndWriteThroughTheDevice` sets `Width` to its minimum
+  plus one increment and never restores it, so a hardware run leaves the camera with a
+  narrow image.
 - Not checked: Windows and macOS (null by construction); a Linux container without
-  `rmem_max`; the Opto Engineering cameras.
+  `rmem_max`.
