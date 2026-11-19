@@ -78,7 +78,11 @@ Issue #21, level standard, type fix, zone tests. Written on 2026-11-19 against `
 4. **Discovery miss.** (a) `ResolveTestDeviceId` retries discovery, up to three times in
    all, before failing. (b) Leave it and note it in the tests README. Recommendation: (a).
 
-## Plan (if the recommendations are kept)
+## Gate 1 decision
+
+2026-11-19, alex: 1c, the proposed list of settings completed by the measurement, 3a, 4a.
+
+## Plan
 
 1. Red evidence: a throw-away program dumps the settings of question 2 on the ITA32,
    before and after a whole-suite run at `2e04e3a`. Complete the list with what differs.
