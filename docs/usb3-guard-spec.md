@@ -17,7 +17,7 @@ at `ed9003c`, before any change. `NON VÉRIFIÉ` marks what was not checked.
   `UvSetBandwidth` returns as if it had worked. Not run before writing this spec
   (`NON VÉRIFIÉ`); the red tests of step 1 show it.
 - #10 fixed the same defect on the eleven `Gv*` members: `Camera.CheckGigE()`
-  (`Camera.cs:2281-2287`) throws `NotSupportedException` naming the member and pointing
+  (`Camera.cs:2278-2287`) throws `NotSupportedException` naming the member and pointing
   to `IsGigEVisionDevice()`, before any native call, after the disposal check of the
   lease. `GigEGuardTests` holds a table of the members and a reflection test that keeps
   the table complete (`AravisSharp.Tests/GigEGuardTests.cs:19-34, 76-85, 128`).
@@ -35,7 +35,7 @@ at `ed9003c`, before any change. `NON VÉRIFIÉ` marks what was not checked.
 | AC-2 | One shared check, `CheckUsb3()`, with the same message pattern as `CheckGigE()`; a disposed camera still throws `ObjectDisposedException` first. | Two different exception types or message patterns for the same situation. |
 | AC-3 | A table of the `Uv*` members and a reflection test that fails when a public `Uv*` member of `Camera` is missing from it. Tests on the Fake camera, shown red against `main` first, with GLib criticals captured to show there is none. | A test that needs hardware to pass in CI. |
 | AC-4 | The four members still work on the USB3 camera: the existing USB3 tests pass in a hardware run. | — |
-| AC-5 | Changelog entry under Changed (behaviour change of released members); XML docs of the four members name the exception. | — |
+| AC-5 | Changelog entry next to the one of #10, under Fixed (the silent failure is the defect; the entry states the behaviour change of released members); the XML docs of the three throwing members name the exception, and those of `UvIsBandwidthControlAvailable` its result on another camera. | — |
 | AC-6 | The whole suite passes on the Fake camera, net8.0 and net10.0. No change to `aravis/` or to the P/Invoke declarations. | — |
 
 ## Open question (gate 1)
@@ -66,3 +66,41 @@ not USB3 Vision, with no native call; the three other members throw.
 5. Hardware: whole suite on the USB3 camera (the four members), and on one GigE camera
    (the guard on a real non-USB3 camera).
 6. Merge `--no-ff` with `Closes #19`.
+
+## Red evidence
+
+2026-11-19, Fake camera, tests of `c915108` against the unchanged library: the three
+bandwidth members returned without throwing, `UvIsBandwidthControlAvailable` returned
+`false` after a critical, and GLib printed four criticals, one per member
+(`arv_camera_uv_get_bandwidth: assertion 'arv_camera_is_uv_device (camera)' failed`, and
+the same for the three others). libaravis logs them in GLib's default domain, not in an
+"Aravis" domain: `GObjectLogCapture` now accepts a null domain.
+
+## Reviews
+
+OCR and `ecc:csharp-reviewer` on `ee059ba`: no Critical or High finding. Applied: a test
+that calls the native function directly and checks that the capture sees its critical (so
+the "Aravis logged nothing" assertions can fail), the non-USB3 precondition in the
+`UvIsBandwidthControlAvailable` test, the member count pinned and overloads counted, the
+`<returns>` and `<remarks>` of `UvIsBandwidthControlAvailable`, and AC-5 and one line
+reference of this spec.
+
+## Verification
+
+2026-11-19, Debug.
+- Whole suite at `ee059ba`:
+
+  | Camera | Framework | Passed | Failed | Skipped |
+  |---|---|---|---|---|
+  | Fake | net8.0 and net10.0 | 493 | 0 | 19 |
+  | Basler acA2440-75uc 22119564 (USB3) | net8.0 | 489 | 0 | 22 |
+  | Basler acA1920-40gm 24466563 (GigE) | net10.0 | 486 | 0 | 25 |
+
+  On the USB3 camera the four existing `Uv*` tests of `CameraWrapperTests` pass (the camera
+  has `DeviceLinkThroughputLimit`); on the GigE camera the guard tests pass.
+- After the review fixes: the guard tests and their neighbours (`Usb3GuardTests`,
+  `GigEGuardTests`, `LeaseCoverageTests`, `GObjectPropertyTests`, `ConcurrencyTests`) on the
+  Fake camera, 131 passed on each framework; `Usb3GuardTests` on the GigE camera, 5 passed
+  on each framework. The whole suite was not run again after these fixes (tests and XML
+  docs only).
+- Not checked: a USB3 camera without bandwidth control; the Opto Engineering cameras.

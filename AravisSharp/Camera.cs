@@ -1618,10 +1618,16 @@ public class Camera : IDisposable
     }
 
     /// <summary>
-    /// Checks if bandwidth control is available on this camera. Always <c>false</c> on a
-    /// camera that is not USB3 Vision: unlike the other <c>Uv</c> members, this question
-    /// can be asked of any camera.
+    /// Checks if bandwidth control is available on this camera.
     /// </summary>
+    /// <remarks>
+    /// Unlike the other <c>Uv</c> members, this question can be asked of any camera: it
+    /// does not throw on a camera that is not USB3 Vision.
+    /// </remarks>
+    /// <returns>
+    /// <c>true</c> if the USB3 Vision camera supports bandwidth control; <c>false</c>
+    /// otherwise, and always on a camera that is not USB3 Vision.
+    /// </returns>
     public bool UvIsBandwidthControlAvailable()
     {
         using var lease = AcquireHandle();
@@ -2298,8 +2304,9 @@ public class Camera : IDisposable
     }
 
     // The USB3 counterpart of CheckGigE, for the Uv* members that read or write a value:
-    // on a camera that is not USB3 Vision Aravis fails its g_return_val_if_fail, logs a
-    // CRITICAL and returns 0 or does nothing.
+    // called under the member's lease and before any native call. Without it Aravis fails
+    // its g_return_val_if_fail on a camera that is not USB3 Vision: GLib logs a CRITICAL and
+    // the member returns 0 or does nothing.
     private void CheckUsb3([CallerMemberName] string member = "")
     {
         if (!IsUSB3VisionDevice())

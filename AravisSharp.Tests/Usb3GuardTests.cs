@@ -1,4 +1,5 @@
 using System.Reflection;
+using AravisSharp.Native;
 
 namespace AravisSharp.Tests;
 
@@ -29,13 +30,15 @@ public class Usb3GuardTests
     [Fact]
     public void Camera_UvMembers_ShouldAllBeCovered()
     {
+        // A list, not a set: an overload added later counts as one more member to cover.
         var uvMethods = typeof(Camera)
             .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly)
             .Where(m => m.Name.StartsWith("Uv", StringComparison.Ordinal))
             .Select(m => m.Name)
-            .ToHashSet();
+            .ToList();
         var covered = ThrowingMembers.Select(m => m.Name).Append(nameof(Camera.UvIsBandwidthControlAvailable));
 
+        Assert.Equal(3, ThrowingMembers.Length);
         Assert.Equal(uvMethods.OrderBy(n => n), covered.OrderBy(n => n));
     }
 
@@ -63,12 +66,29 @@ public class Usb3GuardTests
     public void UvIsBandwidthControlAvailable_OnNonUsb3Camera_ShouldBeFalse_WithoutCallingAravis()
     {
         using var camera = CameraTestHelpers.OpenTestCamera();
+        Assert.False(camera.IsUSB3VisionDevice());
         using var log = new GObjectLogCapture(AravisLogDomain);
 
         bool available = camera.UvIsBandwidthControlAvailable();
 
         Assert.False(available);
         Assert.True(log.Messages.Count == 0, "Aravis logged: " + string.Join(" | ", log.Messages));
+    }
+
+    // Proves the two "Aravis logged nothing" assertions above can fail: the native call the
+    // guard prevents does log a critical, and the capture sees it.
+    [NonUsb3CameraFact]
+    public void TheNativeCallTheGuardPrevents_ShouldLogACriticalThatTheCaptureSees()
+    {
+        using var camera = CameraTestHelpers.OpenTestCamera();
+        using var log = new GObjectLogCapture(AravisLogDomain);
+
+        uint bandwidth = AravisNative.arv_camera_uv_get_bandwidth(camera.Handle, out IntPtr error);
+
+        Assert.Equal(0u, bandwidth);
+        Assert.Equal(IntPtr.Zero, error); // no GError either: the failure was silent
+        var critical = Assert.Single(log.Criticals);
+        Assert.Contains("arv_camera_is_uv_device", critical);
     }
 
     [NativeFact]
