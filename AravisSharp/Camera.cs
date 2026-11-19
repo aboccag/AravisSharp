@@ -1554,9 +1554,11 @@ public class Camera : IDisposable
     /// <summary>
     /// Gets the bandwidth limit for USB3 Vision cameras (in bytes/second)
     /// </summary>
+    /// <exception cref="NotSupportedException">The camera is not a USB3 Vision camera (see <see cref="IsUSB3VisionDevice"/>).</exception>
     public uint UvGetBandwidth()
     {
         using var lease = AcquireHandle();
+        CheckUsb3();
         IntPtr error = IntPtr.Zero;
         try
         {
@@ -1575,9 +1577,11 @@ public class Camera : IDisposable
     /// Sets the bandwidth limit for USB3 Vision cameras (in bytes/second).
     /// 0 disables the limit.
     /// </summary>
+    /// <exception cref="NotSupportedException">The camera is not a USB3 Vision camera (see <see cref="IsUSB3VisionDevice"/>).</exception>
     public void UvSetBandwidth(uint bandwidth)
     {
         using var lease = AcquireHandle();
+        CheckUsb3();
         IntPtr error = IntPtr.Zero;
         try
         {
@@ -1594,9 +1598,11 @@ public class Camera : IDisposable
     /// <summary>
     /// Gets the bandwidth bounds for USB3 Vision cameras (in bytes/second)
     /// </summary>
+    /// <exception cref="NotSupportedException">The camera is not a USB3 Vision camera (see <see cref="IsUSB3VisionDevice"/>).</exception>
     public (uint Min, uint Max) UvGetBandwidthBounds()
     {
         using var lease = AcquireHandle();
+        CheckUsb3();
         IntPtr error = IntPtr.Zero;
         try
         {
@@ -1612,11 +1618,22 @@ public class Camera : IDisposable
     }
 
     /// <summary>
-    /// Checks if bandwidth control is available on this USB3 Vision device
+    /// Checks if bandwidth control is available on this camera.
     /// </summary>
+    /// <remarks>
+    /// Unlike the other <c>Uv</c> members, this question can be asked of any camera: it
+    /// does not throw on a camera that is not USB3 Vision.
+    /// </remarks>
+    /// <returns>
+    /// <c>true</c> if the USB3 Vision camera supports bandwidth control; <c>false</c>
+    /// otherwise, and always on a camera that is not USB3 Vision.
+    /// </returns>
     public bool UvIsBandwidthControlAvailable()
     {
         using var lease = AcquireHandle();
+        // No native call on another camera: Aravis would log a CRITICAL to answer FALSE.
+        if (!IsUSB3VisionDevice())
+            return false;
         IntPtr error = IntPtr.Zero;
         try
         {
@@ -2284,6 +2301,17 @@ public class Camera : IDisposable
         if (!IsGigEVisionDevice())
             throw new NotSupportedException(
                 $"{member} requires a GigE Vision camera; check {nameof(Camera)}.{nameof(IsGigEVisionDevice)}() first.");
+    }
+
+    // The USB3 counterpart of CheckGigE, for the Uv* members that read or write a value:
+    // called under the member's lease and before any native call. Without it Aravis fails
+    // its g_return_val_if_fail on a camera that is not USB3 Vision: GLib logs a CRITICAL and
+    // the member returns 0 or does nothing.
+    private void CheckUsb3([CallerMemberName] string member = "")
+    {
+        if (!IsUSB3VisionDevice())
+            throw new NotSupportedException(
+                $"{member} requires a USB3 Vision camera; check {nameof(Camera)}.{nameof(IsUSB3VisionDevice)}() first.");
     }
 
     private static void CheckError(ref IntPtr error)

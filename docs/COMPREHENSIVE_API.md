@@ -134,7 +134,9 @@ These methods only work with USB3 Vision cameras:
 - `uint UvGetBandwidth()` - Get bandwidth limit in bytes/second
 - `void UvSetBandwidth(uint bandwidth)` - Set bandwidth limit in bytes/second (0 disables the limit)
 - `(uint Min, uint Max) UvGetBandwidthBounds()` - Get bandwidth range
-- `bool UvIsBandwidthControlAvailable()` - Check if bandwidth control is available
+- `bool UvIsBandwidthControlAvailable()` - Check if bandwidth control is available; `false` on a camera that is not USB3 Vision
+
+The three other `Uv` members throw `NotSupportedException` on a camera that is not USB3 Vision.
 
 ## Device Access
 
