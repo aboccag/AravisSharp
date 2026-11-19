@@ -129,3 +129,18 @@ internal sealed class NonGigECameraFactAttribute : NativeFactAttribute
         }
     }
 }
+
+/// <summary>
+/// A test that needs a camera that is not USB3 Vision (the fake camera, or a GigE Vision
+/// camera named by ARAVIS_TEST_DEVICE_ID).
+/// </summary>
+internal sealed class NonUsb3CameraFactAttribute : NativeFactAttribute
+{
+    public NonUsb3CameraFactAttribute()
+    {
+        if (Skip == null && CameraTestHelpers.TestCameraProtocol == CameraTestHelpers.Usb3VisionProtocol)
+        {
+            Skip = $"{CameraTestHelpers.DeviceIdVariable} names a USB3 Vision camera; this test needs another kind of camera.";
+        }
+    }
+}

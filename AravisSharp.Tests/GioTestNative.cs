@@ -142,7 +142,7 @@ internal static class GioTestNative
 /// </summary>
 internal sealed class GObjectLogCapture : IDisposable
 {
-    private readonly string _domain;
+    private readonly string? _domain;
     private readonly bool _allThreads;
     private const int LevelCritical = 1 << 3; // G_LOG_LEVEL_CRITICAL
     private const int LevelWarning = 1 << 4;  // G_LOG_LEVEL_WARNING
@@ -152,10 +152,10 @@ internal sealed class GObjectLogCapture : IDisposable
     private delegate void LogFn(IntPtr logDomain, int logLevel, IntPtr message, IntPtr userData);
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    private delegate uint LogSetHandlerFn([MarshalAs(UnmanagedType.LPUTF8Str)] string logDomain, int logLevels, LogFn logFunc, IntPtr userData);
+    private delegate uint LogSetHandlerFn([MarshalAs(UnmanagedType.LPUTF8Str)] string? logDomain, int logLevels, LogFn logFunc, IntPtr userData);
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    private delegate void LogRemoveHandlerFn([MarshalAs(UnmanagedType.LPUTF8Str)] string logDomain, uint handlerId);
+    private delegate void LogRemoveHandlerFn([MarshalAs(UnmanagedType.LPUTF8Str)] string? logDomain, uint handlerId);
 
     private static readonly Lazy<IntPtr> GLib = new(() =>
     {
@@ -176,9 +176,10 @@ internal sealed class GObjectLogCapture : IDisposable
     private readonly List<(int Level, string Message)> _messages = new();
     private uint _handlerId;
 
-    /// <param name="domain">The GLib log domain, such as "GLib-GObject" or "GLib".</param>
+    /// <param name="domain">The GLib log domain, such as "GLib-GObject" or "GLib"; null for the
+    /// default domain, where a library built without G_LOG_DOMAIN logs (libaravis does).</param>
     /// <param name="allThreads">True to record the messages of every thread.</param>
-    public GObjectLogCapture(string domain = "GLib-GObject", bool allThreads = false)
+    public GObjectLogCapture(string? domain = "GLib-GObject", bool allThreads = false)
     {
         _domain = domain;
         _allThreads = allThreads;
