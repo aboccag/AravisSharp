@@ -93,4 +93,9 @@ only when `ARAVIS_TEST_DEVICE_ID` names a real camera.
   `InteropPinTests` three times on net8.0 and net10.0. Each run: 10 passed, 0 failed,
   0 skipped per framework. All 8 blocking pops of each run were released by a buffer
   with status `Timeout`, as diagnosed.
-- USB3: not run on 2026-11-19, no USB camera connected.
+- 2026-11-19, USB3 `Basler-26760151848C-22119564` (acA2440-75uc), same build:
+  `InteropPinTests` five times on net8.0 and net10.0. Each run: 10 passed, 0 failed,
+  0 skipped per framework. All 8 blocking pops of each run were released with status
+  `Success`: this camera did not close the first frame as incomplete. The
+  `Size_mismatch` case was seen on the acA2040-90uc, which was not connected; it is
+  covered by the accepted set, not observed with the new test (`NON VÉRIFIÉ`).
