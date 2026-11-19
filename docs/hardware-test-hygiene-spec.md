@@ -94,3 +94,49 @@ Issue #21, level standard, type fix, zone tests. Written on 2026-11-19 against `
 5. Hardware, one camera at a time: dumps before and after a whole-suite run on the ITA32,
    the Basler GigE and one USB3 camera (AC-1), and the frame size test on the ITA24.
 6. Merge `--no-ff` with `Closes #21`.
+
+## Red evidence
+
+2026-11-19, Opto ITA32, whole suite at `2e04e3a` (net8.0), settings dumped before and
+after by a throw-away program: `Width` 2064 became 272 and `AcquisitionMode` `Continuous`
+became `SingleFrame`. Nothing else in the list differed. Both were put back by hand.
+
+## Review findings and what changed
+
+OCR and `ecc:csharp-reviewer` on `a82bd06`. Fixed in `298b7b8`:
+- The restore ran from the test framework's disposal, which xunit does not await: on the
+  ITA32 it did not happen (`AcquisitionMode` stayed on `SingleFrame`). It now runs in the
+  assembly runner's `BeforeTestAssemblyFinishedAsync`, which the runner awaits.
+- Floats were recorded from Aravis' text form (`%g`, six significant digits). They are now
+  read as numbers and compared within one part in a million.
+- A refused write threw out of the restore: `NodeMap` wraps the Aravis error in an
+  `InvalidOperationException`. Found by the new tests; now caught and reported.
+- The camera is read again after the writes; what still differs is reported, and makes the
+  run fail as an assembly cleanup failure.
+- A setting that can no longer be read is restored too; exposure and gain are not recorded
+  while their auto mode drives them; putting the trigger selector back never throws.
+The rewritten restore was not reviewed a second time; it is covered by the runs below.
+
+## Verification
+
+2026-11-19, branch at `298b7b8`, Debug.
+- Fake camera, whole suite: 489 passed, 0 failed, 19 skipped out of 508, on net8.0 and on
+  net10.0. No restore runs on the fake camera.
+- Real cameras, whole suite, one at a time, settings dumped before and after:
+
+  | Camera | Framework | Passed | Failed | Skipped | Settings after the run |
+  |---|---|---|---|---|---|
+  | Opto ITA32 (GigE) | net8.0 | 482 | 0 | 25 | identical |
+  | Basler acA1920-40gm 24466563 (GigE) | net8.0 | 482 | 0 | 25 | identical |
+  | Opto ITA24 (GigE) | net10.0 | 482 | 0 | 25 | identical |
+  | Basler acA2440-75uc 22119564 (USB3) | net8.0 | 487 | 0 | 20 | identical |
+
+  The frame size test passes on all four, the ITA32 included (AC-4).
+- Not checked: a run killed half-way (documented as not restored); a camera whose
+  exposure or gain auto mode is on; the report line of a successful restore, which
+  `dotnet test` does not print (only a failed restore is visible, as a cleanup failure);
+  the discovery retry on hardware (covered by its unit tests only).
+- Seen once and not reproduced: during the red run on the ITA32,
+  `InteropPinTests.PopBuffer_NoBufferQueued_ShouldBlockUntilOneIsPushed(600000)` failed
+  with "did not return within 10 s after a buffer was pushed". It passed in the three
+  other whole-suite runs on that camera the same day.
