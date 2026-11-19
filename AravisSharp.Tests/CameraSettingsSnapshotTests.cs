@@ -71,11 +71,54 @@ public class CameraSettingsSnapshotTests
         using var camera = CameraTestHelpers.OpenTestCamera();
         using var device = camera.GetDevice();
         var nodeMap = device.NodeMap;
-        string? selector = nodeMap.GetStringFeature("TriggerSelector");
+        string? original = nodeMap.GetStringFeature("TriggerSelector");
+        var choices = nodeMap.GetFeatureDetails("TriggerSelector")!.EnumChoices;
+        // Capture walks through every selector and ends on the last one: start from the
+        // first, so that staying on the last one visited would be seen.
+        Assert.True(choices.Count >= 2, $"The fake camera has {choices.Count} trigger selector(s); the test needs two.");
+        string selector = choices[0];
+        try
+        {
+            nodeMap.SetStringFeature("TriggerSelector", selector);
 
-        CameraSettingsSnapshot.Capture(nodeMap);
+            var snapshot = CameraSettingsSnapshot.Capture(nodeMap);
 
-        Assert.Equal(selector, nodeMap.GetStringFeature("TriggerSelector"));
+            Assert.Equal(selector, nodeMap.GetStringFeature("TriggerSelector"));
+            foreach (string choice in choices)
+                Assert.Contains($"TriggerMode[{choice}]", snapshot.Keys);
+        }
+        finally
+        {
+            nodeMap.SetStringFeature("TriggerSelector", original!);
+        }
+    }
+
+    [FakeCameraFact]
+    public void Restore_ShouldBringBackAFloatWithAllItsDigits()
+    {
+        // Aravis' own text form of a float keeps six significant digits: recorded that way,
+        // 1234567 would come back as 1234570. (The fake camera keeps whole microseconds.)
+        const string exposure = "ExposureTimeAbs"; // the fake camera's exposure feature
+        using var camera = CameraTestHelpers.OpenTestCamera();
+        using var device = camera.GetDevice();
+        var nodeMap = device.NodeMap;
+        double original = nodeMap.GetFloatFeature(exposure);
+        try
+        {
+            nodeMap.SetFloatFeature(exposure, 1234567);
+            var snapshot = CameraSettingsSnapshot.Capture(nodeMap);
+            nodeMap.SetFloatFeature(exposure, 5000);
+
+            var result = snapshot.Restore(nodeMap);
+
+            Assert.Empty(result.Failed);
+            Assert.Equal(new[] { exposure }, result.Restored);
+            Assert.Equal(1234567, nodeMap.GetFloatFeature(exposure), 3);
+        }
+        finally
+        {
+            nodeMap.SetFloatFeature(exposure, original);
+        }
     }
 
     [FakeCameraFact]
@@ -108,32 +151,34 @@ public class CameraSettingsSnapshotTests
         }
     }
 
-    [FakeCameraFact]
-    public void Restore_AValueTheCameraRefuses_ShouldReportItAndRestoreTheRest()
+    // A snapshot holding one value that cannot be written back, as if the recorded value had
+    // become invalid, next to a Width that can be restored: "not a number" never reaches the
+    // camera, "NoSuchFormat" is refused by Aravis.
+    [FakeCameraTheory]
+    [InlineData("Height", "not a number")]
+    [InlineData("PixelFormat", "NoSuchFormat")]
+    public void Restore_AValueThatCannotBeWritten_ShouldReportItAndRestoreTheRest(string key, string unwritable)
     {
         using var camera = CameraTestHelpers.OpenTestCamera();
         using var device = camera.GetDevice();
         var nodeMap = device.NodeMap;
         long width = nodeMap.GetIntegerFeature("Width");
-        long height = nodeMap.GetIntegerFeature("Height");
-        // A snapshot holding a Height that cannot be written (the fake camera accepts any
-        // number, so the recorded value is not one), next to a Width that can be restored.
-        var snapshot = CameraSettingsSnapshot.Capture(nodeMap).With("Height", "not a number");
+        var snapshot = CameraSettingsSnapshot.Capture(nodeMap).With(key, unwritable);
         try
         {
             nodeMap.SetIntegerFeature("Width", width / 2);
 
             var result = snapshot.Restore(nodeMap);
 
-            Assert.Contains("Width", result.Restored);
+            Assert.Equal(new[] { "Width" }, result.Restored);
             Assert.Equal(width, nodeMap.GetIntegerFeature("Width"));
             var failure = Assert.Single(result.Failed);
-            Assert.StartsWith("Height", failure);
+            Assert.StartsWith(key + " is ", failure);
+            Assert.Contains("the write was refused", failure);
         }
         finally
         {
             nodeMap.SetIntegerFeature("Width", width);
-            nodeMap.SetIntegerFeature("Height", height);
         }
     }
 }

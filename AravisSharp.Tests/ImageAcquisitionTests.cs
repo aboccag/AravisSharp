@@ -139,6 +139,7 @@ public class ImageAcquisitionTests : IDisposable
                     // A real camera may pad its payload: the Opto Engineering ITA32 rounds it
                     // up to a multiple of 512 bytes (issue #21). The data holds at least the
                     // image, and never more than the payload the camera announced.
+                    Assert.True(payloadSize >= imageSize, $"The camera announces a payload of {payloadSize} bytes for an image of {imageSize}.");
                     Assert.InRange(size, imageSize, (int)payloadSize);
                 }
             }
