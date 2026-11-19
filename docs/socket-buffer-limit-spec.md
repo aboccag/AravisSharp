@@ -81,7 +81,13 @@ at `8594ab7`, before any change. `NON VÉRIFIÉ` marks what was not checked.
 
    Recommendation: (a), with macOS left to a follow-up issue if wanted.
 
-## Plan (if the recommendations are kept)
+## Gate 1 decision
+
+2026-11-19, alex: 1a, 2a, 3a. `Stream.GetSocketBufferSizeLimit()` returns
+`net.core.rmem_max` read from `/proc` on Linux, null on other systems and when the value
+cannot be read.
+
+## Plan
 
 1. Red tests: the cap read on Linux equals `/proc/sys/net/core/rmem_max`; null on other
    systems; malformed or missing file through an internal seam gives null; AC-3 on the
