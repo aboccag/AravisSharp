@@ -184,13 +184,17 @@ public class Stream : IDisposable
     /// if (Stream.GetSocketBufferSizeLimit() is int limit &amp;&amp; requested &gt; limit)
     ///     Console.WriteLine($"Socket buffer reduced from {requested} to {limit} bytes: raise net.core.rmem_max.");
     /// </code>
-    /// With <see cref="ArvGvStreamSocketBuffer.Auto"/> the requested size is one payload,
-    /// capped by <see cref="GetSocketBufferSize"/> when that is positive.
+    /// With <see cref="ArvGvStreamSocketBuffer.Auto"/> the requested size is the size of one
+    /// buffer plus 1 KiB of protocol overhead, capped by <see cref="GetSocketBufferSize"/> when
+    /// that is positive. With either policy Aravis never requests less than 20 KiB. Tools
+    /// that show the kernel's own figure (<c>getsockopt(SO_RCVBUF)</c>, <c>ss -m</c>) report
+    /// twice the granted size: Linux doubles it for its bookkeeping.
     /// </para>
     /// <para>
     /// On Windows and macOS the result is always <c>null</c>: Windows has no comparable
     /// system-wide cap, and the macOS cap (<c>kern.ipc.maxsockbuf</c>) is not read. It is also
-    /// <c>null</c> on Linux when the value cannot be read.
+    /// <c>null</c> on Linux when the value cannot be read, for example in a container that
+    /// does not expose it; the cap of the host may still apply there.
     /// </para>
     /// </summary>
     /// <returns>The cap in bytes, or <c>null</c> when it is unknown.</returns>

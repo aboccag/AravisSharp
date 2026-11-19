@@ -13,7 +13,8 @@ public class SocketBufferLimitTests
     {
         int? limit = Stream.GetSocketBufferSizeLimit();
 
-        if (!OperatingSystem.IsLinux())
+        // A container may not expose net.core.rmem_max: the documented result is null too.
+        if (!OperatingSystem.IsLinux() || !File.Exists(Stream.SocketBufferSizeLimitPath))
         {
             Assert.Null(limit);
             return;

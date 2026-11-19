@@ -12,12 +12,12 @@ at `8594ab7`, before any change. `NON VÉRIFIÉ` marks what was not checked.
 - Aravis 0.8.36 has no public API that returns the granted size or the stream's socket:
   `arvgvstream.h` exposes only `arv_gv_stream_get_port` and `arv_gv_stream_get_statistics`.
 - Aravis applies the size inside its stream thread, at the start of each frame, only when
-  it differs from the last size applied (`_update_socket`, `aravis/src/arvgvstream.c:225-262`,
+  it differs from the last size applied (`_update_socket`, `aravis/src/arvgvstream.c:225-264`,
   called at `:402`). With `Auto`, the size is one payload plus protocol overhead, capped by
   `socket-buffer-size`, and never below `ARV_GV_STREAM_MIN_BUFFER_SIZE`. The setter calls
   `setsockopt(SO_RCVBUF)` and reads the value back; when the value read back is smaller
   than the one requested, it logs `arv_warning_interface` and returns FALSE
-  (`aravis/src/arvnetwork.c:451-503`).
+  (`aravis/src/arvnetwork.c:451-504`).
 - Linux, checked on this machine with a UDP socket: `SO_RCVBUF` set to 100 000 reads back
   200 000; set to 4 MiB with `net.core.rmem_max` = 4 194 304, it reads back 8 388 608. The
   kernel caps the requested value at `rmem_max` and then doubles it. So Aravis' own warning
